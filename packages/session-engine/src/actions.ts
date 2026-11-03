@@ -17,7 +17,19 @@ export type Action =
   | { type: 'pause_session' }
   | { type: 'resume_session' }
   | { type: 'end_session' }
-  | { type: 'set_quiet'; quiet: boolean }
+  /** `forMs` limits quiet mode ("quiet for 10 minutes"); it is ignored when `quiet` is false. */
+  | { type: 'set_quiet'; quiet: boolean; forMs?: number }
+  /** Appends (or inserts at `index`) a pending plan step. */
+  | { type: 'add_step'; label: string; estimateMs?: number; index?: number }
+  | { type: 'edit_step'; task: Ref; label?: string; estimateMs?: number | null }
+  | { type: 'move_step'; task: Ref; toIndex: number }
+  | { type: 'remove_step'; task: Ref }
+  /** Completes the current step and starts the next pending one; with no current step, starts the first. */
+  | { type: 'next_step' }
+  /** Reopens the previous step; the current step returns to pending. */
+  | { type: 'prev_step' }
+  /** Arms a repeating focus-break suggestion `afterMs` from now; `null` turns it off. */
+  | { type: 'set_focus_break'; afterMs: number | null }
   | { type: 'add_task'; label: string }
   | { type: 'report_task'; task: Ref; report: 'done' | 'not_yet' }
   | { type: 'skip_task'; task: Ref }
@@ -56,7 +68,15 @@ export interface ActionEnvelope {
 
 export type Change =
   | { kind: 'session_status'; status: SessionStatus }
-  | { kind: 'quiet'; quiet: boolean }
+  | { kind: 'quiet'; quiet: boolean; forMs?: number }
+  | { kind: 'step_added'; taskId: string; label: string }
+  | { kind: 'step_edited'; taskId: string; label: string }
+  | { kind: 'step_moved'; taskId: string; label: string; index: number }
+  | { kind: 'step_removed'; taskId: string; label: string }
+  /** `index` is 1-based among the non-cancelled steps. `returning` marks a step reopened by going back. */
+  | { kind: 'step_started'; taskId: string; label: string; index: number; total: number; estimateMs?: number; returning?: boolean }
+  | { kind: 'plan_complete'; total: number }
+  | { kind: 'focus_break_set'; afterMs: number | null }
   | { kind: 'task_added'; taskId: string; label: string }
   | { kind: 'task_status'; taskId: string; label: string; status: TaskStatus }
   | { kind: 'timer_started'; timerId: string; label: string; durationMs: number }

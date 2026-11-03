@@ -156,9 +156,34 @@ function describeOne(ch: Change, lang: Lang): string {
           return '';
       }
     case 'quiet':
+      if (ch.quiet && ch.forMs !== undefined) {
+        const dur = formatDuration(ch.forMs, lang);
+        return ko ? `${dur} 동안 조용히 할게요.` : `Okay, quiet for ${dur}.`;
+      }
       return ko
         ? ch.quiet ? '조용히 할게요.' : '다시 말씀드릴게요.'
         : ch.quiet ? 'Okay, quiet mode on.' : 'Quiet mode off.';
+    case 'step_added':
+      return ko ? `단계 ${withParticle(ch.label, 'object')} 추가했어요.` : `Added the step ${ch.label}.`;
+    case 'step_edited':
+      return ko ? `단계 이름을 ${withParticle(ch.label, 'instrumental')} 바꿨어요.` : `Updated the step ${ch.label}.`;
+    case 'step_moved':
+      return ko ? `${withParticle(ch.label, 'object')} ${ch.index}번째로 옮겼어요.` : `Moved ${ch.label} to position ${ch.index}.`;
+    case 'step_removed':
+      return ko ? `단계 ${withParticle(ch.label, 'object')} 삭제했어요.` : `Removed the step ${ch.label}.`;
+    case 'step_started': {
+      const est = ch.estimateMs !== undefined ? formatDuration(ch.estimateMs, lang) : '';
+      if (ko) {
+        const head = ch.returning ? '이전 단계로 돌아왔어요.' : '다음 단계예요.';
+        return `${head} ${ch.total}단계 중 ${ch.index}번째, ${ch.label}${est ? `, 예상 ${est}` : ''}.`;
+      }
+      const head = ch.returning ? 'Back to' : 'Next is';
+      return `${head} step ${ch.index} of ${ch.total}: ${ch.label}${est ? `, about ${est}` : ''}.`;
+    }
+    case 'plan_complete':
+      return ko ? `${ch.total}단계를 모두 마쳤어요.` : `That was the last step. All ${ch.total} steps are done.`;
+    case 'focus_break_set':
+      return '';
     case 'task_added':
       return ko ? `${withParticle(ch.label, 'object')} 추가했어요.` : `Added the ${ch.label}.`;
     case 'task_status': {
@@ -246,8 +271,25 @@ export function describeDue(event: DueEvent, lang: Lang): string {
       return ko
         ? `${named ? `${label} ` : ''}시간 다 됐어요. 확인하고 알려주세요.`
         : `${named ? `The ${label} timer is up` : "Time's up"}. Check it and let me know.`;
+    case 'nudge':
+      if (event.nudgeKind === 'focus_break') {
+        const dur = event.elapsedMs !== undefined ? formatDuration(event.elapsedMs, lang) : '';
+        if (ko) return dur ? `${dur} 동안 집중하셨어요. 잠깐 쉬어 볼까요?` : '잠깐 쉬어 볼까요?';
+        return dur ? `That's ${dur} of focus. Want to take a short break?` : 'Want to take a short break?';
+      }
+      if (event.nudgeKind === 'skipped_step') {
+        return ko
+          ? `${withParticle(event.label, 'object')} 건너뛰셨어요. 일부러 그러신 건가요? 돌아가려면 이전이라고 말씀해 주세요.`
+          : `You skipped ${event.label}. Was that on purpose? Say go back to return to it.`;
+      }
+      return '';
     case 'check_in': {
       const attempt = event.attempt ?? 1;
+      if (event.overrun) {
+        return ko
+          ? `${event.label} 단계가 예상보다 오래 걸리고 있어요. 어떠세요? 시간이 더 필요하면 알려 주세요.`
+          : `The ${event.label} step is taking longer than planned. How is it going? Tell me if you need more time.`;
+      }
       if (ko) {
         if (attempt <= 1) return `${label} 다 됐는지 확인해 주시겠어요?`;
         if (attempt === 2) return `${label}, 다 됐는지 한 번만 더 확인해 주시겠어요?`;

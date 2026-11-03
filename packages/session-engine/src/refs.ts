@@ -48,6 +48,9 @@ export function resolveTask(session: Session, ref: Ref): Resolution<Task> {
   // Implicit: a single task awaiting confirmation is what the user is answering.
   const awaiting = open.filter((t) => t.status === 'awaiting_confirmation');
   if (awaiting.length === 1) return { ok: true, value: awaiting[0] as Task };
+  // Plan navigation: "done" means the step the user is on.
+  const current = session.currentTaskId ? session.tasks[session.currentTaskId] : undefined;
+  if (current && OPEN_TASK.has(current.status)) return { ok: true, value: current };
   return pick(awaiting.length > 1 ? awaiting : open, open);
 }
 

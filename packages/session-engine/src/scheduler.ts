@@ -8,12 +8,14 @@ export const milestoneKey = (timerId: string, milestoneId: string): string => `m
 export const expiryKey = (timerId: string): string => `exp:${timerId}`;
 export const checkInKey = (checkInId: string, attempt: number): string => `ci:${checkInId}:${attempt}`;
 export const exhaustedKey = (checkInId: string): string => `cix:${checkInId}`;
+export const nudgeKey = (nudgeId: string): string => `nd:${nudgeId}`;
 
 export type ParsedDueKey =
   | { type: 'milestone'; timerId: string; milestoneId: string }
   | { type: 'expiry'; timerId: string }
   | { type: 'check_in'; checkInId: string; attempt: number }
-  | { type: 'check_in_exhausted'; checkInId: string };
+  | { type: 'check_in_exhausted'; checkInId: string }
+  | { type: 'nudge'; nudgeId: string };
 
 export function parseDueKey(key: string): ParsedDueKey | undefined {
   const p = key.split(':');
@@ -21,6 +23,7 @@ export function parseDueKey(key: string): ParsedDueKey | undefined {
   if (!a) return undefined;
   if (tag === 'ms' && b && p.length === 3) return { type: 'milestone', timerId: a, milestoneId: b };
   if (tag === 'exp' && p.length === 2) return { type: 'expiry', timerId: a };
+  if (tag === 'nd' && p.length === 2) return { type: 'nudge', nudgeId: a };
   if (tag === 'cix' && p.length === 2) return { type: 'check_in_exhausted', checkInId: a };
   if (tag === 'ci' && b && p.length === 3) {
     const attempt = Number(b);
@@ -30,8 +33,9 @@ export function parseDueKey(key: string): ParsedDueKey | undefined {
 }
 
 /** Every pending event with its due time, whether or not it is due yet. */
-function pendingEvents(session: Session): Omit<DueEvent, 'stale'>[] {
+export function pendingDueEvents(session: Session): Omit<DueEvent, 'stale'>[] {
   if (session.status === 'ended') return [];
+  const paused = session.status === 'paused';
   const out: Omit<DueEvent, 'stale'>[] = [];
 
   for (const timer of Object.values(session.timers)) {
@@ -70,16 +74,33 @@ function pendingEvents(session: Session): Omit<DueEvent, 'stale'>[] {
 
   for (const ci of Object.values(session.checkIns)) {
     const label = session.tasks[ci.taskId]?.label ?? '';
+    const overrun = ci.reason === 'overrun' ? { overrun: true } : {};
+    if (paused && ci.reason === 'overrun') continue;
     if (ci.status === 'scheduled') {
-      out.push({ key: checkInKey(ci.id, 1), kind: 'check_in', dueAt: ci.dueAt, label, taskId: ci.taskId, checkInId: ci.id, attempt: 1 });
+      out.push({ key: checkInKey(ci.id, 1), kind: 'check_in', dueAt: ci.dueAt, label, taskId: ci.taskId, checkInId: ci.id, attempt: 1, ...overrun });
     } else if (ci.status === 'awaiting_reply') {
       const dueAt = (ci.lastAskedAt ?? ci.dueAt) + ci.followUpMs;
       if (ci.attempts < ci.maxAttempts) {
         const attempt = ci.attempts + 1;
-        out.push({ key: checkInKey(ci.id, attempt), kind: 'check_in', dueAt, label, taskId: ci.taskId, checkInId: ci.id, attempt });
+        out.push({ key: checkInKey(ci.id, attempt), kind: 'check_in', dueAt, label, taskId: ci.taskId, checkInId: ci.id, attempt, ...overrun });
       } else {
         out.push({ key: exhaustedKey(ci.id), kind: 'check_in_exhausted', dueAt, label, taskId: ci.taskId, checkInId: ci.id, attempt: ci.attempts });
       }
+    }
+  }
+  if (!paused) {
+    for (const n of Object.values(session.nudges ?? {})) {
+      if (n.status !== 'scheduled') continue;
+      out.push({
+        key: nudgeKey(n.id),
+        kind: 'nudge',
+        dueAt: n.dueAt,
+        label: (n.taskId ? session.tasks[n.taskId]?.label : undefined) ?? '',
+        taskId: n.taskId,
+        nudgeId: n.id,
+        nudgeKind: n.kind,
+        ...(n.repeatMs !== undefined ? { elapsedMs: n.repeatMs } : {}),
+      });
     }
   }
   return out;
@@ -96,7 +117,7 @@ function pendingEvents(session: Session): Omit<DueEvent, 'stale'>[] {
  */
 export function dueEvents(session: Session, now: number, opts: { staleAfterMs?: number } = {}): DueEvent[] {
   const staleAfter = opts.staleAfterMs ?? DEFAULT_STALE_AFTER_MS;
-  const due = pendingEvents(session).filter((e) => e.dueAt <= now);
+  const due = pendingDueEvents(session).filter((e) => e.dueAt <= now);
   const latest = new Map<string, number>();
   for (const e of due) {
     if (!e.timerId) continue;
@@ -113,7 +134,7 @@ export function dueEvents(session: Session, now: number, opts: { staleAfterMs?: 
 /** Earliest time any pending event fires (may be in the past if already due). */
 export function nextWakeAt(session: Session, _now: number): number | undefined {
   let min: number | undefined;
-  for (const e of pendingEvents(session)) if (min === undefined || e.dueAt < min) min = e.dueAt;
+  for (const e of pendingDueEvents(session)) if (min === undefined || e.dueAt < min) min = e.dueAt;
   return min;
 }
 

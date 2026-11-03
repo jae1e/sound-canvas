@@ -8,7 +8,9 @@ export interface ParseContext {
 
 export type Intent =
   | { kind: 'action'; action: Action }
-  | { kind: 'query'; query: 'remaining' | 'status'; target?: Ref }
+  | { kind: 'query'; query: 'remaining' | 'status' | 'steps_left' | 'where' | 'next_step'; target?: Ref }
+  /** "steps: unpack, frame, shelves": a spoken plan. */
+  | { kind: 'plan'; steps: string[] }
   | { kind: 'journal'; text: string }
   | { kind: 'recording'; command: 'start' | 'stop' | 'play' }
   | { kind: 'navigation'; query: 'distance_remaining' | 'next_instruction' };

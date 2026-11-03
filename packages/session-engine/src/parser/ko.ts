@@ -53,6 +53,39 @@ function navigation(c: string): Intent | null {
   return null;
 }
 
+// ------------------------------------------------------------ plan steps
+
+const PLAN_PATTERN = /^(?:단계|스텝|순서|계획)\s*[:：\-–—]\s*(\S[\s\S]*)$/u;
+
+function plan(raw: string): Intent | null {
+  const body = PLAN_PATTERN.exec(raw)?.[1];
+  if (!body) return null;
+  const steps = body
+    .split(/\s*(?:,|，|;|->|→|그리고|그다음에?|다음에)\s*/u)
+    .map((x) => x.replace(/[.!?]+$/u, '').trim())
+    .filter(Boolean);
+  return steps.length > 0 ? { kind: 'plan', steps } : null;
+}
+
+const GO = '(?:가|돌아가|돌아가줘요?|가자|가줘요?|가요|갈게요?|해줘요?|해요?|줘요?|주세요|넘어가자|넘어가줘요?|넘어가요|넘어갈게요?)?';
+const NEXT_STEP = rx(`^(?:다음|다음단계|다음거|다음것|다음작업|다음스텝)(?:으로|로)?${GO}$`);
+const PREV_STEP = rx(
+  `^(?:이전|이전단계|이전으로|전단계|한단계전|한단계뒤로|뒤로|돌아가|되돌아가|되돌려|이전스텝|전으로)(?:으로|로)?${GO}$`,
+);
+const STEPS_LEFT = [
+  rx(`^(?:지금)?(?:뭐|뭘|뭔가|무엇|무슨일|뭐가|뭐랑)(?:가|이)?(?:더)?(?:남았|남은|남아)(?:어요?|지|나|죠|는지|니)?(?:요)?$`),
+  rx(`^(?:남은|앞으로)(?:거|것|일|단계|작업|할일|스텝)(?:이?)(?:뭐|뭐야|알려줘요?|알려주세요|말해줘요?|말해줘|읽어줘요?)?$`),
+  rx(`^(?:뭐|뭘)더(?:해야|하면|할게)(?:돼|되|해|하지|하나|있어)(?:요)?$`),
+  rx(`^(?:단계|할일|작업)(?:이|가)?(?:몇개|얼마나)(?:나)?(?:남았|남아|남은)(?:어요?|지|나)?$`),
+];
+const WHERE_WAS_I = [
+  rx(`^(?:나|우리)?(?:지금)?어디까지(?:했|왔|한|하고)(?:어요?|지|더라|었지|었어요?|나|죠)?(?:요)?$`),
+  rx(`^(?:나|우리)?(?:지금)?(?:뭐|무엇|뭘)(?:하던|하고있던|하고있었|하는중|하고있|하고있지|하는거|하는지)(?:어요?|지|더라|였지|였어요?|나|죠|야)?(?:요)?$`),
+  rx(`^(?:지금|현재)(?:몇번째|무슨|어떤|어느)?(?:단계|스텝|작업)(?:이야|인지|이지|야|이에요|이죠|가뭐야|가뭐|뭐야|뭐)?$`),
+  rx(`^(?:지금|현재)(?:단계|작업)(?:알려줘요?|알려주세요|말해줘요?)$`),
+];
+const NEXT_PEEK = [rx(`^다음(?:은|엔|에는)?(?:뭐|뭐야|뭐지|뭐예요|뭘까|무엇|어떤단계)(?:야|예요|죠|지|요)?$`), rx(`^다음단계(?:는|가)?(?:뭐|뭐야|뭐예요|뭐지|알려줘요?|알려주세요)$`)];
+
 // ------------------------------------------------------------------ rules
 
 /** Leftovers next to a bare duration that are verbs, particles or time words rather than a label. */
@@ -117,12 +150,15 @@ export function parseKo(raw: string, ctx: ParseContext): Intent[] {
   const text = stripLeadingFillers(raw, 'ko');
   const j = journal(text);
   if (j) return [j];
+  const p = plan(text.trim());
+  if (p) return [p];
 
   const c = normalizeSpoken(text).replace(/\s+/g, '');
   if (!c) return [];
 
   const rec = recording(c);
   if (rec) return [rec];
+  if (NEXT_PEEK.some((re) => re.test(c))) return [{ kind: 'query', query: 'next_step' }];
   const nav = navigation(c);
   if (nav) return [nav];
 
@@ -146,6 +182,11 @@ export function parseKo(raw: string, ctx: ParseContext): Intent[] {
   const act = (action: Action): Intent[] => [{ kind: 'action', action }];
 
   if (durScan.durations.length > 1) return [];
+
+  // Timed quiet: "조용히 10분", "10분 동안 조용히 해줘".
+  if (oneDuration !== undefined && QUIET_ON.some((re) => re.test(r.replace(/^(?:동안|간|만)/, '')))) {
+    return act({ type: 'set_quiet', quiet: true, forMs: oneDuration });
+  }
 
   // Extension: "2분 더", "아직 2분만 더", "2분 연장".
   if (oneDuration !== undefined && EXTEND_TAIL.test(r.replace(/타이머(?:를|에|에서)?/, ''))) {
@@ -191,6 +232,9 @@ export function parseKo(raw: string, ctx: ParseContext): Intent[] {
     return [];
   }
 
+  if (STEPS_LEFT.some((re) => re.test(rl))) return [{ kind: 'query', query: 'steps_left' }];
+  if (WHERE_WAS_I.some((re) => re.test(rl))) return [{ kind: 'query', query: 'where' }];
+
   if (REMAINING.test(rl)) return [{ kind: 'query', query: 'remaining', target: ref }];
   if (STATUS.test(rl)) return [{ kind: 'query', query: 'status', ...(mention ? { target: ref } : {}) }];
 
@@ -202,6 +246,11 @@ export function parseKo(raw: string, ctx: ParseContext): Intent[] {
   if (SESSION_END.test(rl)) return act({ type: 'end_session' });
 
   if (SKIP.test(rl)) return act({ type: 'skip_task', task: ref });
+
+  if (!mention) {
+    if (NEXT_STEP.test(rl)) return act({ type: 'next_step' });
+    if (PREV_STEP.test(rl)) return act({ type: 'prev_step' });
+  }
 
   const rest = mention ? rl.replace(/^(?:이|가)/, '') : rl;
   if (NOT_YET.some((re) => re.test(rest))) return act({ type: 'report_task', task: ref, report: 'not_yet' });

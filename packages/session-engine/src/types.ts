@@ -40,6 +40,15 @@ export interface Task {
   status: TaskStatus;
   createdAt: number;
   lastReport?: TaskReport;
+  /**
+   * Position in the ordered plan (0-based). Tasks without an order are free-standing (parallel cooking tasks);
+   * tasks with one are steps and take part in next/back navigation.
+   */
+  order?: number;
+  /** Planned duration of a step; exceeding it triggers one check-in. */
+  estimateMs?: number;
+  /** When the step became the current step. */
+  startedAt?: number;
   /** Session revision at which this record last changed. */
   rev: number;
 }
@@ -78,6 +87,20 @@ export interface Timer {
   rev: number;
 }
 
+export type NudgeKind = 'focus_break' | 'skipped_step';
+
+/** A proactive suggestion owned by the session (as opposed to a user-requested timer or check-in). */
+export interface Nudge {
+  id: string;
+  kind: NudgeKind;
+  taskId?: string;
+  dueAt: number;
+  status: DeliveryStatus;
+  /** Focus-break nudges re-arm this long after being handled. */
+  repeatMs?: number;
+  rev: number;
+}
+
 export type CheckInStatus = 'scheduled' | 'awaiting_reply' | 'answered' | 'cancelled' | 'expired';
 
 export interface CheckIn {
@@ -91,6 +114,8 @@ export interface CheckIn {
   maxAttempts: number;
   followUpMs: number;
   lastAskedAt?: number;
+  /** `overrun`: created by the engine when a step exceeds its estimate (a nudge, not a user request). */
+  reason?: 'overrun';
   rev: number;
 }
 
@@ -102,6 +127,10 @@ export interface Session {
   /** Incremented on every committed change. */
   revision: number;
   quiet: boolean;
+  /** When set, quiet mode ends at this time ("quiet for 10 minutes"). Use `isQuiet` for the effective value. */
+  quietUntil?: number;
+  /** The step the user is working on now (plan navigation). */
+  currentTaskId?: string;
   createdAt: number;
   startedAt?: number;
   pausedAt?: number;
@@ -109,6 +138,7 @@ export interface Session {
   tasks: Record<string, Task>;
   timers: Record<string, Timer>;
   checkIns: Record<string, CheckIn>;
+  nudges: Record<string, Nudge>;
   /** Revision at which session-level fields (status, quiet) last changed. */
   controlRev: number;
   /** Idempotency keys of applied actions, bounded to the most recent entries. */
@@ -123,7 +153,9 @@ export type DueKind =
   /** A check-in question is due (first ask or a bounded follow-up). */
   | 'check_in'
   /** A check-in used all attempts without a reply; handle silently (no speech). */
-  | 'check_in_exhausted';
+  | 'check_in_exhausted'
+  /** A session nudge (focus break, skipped-step question). */
+  | 'nudge';
 
 /**
  * Something the speech coordinator may announce now. Produced by the
@@ -141,6 +173,10 @@ export interface DueEvent {
   timerId?: string;
   taskId?: string;
   checkInId?: string;
+  nudgeId?: string;
+  nudgeKind?: NudgeKind;
+  /** True for a check-in created by a step overrun. */
+  overrun?: boolean;
   milestone?: { kind: MilestoneKind; offsetMs: number };
   /** Timer elapsed/remaining time at `dueAt` (for milestone wording). */
   elapsedMs?: number;

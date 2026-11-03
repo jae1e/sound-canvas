@@ -1,8 +1,9 @@
 import type { Action, ActionEnvelope, Candidate, Change, MilestoneSpec, Ref, RejectReason } from './actions';
+import { stepsOf } from './plan';
 import { resolveTask, resolveTimer } from './refs';
 import { parseDueKey } from './scheduler';
 import { elapsedMs, remainingMs } from './timing';
-import type { CheckIn, Lang, Milestone, Session, SessionMode, Task, Timer } from './types';
+import type { CheckIn, Lang, Milestone, Nudge, Session, SessionMode, Task, Timer } from './types';
 
 export type ApplyResult =
   | { ok: true; session: Session; changes: Change[]; duplicate?: boolean }
@@ -20,6 +21,8 @@ const MAX_APPLIED_KEYS = 200;
 const DEFAULT_REMAINING_MS = 60_000;
 const DEFAULT_FOLLOW_UP_MS = 60_000;
 const DEFAULT_MAX_ATTEMPTS = 2;
+/** The skipped-step question comes a little after the skip, so it does not talk over the acknowledgement. */
+const SKIPPED_STEP_DELAY_MS = 30_000;
 
 export function createSession(opts: { id: string; mode: SessionMode; lang: Lang; now: number }): Session {
   return {
@@ -33,6 +36,7 @@ export function createSession(opts: { id: string; mode: SessionMode; lang: Lang;
     tasks: {},
     timers: {},
     checkIns: {},
+    nudges: {},
     controlRev: 0,
     appliedKeys: [],
   };
@@ -47,6 +51,11 @@ const fail = (reason: RejectReason, message?: string, candidates?: Candidate[]):
 
 const validMs = (n: unknown): n is number => typeof n === 'number' && Number.isFinite(n) && n > 0 && n <= MAX_MS;
 const isLive = (t: Timer) => t.state === 'running' || t.state === 'paused';
+const isOpenTaskStatus = (t: Task) => t.status === 'pending' || t.status === 'in_progress' || t.status === 'awaiting_confirmation';
+const currentOpen = (s: Session): Task | undefined => {
+  const t = s.currentTaskId ? s.tasks[s.currentTaskId] : undefined;
+  return t && isOpenTaskStatus(t) ? t : undefined;
+};
 const isOpenTask = (t: Task) => t.status === 'pending' || t.status === 'in_progress' || t.status === 'awaiting_confirmation';
 const isOpenCheckIn = (c: CheckIn) => c.status === 'scheduled' || c.status === 'awaiting_reply';
 
@@ -91,7 +100,9 @@ function run(d: Session, env: ActionEnvelope, ctx: ApplyContext, rev: number, ch
       c.status = 'cancelled';
       c.rev = rev;
     }
-    if (open.length) changes.push({ kind: 'check_ins_cancelled', taskId, label, count: open.length });
+    // Overrun check-ins are the engine's own bookkeeping; the user never asked for them, so they are not narrated.
+    const visible = open.filter((c) => c.reason !== 'overrun').length;
+    if (visible) changes.push({ kind: 'check_ins_cancelled', taskId, label, count: visible });
   };
   const answerCheckIns = (taskId: string) => {
     for (const c of openCheckIns(taskId)) {
@@ -132,6 +143,75 @@ function run(d: Session, env: ActionEnvelope, ctx: ApplyContext, rev: number, ch
   const task = (ref: Ref) => resolveTask(d, ref);
   const timer = (ref: Ref) => resolveTimer(d, ref);
 
+  // ---- plan helpers -------------------------------------------------------------------------
+  const renumber = (list: Task[]) => {
+    list.forEach((t, i) => {
+      if (t.order !== i) {
+        t.order = i;
+        t.rev = rev;
+      }
+    });
+  };
+  const cancelNudges = (pred: (n: Nudge) => boolean) => {
+    for (const n of Object.values(d.nudges)) {
+      if (n.status === 'scheduled' && pred(n)) {
+        n.status = 'cancelled';
+        n.rev = rev;
+      }
+    }
+  };
+  /** (Re)creates the single overrun check-in of a current step with an estimate. */
+  const armOverrun = (t: Task) => {
+    for (const c of openCheckIns(t.id)) {
+      if (c.reason !== 'overrun') continue;
+      c.status = 'cancelled';
+      c.rev = rev;
+    }
+    if (t.estimateMs === undefined || t.startedAt === undefined) return;
+    const dueAt = t.startedAt + t.estimateMs;
+    if (dueAt <= now) return;
+    const c = newCheckIn(ctx.newId(), t.id, dueAt, 1, DEFAULT_FOLLOW_UP_MS, rev);
+    c.reason = 'overrun';
+    d.checkIns[c.id] = c;
+  };
+  const activate = (t: Task, returning = false) => {
+    t.status = 'in_progress';
+    t.startedAt = now;
+    t.rev = rev;
+    d.currentTaskId = t.id;
+    armOverrun(t);
+    const list = stepsOf(d);
+    changes.push({
+      kind: 'step_started',
+      taskId: t.id,
+      label: t.label,
+      index: list.findIndex((x) => x.id === t.id) + 1,
+      total: list.length,
+      ...(t.estimateMs !== undefined ? { estimateMs: t.estimateMs } : {}),
+      ...(returning ? { returning: true } : {}),
+    });
+  };
+  /** After `from` left the current position, start the next pending step or announce that the plan is done. */
+  const advanceFrom = (_from: Task, afterOrder = _from.order as number) => {
+    d.currentTaskId = undefined;
+    const pending = stepsOf(d).filter((t) => t.status === 'pending');
+    const next = pending.find((t) => (t.order as number) > afterOrder) ?? pending[0];
+    if (next) activate(next);
+    else if (stepsOf(d).length > 0) changes.push({ kind: 'plan_complete', total: stepsOf(d).length });
+  };
+  const closeStep = (t: Task, kind: 'done' | 'skipped') => {
+    cancelCheckIns(t.id, t.label);
+    for (const tm of liveTimers(t.id)) cancelTimer(tm);
+    t.lastReport = { kind, at: now, source: env.source };
+    setTaskStatus(t, kind === 'done' ? 'completed' : 'skipped');
+  };
+  const stepOrReject = (ref: Ref): { t: Task } | Fail => {
+    const r = task(ref);
+    if (!r.ok) return fail(r.reason, undefined, r.candidates);
+    if (r.value.order === undefined) return fail('invalid_state', 'That task is not a plan step.');
+    return { t: r.value };
+  };
+
   if (d.status === 'ended' && action.type !== 'handle_due') {
     return fail('invalid_state', 'The session has ended.');
   }
@@ -160,9 +240,25 @@ function run(d: Session, env: ActionEnvelope, ctx: ApplyContext, rev: number, ch
       if (d.status !== 'paused') return fail('invalid_state', 'Session is not paused.');
       const s = stale({ rev: d.controlRev });
       if (s) return s;
+      // Nudges and overrun checks measure working time: push them out by the length of the pause.
+      const pausedFor = d.pausedAt !== undefined ? Math.max(0, now - d.pausedAt) : 0;
       d.pausedAt = undefined;
       control('active');
       for (const t of Object.values(d.timers)) if (t.state === 'paused' && t.pausedBySession) resumeTimer(t);
+      if (pausedFor > 0) {
+        for (const n of Object.values(d.nudges)) {
+          if (n.status === 'scheduled' && n.kind === 'focus_break') {
+            n.dueAt += pausedFor;
+            n.rev = rev;
+          }
+        }
+        for (const c of Object.values(d.checkIns)) {
+          if (c.status === 'scheduled' && c.reason === 'overrun') {
+            c.dueAt += pausedFor;
+            c.rev = rev;
+          }
+        }
+      }
       return;
     }
     case 'end_session': {
@@ -172,14 +268,18 @@ function run(d: Session, env: ActionEnvelope, ctx: ApplyContext, rev: number, ch
       control('ended');
       for (const t of Object.values(d.timers)) if (isLive(t)) cancelTimer(t);
       for (const tk of Object.values(d.tasks)) cancelCheckIns(tk.id, tk.label);
+      cancelNudges(() => true);
       return;
     }
     case 'set_quiet': {
+      if (action.forMs !== undefined && !validMs(action.forMs)) return fail('invalid_value', 'Invalid quiet duration.');
       const s = stale({ rev: d.controlRev });
       if (s) return s;
+      const forMs = action.quiet ? action.forMs : undefined;
       d.quiet = action.quiet;
+      d.quietUntil = forMs !== undefined ? now + forMs : undefined;
       d.controlRev = rev;
-      changes.push({ kind: 'quiet', quiet: action.quiet });
+      changes.push({ kind: 'quiet', quiet: action.quiet, ...(forMs !== undefined ? { forMs } : {}) });
       return;
     }
     case 'add_task': {
@@ -199,10 +299,8 @@ function run(d: Session, env: ActionEnvelope, ctx: ApplyContext, rev: number, ch
       const s = stale(t, ...openCheckIns(t.id), ...(action.report === 'done' ? liveTimers(t.id) : []));
       if (s) return s;
       if (action.report === 'done') {
-        cancelCheckIns(t.id, t.label);
-        for (const tm of liveTimers(t.id)) cancelTimer(tm);
-        t.lastReport = { kind: 'done', at: now, source: env.source };
-        setTaskStatus(t, 'completed');
+        closeStep(t, 'done');
+        if (d.currentTaskId === t.id) advanceFrom(t);
       } else {
         answerCheckIns(t.id);
         t.lastReport = { kind: 'not_yet', at: now, source: env.source };
@@ -217,10 +315,16 @@ function run(d: Session, env: ActionEnvelope, ctx: ApplyContext, rev: number, ch
       if (!isOpenTask(t)) return fail('invalid_state', `Task is already ${t.status}.`);
       const s = stale(t, ...openCheckIns(t.id), ...liveTimers(t.id));
       if (s) return s;
-      cancelCheckIns(t.id, t.label);
-      for (const tm of liveTimers(t.id)) cancelTimer(tm);
-      t.lastReport = { kind: 'skipped', at: now, source: env.source };
-      setTaskStatus(t, 'skipped');
+      closeStep(t, 'skipped');
+      if (t.order !== undefined) {
+        // "You skipped step 3, was that intentional?" at most once per step.
+        const asked = Object.values(d.nudges).some((n) => n.kind === 'skipped_step' && n.taskId === t.id);
+        if (!asked) {
+          const n: Nudge = { id: ctx.newId(), kind: 'skipped_step', taskId: t.id, dueAt: now + SKIPPED_STEP_DELAY_MS, status: 'scheduled', rev };
+          d.nudges[n.id] = n;
+        }
+      }
+      if (d.currentTaskId === t.id) advanceFrom(t);
       return;
     }
     case 'reopen_task': {
@@ -231,6 +335,8 @@ function run(d: Session, env: ActionEnvelope, ctx: ApplyContext, rev: number, ch
       const s = stale(t);
       if (s) return s;
       setTaskStatus(t, 'in_progress');
+      cancelNudges((n) => n.kind === 'skipped_step' && n.taskId === t.id);
+      if (t.order !== undefined && !currentOpen(d)) d.currentTaskId = t.id;
       return;
     }
     case 'extend_task': {
@@ -348,6 +454,111 @@ function run(d: Session, env: ActionEnvelope, ctx: ApplyContext, rev: number, ch
       }
       return;
     }
+    case 'add_step': {
+      const label = action.label?.trim();
+      if (!label) return fail('invalid_value', 'Step label is empty.');
+      if (action.estimateMs !== undefined && !validMs(action.estimateMs)) return fail('invalid_value', 'Invalid estimate.');
+      if (action.index !== undefined && (!Number.isInteger(action.index) || action.index < 0)) return fail('invalid_value', 'Invalid index.');
+      const list = stepsOf(d);
+      const t: Task = {
+        id: ctx.newId(),
+        label,
+        status: 'pending',
+        createdAt: now,
+        order: list.length,
+        ...(action.estimateMs !== undefined ? { estimateMs: action.estimateMs } : {}),
+        rev,
+      };
+      d.tasks[t.id] = t;
+      list.splice(Math.min(action.index ?? list.length, list.length), 0, t);
+      renumber(list);
+      changes.push({ kind: 'step_added', taskId: t.id, label });
+      return;
+    }
+    case 'edit_step': {
+      const r = stepOrReject(action.task);
+      if ('ok' in r) return r;
+      const t = r.t;
+      const label = action.label === undefined ? undefined : action.label.trim();
+      if (label === '') return fail('invalid_value', 'Step label is empty.');
+      if (typeof action.estimateMs === 'number' && !validMs(action.estimateMs)) return fail('invalid_value', 'Invalid estimate.');
+      if (label !== undefined) t.label = label;
+      if (action.estimateMs === null) delete t.estimateMs;
+      else if (action.estimateMs !== undefined) t.estimateMs = action.estimateMs;
+      t.rev = rev;
+      if (d.currentTaskId === t.id && action.estimateMs !== undefined && isOpenTaskStatus(t)) armOverrun(t);
+      changes.push({ kind: 'step_edited', taskId: t.id, label: t.label });
+      return;
+    }
+    case 'move_step': {
+      const r = stepOrReject(action.task);
+      if ('ok' in r) return r;
+      if (!Number.isInteger(action.toIndex)) return fail('invalid_value', 'Invalid index.');
+      const list = stepsOf(d);
+      const from = list.findIndex((x) => x.id === r.t.id);
+      const to = Math.max(0, Math.min(list.length - 1, action.toIndex));
+      list.splice(to, 0, list.splice(from, 1)[0] as Task);
+      renumber(list);
+      changes.push({ kind: 'step_moved', taskId: r.t.id, label: r.t.label, index: to + 1 });
+      return;
+    }
+    case 'remove_step': {
+      const r = stepOrReject(action.task);
+      if ('ok' in r) return r;
+      const t = r.t;
+      const wasCurrent = d.currentTaskId === t.id;
+      const removedOrder = t.order as number;
+      cancelCheckIns(t.id, t.label);
+      for (const tm of liveTimers(t.id)) cancelTimer(tm);
+      cancelNudges((n) => n.taskId === t.id);
+      t.status = 'cancelled';
+      t.rev = rev;
+      renumber(stepsOf(d));
+      changes.push({ kind: 'step_removed', taskId: t.id, label: t.label });
+      // Steps after the removed one shift up by one, so the next step now sits at the removed position.
+      if (wasCurrent) advanceFrom(t, removedOrder - 1);
+      return;
+    }
+    case 'next_step': {
+      const cur = currentOpen(d);
+      if (cur) {
+        closeStep(cur, 'done');
+        advanceFrom(cur);
+        return;
+      }
+      const first = stepsOf(d).find((t) => t.status === 'pending');
+      if (!first) return fail('invalid_state', 'There is no step to start.');
+      activate(first);
+      return;
+    }
+    case 'prev_step': {
+      const list = stepsOf(d);
+      const cur = currentOpen(d);
+      const before = cur ? list.filter((t) => (t.order as number) < (cur.order as number)) : list;
+      const prev = [...before].reverse().find((t) => t.status === 'completed' || t.status === 'skipped');
+      if (!prev) return fail('invalid_state', 'There is no earlier step.');
+      if (cur) {
+        cancelCheckIns(cur.id, cur.label);
+        cur.status = 'pending';
+        cur.startedAt = undefined;
+        cur.rev = rev;
+      }
+      cancelNudges((n) => n.kind === 'skipped_step' && n.taskId === prev.id);
+      prev.lastReport = undefined;
+      activate(prev, true);
+      return;
+    }
+    case 'set_focus_break': {
+      if (action.afterMs !== null && !validMs(action.afterMs)) return fail('invalid_value', 'Invalid focus length.');
+      cancelNudges((n) => n.kind === 'focus_break');
+      if (action.afterMs !== null) {
+        const n: Nudge = { id: ctx.newId(), kind: 'focus_break', dueAt: now + action.afterMs, status: 'scheduled', repeatMs: action.afterMs, rev };
+        d.nudges[n.id] = n;
+      }
+      d.controlRev = rev;
+      changes.push({ kind: 'focus_break_set', afterMs: action.afterMs });
+      return;
+    }
     case 'handle_due':
       return handleDue(d, action, ctx, rev, changes, setTaskStatus);
   }
@@ -401,6 +612,16 @@ function handleDue(
     c.lastAskedAt = ctx.now;
     c.rev = rev;
     awaitTask(c.taskId);
+    done();
+  } else if (parsed.type === 'nudge') {
+    const n = d.nudges[parsed.nudgeId];
+    if (!n || n.status !== 'scheduled') return;
+    n.status = outcome;
+    n.rev = rev;
+    if (n.kind === 'focus_break' && n.repeatMs !== undefined) {
+      const next: Nudge = { id: ctx.newId(), kind: 'focus_break', dueAt: ctx.now + n.repeatMs, status: 'scheduled', repeatMs: n.repeatMs, rev };
+      d.nudges[next.id] = next;
+    }
     done();
   } else {
     const c = d.checkIns[parsed.checkInId];

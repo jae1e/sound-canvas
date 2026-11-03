@@ -73,6 +73,57 @@ function navigation(s: string): Intent | null {
   return null;
 }
 
+// ------------------------------------------------------------ plan steps
+
+const PLAN_PATTERNS: RegExp[] = [
+  /^(?:the |my |here are the |here are my )?(?:steps|plan)(?: are| is)?\s*[:\-–—]\s*(\S[\s\S]*)$/iu,
+  /^(?:the |my )?steps are\s+(\S[\s\S]*)$/iu,
+];
+
+function plan(raw: string): Intent | null {
+  for (const re of PLAN_PATTERNS) {
+    const body = re.exec(raw)?.[1];
+    if (!body) continue;
+    const steps = body
+      .split(/\s*(?:,|;|\bthen\b|\band then\b|\band\b|->|→)\s*/iu)
+      .map((x) => x.replace(/[.!?]+$/u, '').trim())
+      .filter(Boolean);
+    if (steps.length > 0) return { kind: 'plan', steps };
+  }
+  return null;
+}
+
+const NEXT_STEP = [
+  /^(?:lets )?(?:go to |move to |move on to |go on to |on to |continue to )?(?:the )?next(?: step| one| task)?$/,
+  /^(?:lets )?move on$/,
+  /^(?:lets )?go next$/,
+];
+const PREV_STEP = [
+  /^(?:lets )?go back(?: (?:one|a|1) step| to the (?:last|previous) step)?$/,
+  /^back$/,
+  /^(?:go to )?(?:the )?previous(?: step)?$/,
+  /^step back$/,
+  /^back (?:one |a )?step$/,
+];
+const STEPS_LEFT = [
+  /^(?:whats|what is|what else is|what else) (?:still )?(?:left|remaining|to do|left to do)(?: to do)?$/,
+  /^what(?: do| have)? (?:i|we) (?:still )?(?:have )?(?:left|to do)(?: to do)?$/,
+  /^what remains$/,
+  /^how many (?:steps|tasks|things) (?:are )?(?:left|remaining|to go)$/,
+  /^(?:what|which) (?:steps|tasks|things) (?:are )?(?:left|remaining)$/,
+  /^(?:list|read|tell me) (?:the |what )?(?:remaining|left)(?: steps| tasks)?$/,
+];
+const WHERE_WAS_I = [
+  /^where (?:was i|were we|did i leave off|did we leave off|am i up to|are we up to)$/,
+  /^(?:remind me )?where i was$/,
+  /^what (?:was i|were we|am i|are we) (?:doing|working on|up to)(?: now)?$/,
+  /^what(?: step| task)? (?:am i|are we) (?:on|at)(?: now)?$/,
+  /^(?:which|what) step (?:am i on|is this|are we on)$/,
+  /^(?:whats|what is) (?:my |the |our )?current (?:step|task)$/,
+  /^where am i in (?:the )?(?:plan|steps|list)$/,
+];
+const NEXT_PEEK = [/^what comes next$/, /^(?:whats|what is) (?:the )?next step$/, /^(?:what is|whats) coming up$/];
+
 // ------------------------------------------------------------------ rules
 
 const EXTEND_MARKERS = set('more extra another longer add extend additional');
@@ -150,12 +201,17 @@ export function parseEn(raw: string, ctx: ParseContext): Intent[] {
   const text = stripLeadingFillers(raw, 'en');
   const j = journal(text);
   if (j) return [j];
+  const p = plan(text.trim());
+  if (p) return [p];
 
   const s = normalizeSpoken(text).replace(/\s+(?:please|thanks|thank you)$/, '');
   if (!s) return [];
 
   const rec = recording(s);
   if (rec) return [rec];
+  if (STEPS_LEFT.some((re) => re.test(s))) return [{ kind: 'query', query: 'steps_left' }];
+  if (WHERE_WAS_I.some((re) => re.test(s))) return [{ kind: 'query', query: 'where' }];
+  if (NEXT_PEEK.some((re) => re.test(s))) return [{ kind: 'query', query: 'next_step' }];
   const nav = navigation(s);
   if (nav) return [nav];
 
@@ -188,6 +244,10 @@ export function parseEn(raw: string, ctx: ParseContext): Intent[] {
   const rTokens = words(r);
 
   if (dur) {
+    // Timed quiet: "quiet for 10 minutes", "be quiet for ten minutes".
+    if ((prep === undefined || prep === 'for') && QUIET_ON.some((re) => re.test(r))) {
+      return act({ type: 'set_quiet', quiet: true, forMs: dur.ms });
+    }
     // Extension: "two more minutes", "give it 30 seconds more", "not yet, five more minutes".
     const marked = dur.more || rTokens.some((t) => EXTEND_MARKERS.has(t));
     if (marked && (prep === undefined || prep === 'for' || prep === 'by') && onlyFrom(rTokens, EXTEND_WORDS)) {
@@ -252,6 +312,11 @@ export function parseEn(raw: string, ctx: ParseContext): Intent[] {
   if (SESSION_END.some((re) => re.test(rl))) return act({ type: 'end_session' });
 
   if (SKIP.test(rl)) return act({ type: 'skip_task', task: ref });
+
+  if (!mention) {
+    if (NEXT_STEP.some((re) => re.test(rl))) return act({ type: 'next_step' });
+    if (PREV_STEP.some((re) => re.test(rl))) return act({ type: 'prev_step' });
+  }
 
   if (NOT_YET.some((re) => re.test(rl))) return act({ type: 'report_task', task: ref, report: 'not_yet' });
   if (DONE_MAIN.test(rl) || DONE_READY.test(rl)) return act({ type: 'report_task', task: ref, report: 'done' });
