@@ -159,3 +159,12 @@ The LLM must never invent nudges about safety or health. Nudge copy for the freq
 | M5 | Dogfooding: the user uses all three modes for 1–2 weeks, then we tune them | Daily use and feedback |
 
 M1–M3 can be built in parallel. They are released together as the first version, so simultaneous delivery of all three modes remains the completion target.
+
+### M1 status (2026-11-03)
+
+Built and verified by unit tests and a release build; **not yet run on a device**. Session TTS engine selection is described in [apps/mobile/SPIKE.md](../../../apps/mobile/SPIKE.md).
+
+- Engine (`packages/session-engine`): plan steps with estimates, next/back/skip, `what's left?` / `where was I?` answers, notes linked to the current step, quiet for N minutes, step-overrun check-in, focus break (default off, 50 min), skipped-step question (once per step), cue planner for the native scheduler, zod session schema, four example templates.
+- App (`apps/mobile`): expo-router shell, Home, Settings (+ Diagnostics = the spike screen), Journal (list, search, edit, delete, Markdown/JSON export), Work Partner screen and controller, SQLite persistence (state saved after every applied action and restored at start), `askLlm()` stub in `src/llm/` (M4).
+- Travel Guide and Voice Coach are placeholder routes; M2 and M3 replace `app/voice-coach/index.tsx` / `app/travel/index.tsx` and add `src/voice-coach/**` / `src/travel/**`.
+
