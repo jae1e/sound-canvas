@@ -20,3 +20,6 @@ apps/*/ios/
 
 # Models downloaded for local testing
 models/
+
+# Generated TTS listening samples
+tools/tts-samples/*.wav
