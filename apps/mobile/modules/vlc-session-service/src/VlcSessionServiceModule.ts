@@ -11,6 +11,8 @@ import type {
   DeleteUnusedResult,
   PriorityName,
   RouteState,
+  SessionTtsConfig,
+  SessionTtsStatus,
   SessionOptions,
   SessionStateName,
   SpeechOutputMode,
@@ -36,6 +38,12 @@ declare class VlcSessionServiceNative extends NativeModule<VlcSessionServiceModu
 
   /** Synchronous (no queue hop). Returns the utterance id, or null if skipped. */
   speak(text: string, priority: PriorityName, cueId: string | null): string | null;
+  /** Synchronous, plays nothing. Engine selection for session speech; applies to later utterances. Values are clamped. */
+  setSessionTts(config: SessionTtsConfig): void;
+  /** Works with or without a running session. */
+  getSessionTtsStatus(): Promise<SessionTtsStatus>;
+  /** Switches the session TTS language (platform and Supertonic) at runtime. No-op without a session. */
+  setSpeechLanguage(language: 'ko' | 'en'): void;
   stopSpeaking(): void;
   scheduleCue(id: string, atEpochMs: number, fallbackText: string): void;
   cancelCue(id: string): void;

@@ -214,3 +214,15 @@ Log events (JSONL in `<filesDir>/vlc-diag/diag.jsonl`; each line has `t` epoch m
 - ML Kit GenAI TTS is in the TTS lab (alpha, untested on the device); no Kakao route call, no vocal-take capture mode. The capability report's `mlKitGenAi` string is still a stub: use the lab's ML Kit status.
 - TTS lab and route reporting are untested on hardware. Forced speaker (communication-device method) is a best-supported approach but its effect on the Google engine's AudioTrack, call volume and Bluetooth media routing must be verified with `dumpsys audio`.
 - The partial transcript is only emitted while speech is detected, at most every 150 ms.
+
+## Session TTS engine selection (M1)
+
+Session speech (`speak`, cue acknowledgements, and the native cue-fallback speech) now goes through Supertonic (sherpa-onnx, in-process `AudioTrack`) when it is selected and loaded, otherwise Android `TextToSpeech` exactly as before.
+
+- **Config** (static, applies to later utterances, plays nothing): `setSessionTts({ engine: 'auto' | 'platform' | 'supertonic', voice: 0-9, steps: 1-32 })`, defaults `auto`, 0, 8. `auto` and `supertonic` both use Supertonic only when the `tts-supertonic` model set is downloaded and loaded; `platform` never does. `setSpeechLanguage('ko' | 'en')` switches the language of both paths at runtime (needs a running session). `getSessionTtsStatus()` returns `requested`, `supertonicModelReady`, `supertonicLoaded`, `supertonicLoading`, `active`, `lastError`.
+- **Loading:** a background thread loads the engine when a session starts and when the config changes; `speak` never waits for it. Until loaded (or if loading fails) platform TTS speaks. A failed load is not retried until the next config change or session.
+- **Fallback:** if a Supertonic utterance ends with an `error*` outcome, that text and everything queued behind it is spoken by platform TTS (log `tts_engine_fallback`, `lastError` set). Appended (`normal`) utterances stay on the engine of whatever is still queued, so the two engines never overlap.
+- **Semantics:** `high`/`cue` flush both engines and drop queued items; `normal` appends (a small serial queue on the Supertonic path). Half-duplex `onActiveChanged`, audio focus, `SpeechOutput` routing (default `auto`, system route) and `onSpeechIdle` behave the same for both paths. `shutdown()` stops both and releases the Supertonic engine on a background thread.
+- **Events/logs:** `ttsStart` and `ttsDone` carry `engine: 'supertonic' | 'platform'`; `tts_request`, `tts_start`, `tts_done` log it too.
+- **Not done:** no phrase audio cache/pre-generation.
+- **Untested on a device:** everything above (compiles only). In particular Supertonic first-audio latency in the session, flush/stop mid-generation, the error fallback, the language switch, cue `cueAudible` timing with Supertonic, and half-duplex echo behaviour with in-process playback.

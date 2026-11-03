@@ -9,12 +9,18 @@ import android.speech.tts.TextToSpeech
 import android.speech.tts.UtteranceProgressListener
 import expo.modules.vlcsessionservice.audio.SpeechOutput
 import expo.modules.vlcsessionservice.log.DiagLog
+import expo.modules.vlcsessionservice.log.chainText
+import expo.modules.vlcsessionservice.speech.engine.SherpaTtsEngine
+import expo.modules.vlcsessionservice.speech.engine.SpeakCallback
+import expo.modules.vlcsessionservice.speech.engine.SpeakRequest
+import android.media.AudioDeviceInfo
 import java.util.Locale
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicInteger
 import java.util.concurrent.atomic.AtomicLong
 
 /**
+ * Session speech output: Supertonic (sherpa-onnx, in-process) when configured and loaded, else Android TextToSpeech.
  * Android TextToSpeech wrapper living inside the foreground service.
  * `onStart` of UtteranceProgressListener is our "audible start" proxy (the engine has begun
  * to synthesise/play; real acoustic output can lag by tens of ms).
@@ -26,7 +32,23 @@ class TtsController(
   /** Called on every TTS audible start with (utteranceId, cueId, startElapsedRealtime). */
   private val onAudibleStart: (String, String?, Long, String) -> Unit,
 ) {
-  private class Pending(val text: String, val cueId: String?, val source: String, val requestedRt: Long)
+  private class Pending(
+    val text: String,
+    val cueId: String?,
+    val source: String,
+    val requestedRt: Long,
+    @Volatile var engine: String,
+    @Volatile var started: Boolean = false,
+  )
+
+  // ---- Supertonic path state (guarded by stLock) ----
+  private val stLock = Any()
+  private var stEngine: SherpaTtsEngine? = null
+  private val stQueue = ArrayDeque<String>()
+  private var stCurrent: String? = null
+  private var shutdownFlag = false
+  @Volatile private var loadFailed = false
+  @Volatile private var lastEngine: String? = null
 
   private val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
   private var tts: TextToSpeech? = null
@@ -49,6 +71,7 @@ class TtsController(
 
   fun init(language: String) {
     locale = localeFor(language)
+    ensureSupertonic()
     tts = TextToSpeech(context) { status ->
       synchronized(queuedBeforeReady) {
         if (status != TextToSpeech.SUCCESS) {
@@ -90,8 +113,23 @@ class TtsController(
   fun speak(text: String, priority: String, cueId: String?, source: String): String {
     val id = "u${seq.incrementAndGet()}"
     val requestedRt = SystemClock.elapsedRealtime()
-    pending[id] = Pending(text, cueId, source, requestedRt)
+    val flush = priority == "high" || priority == "cue"
+    if (stEngine == null && !loadFailed) ensureSupertonic()
+    // Appended items stay on the engine of whatever is still queued so two engines never overlap.
+    val engine = if (!flush && activeCount.get() > 0 && lastEngine != null) lastEngine!!
+    else if (SessionTts.wantsSupertonic() && stEngine != null) "supertonic" else "platform"
+    lastEngine = engine
+    pending[id] = Pending(text, cueId, source, requestedRt, engine)
     if (activeCount.incrementAndGet() == 1) onActiveChanged?.invoke(true)
+    log.log("tts_request", mapOf("utteranceId" to id, "priority" to priority, "cueId" to cueId, "source" to source, "chars" to text.length, "engine" to engine))
+    if (engine == "supertonic") speakSupertonic(id, flush) else {
+      if (flush) stClear()
+      speakPlatform(id, text, flush)
+    }
+    return id
+  }
+
+  private fun speakPlatform(id: String, text: String, flush: Boolean) {
     val action = {
       val t = tts
       if (t == null) {
@@ -100,8 +138,8 @@ class TtsController(
         // Forced-speaker mode switches routing and attributes here (platform engine = other process).
         SpeechOutput.beginSpeech(context, inProcess = false)
         t.setAudioAttributes(SpeechOutput.attributes(currentUsage()))
-        requestFocus()
-        val mode = if (priority == "high" || priority == "cue") TextToSpeech.QUEUE_FLUSH else TextToSpeech.QUEUE_ADD
+        requestFocus(currentUsage())
+        val mode = if (flush) TextToSpeech.QUEUE_FLUSH else TextToSpeech.QUEUE_ADD
         val r = t.speak(text, mode, Bundle(), id)
         if (r != TextToSpeech.SUCCESS) {
           log.log("error", mapOf("where" to "tts_speak", "result" to r))
@@ -116,8 +154,132 @@ class TtsController(
     synchronized(queuedBeforeReady) {
       if (ready) action() else queuedBeforeReady.add(action)
     }
-    log.log("tts_request", mapOf("utteranceId" to id, "priority" to priority, "cueId" to cueId, "source" to source, "chars" to text.length))
-    return id
+  }
+
+  // ---- Supertonic path ----------------------------------------------------------------------------
+
+  /** Loads the Supertonic engine in the background if wanted and the model is downloaded. Never blocks the caller. */
+  fun ensureSupertonic() {
+    if (!SessionTts.wantsSupertonic()) return
+    if (!SessionTts.modelReady(context)) {
+      SessionTts.lastError = "Model ${SessionTts.SUPERTONIC_SET} is not downloaded; using platform TTS"
+      return
+    }
+    synchronized(stLock) {
+      if (shutdownFlag || stEngine != null || SessionTts.loading) return
+      SessionTts.loading = true
+    }
+    loadFailed = false
+    Thread({
+      val e = SherpaTtsEngine(context, "supertonic", "Supertonic 3", SherpaTtsEngine.Kind.SUPERTONIC)
+      val r = try { e.prepare(locale) } catch (t: Throwable) { mapOf("ok" to false, "error" to t.chainText()) }
+      var discard = false
+      synchronized(stLock) {
+        SessionTts.loading = false
+        if (shutdownFlag) discard = true
+        else if (r["ok"] == true) {
+          stEngine = e
+          SessionTts.loaded = true
+          SessionTts.lastError = null
+        } else {
+          loadFailed = true
+          SessionTts.lastError = (r["error"] ?: "prepare failed").toString()
+          discard = true
+        }
+      }
+      log.log("tts_session_supertonic_load", mapOf("ok" to !discard, "result" to r.filterKeys { it != "modelLang" }))
+      if (discard) try { e.release() } catch (_: Throwable) {}
+    }, "vlc-st-load").start()
+  }
+
+  /** Stops the Supertonic engine and forgets queued items; their `pending` entries are the caller's to finish. */
+  private fun stClear() {
+    val e: SherpaTtsEngine?
+    synchronized(stLock) {
+      stQueue.clear()
+      stCurrent = null
+      e = stEngine
+    }
+    e?.stop()
+  }
+
+  private fun speakSupertonic(id: String, flush: Boolean) {
+    if (flush) {
+      tts?.stop()
+      stClear()
+    }
+    synchronized(stLock) {
+      stQueue.addLast(id)
+      pumpLocked()
+    }
+    if (flush) reconcileAfterFlush(id)
+  }
+
+  private fun pumpLocked() {
+    while (stCurrent == null) {
+      val id = stQueue.removeFirstOrNull() ?: return
+      val p = pending[id] ?: continue
+      val eng = stEngine
+      if (eng == null) {
+        stCurrent = null
+        fallbackToPlatform(id, "engine_released")
+        continue
+      }
+      stCurrent = id
+      try {
+        requestFocus(SpeechOutput.trackUsage())
+        val req = SpeakRequest(id, p.text, locale, SessionTts.voice.toString(), p.requestedRt, mapOf("steps" to SessionTts.steps))
+        eng.speak(req, object : SpeakCallback {
+          override fun onFirstAudio(rt: Long, routed: AudioDeviceInfo?, info: Map<String, Any?>) {
+            if (stCurrent == id) markStarted(id, rt, routed)
+          }
+
+          override fun onFinished(outcome: String, info: Map<String, Any?>) = onStFinished(id, outcome)
+        })
+      } catch (t: Throwable) {
+        stCurrent = null
+        SessionTts.lastError = t.chainText()
+        fallbackToPlatform(id, t.chainText())
+      }
+    }
+  }
+
+  private fun onStFinished(id: String, outcome: String) {
+    synchronized(stLock) {
+      if (stCurrent != id) return // flushed/stopped by us; already reconciled
+      stCurrent = null
+    }
+    if (outcome.startsWith("error")) {
+      SessionTts.lastError = outcome
+      // The rest of the queue moves to platform too so the two engines never overlap.
+      val rest = synchronized(stLock) { stQueue.toList().also { stQueue.clear() } }
+      fallbackToPlatform(id, outcome)
+      rest.forEach { fallbackToPlatform(it, "queue_after_error") }
+      return
+    }
+    finish(id, outcome)
+    synchronized(stLock) { pumpLocked() }
+  }
+
+  private fun fallbackToPlatform(id: String, reason: String) {
+    val p = pending[id] ?: return
+    log.log("tts_engine_fallback", mapOf("utteranceId" to id, "from" to "supertonic", "to" to "platform", "reason" to reason))
+    p.engine = "platform"
+    lastEngine = "platform"
+    speakPlatform(id, p.text, false)
+  }
+
+  private fun markStarted(id: String, rt: Long, routed: AudioDeviceInfo?) {
+    val p = pending[id] ?: return
+    if (p.started) return
+    p.started = true
+    lastActivityRt.set(rt)
+    log.log("tts_start", mapOf("utteranceId" to id, "cueId" to p.cueId, "speakToStartMs" to rt - p.requestedRt, "engine" to p.engine))
+    // Logs `speech_output_route` + emits `speechOutputRoute`: where this utterance is actually going.
+    val usage = if (p.engine == "supertonic") SpeechOutput.trackUsage() else currentUsage()
+    val route = SpeechOutput.report("tts_start", usage, routed, mapOf("utteranceId" to id, "engine" to p.engine))
+    emit("ttsStart", mapOf("utteranceId" to id, "text" to p.text, "cueId" to p.cueId, "speakToStartMs" to rt - p.requestedRt, "routeLabel" to route["label"], "engine" to p.engine))
+    onAudibleStart(id, p.cueId, rt, p.source)
   }
 
   private fun reconcileAfterFlush(keepId: String) {
@@ -127,6 +289,7 @@ class TtsController(
   }
 
   fun stop(reason: String) {
+    stClear()
     tts?.stop()
     for (k in pending.keys.toList()) finish(k, reason)
     log.log("tts_stop", mapOf("reason" to reason))
@@ -134,6 +297,10 @@ class TtsController(
 
   fun shutdown() {
     stop("shutdown")
+    val e = synchronized(stLock) { shutdownFlag = true; stEngine.also { stEngine = null } }
+    SessionTts.loaded = false
+    // release() waits for native generation to leave; keep that off the caller (may be the main thread).
+    if (e != null) Thread({ try { e.release() } catch (_: Throwable) {} }, "vlc-st-release").start()
     tts?.shutdown()
     tts = null
     ready = false
@@ -142,14 +309,9 @@ class TtsController(
 
   private val listener = object : UtteranceProgressListener() {
     override fun onStart(utteranceId: String) {
-      val rt = SystemClock.elapsedRealtime()
       val p = pending[utteranceId] ?: return
-      lastActivityRt.set(rt)
-      log.log("tts_start", mapOf("utteranceId" to utteranceId, "cueId" to p.cueId, "speakToStartMs" to rt - p.requestedRt))
-      // Logs `speech_output_route` + emits `speechOutputRoute`: where this utterance is actually going.
-      val route = SpeechOutput.report("tts_start", currentUsage(), null, mapOf("utteranceId" to utteranceId))
-      emit("ttsStart", mapOf("utteranceId" to utteranceId, "text" to p.text, "cueId" to p.cueId, "speakToStartMs" to rt - p.requestedRt, "routeLabel" to route["label"]))
-      onAudibleStart(utteranceId, p.cueId, rt, p.source)
+      if (p.engine != "platform") return
+      markStarted(utteranceId, SystemClock.elapsedRealtime(), null)
     }
 
     override fun onDone(utteranceId: String) = finish(utteranceId, "done")
@@ -175,14 +337,14 @@ class TtsController(
       // Forced-speaker mode holds MODE_IN_COMMUNICATION only while speaking; release it between cues.
       SpeechOutput.onSpeechIdle(context)
     }
-    log.log("tts_done", mapOf("utteranceId" to utteranceId, "outcome" to outcome, "cueId" to p.cueId))
-    emit("ttsDone", mapOf("utteranceId" to utteranceId, "outcome" to outcome, "cueId" to p.cueId))
+    log.log("tts_done", mapOf("utteranceId" to utteranceId, "outcome" to outcome, "cueId" to p.cueId, "engine" to p.engine))
+    emit("ttsDone", mapOf("utteranceId" to utteranceId, "outcome" to outcome, "cueId" to p.cueId, "engine" to p.engine))
   }
 
-  private fun requestFocus() {
+  private fun requestFocus(usage: Int) {
     if (focusRequest != null) return
     val req = AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN_TRANSIENT_MAY_DUCK)
-      .setAudioAttributes(SpeechOutput.attributes(currentUsage()))
+      .setAudioAttributes(SpeechOutput.attributes(usage))
       .setOnAudioFocusChangeListener { }
       .build()
     val r = audioManager.requestAudioFocus(req)

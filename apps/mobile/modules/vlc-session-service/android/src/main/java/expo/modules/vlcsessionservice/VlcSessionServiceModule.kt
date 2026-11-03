@@ -18,6 +18,7 @@ import expo.modules.vlcsessionservice.log.chainText
 import expo.modules.vlcsessionservice.service.CapabilityReport
 import expo.modules.vlcsessionservice.service.SessionConfig
 import expo.modules.vlcsessionservice.service.SessionRuntime
+import expo.modules.vlcsessionservice.speech.SessionTts
 import expo.modules.vlcsessionservice.service.SessionService
 import expo.modules.vlcsessionservice.speech.ModelCatalog
 import expo.modules.vlcsessionservice.speech.ModelManager
@@ -115,6 +116,20 @@ class VlcSessionServiceModule : Module() {
       val svc = SessionRuntime.service ?: throw CodedException("NO_SESSION", "Start a session first", null)
       svc.speak(text, priority, cueId, "js")
     }
+    Function("setSessionTts") { config: Map<String, Any?> ->
+      SessionTts.configure(
+        (config["engine"] as? String) ?: "auto",
+        (config["voice"] as? Number)?.toInt() ?: 0,
+        (config["steps"] as? Number)?.toInt() ?: 8,
+      )
+      // Starts the background load now if the new config needs it; plays nothing.
+      SessionRuntime.service?.tts?.ensureSupertonic()
+      Unit
+    }
+    AsyncFunction("getSessionTtsStatus") {
+      SessionTts.status(context, SessionRuntime.service?.tts != null)
+    }
+    Function("setSpeechLanguage") { language: String -> SessionRuntime.service?.tts?.setLanguage(language); Unit }
     Function("stopSpeaking") { SessionRuntime.service?.tts?.stop("js") ; Unit }
 
     Function("scheduleCue") { id: String, atEpochMs: Double, fallbackText: String ->

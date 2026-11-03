@@ -68,8 +68,27 @@ export type FinalTranscriptEvent = {
   timing?: SttTiming;
 };
 export type EchoSuppressedEvent = { seq: number; text: string };
-export type TtsStartEvent = { utteranceId: string; text: string; cueId: string | null; speakToStartMs: number; routeLabel?: string };
-export type TtsDoneEvent = { utteranceId: string; outcome: string; cueId: string | null };
+export type TtsStartEvent = { utteranceId: string; text: string; cueId: string | null; speakToStartMs: number; routeLabel?: string; engine: SessionTtsEngine };
+export type TtsDoneEvent = { utteranceId: string; outcome: string; cueId: string | null; engine: SessionTtsEngine };
+
+/** Engine that spoke a session utterance. */
+export type SessionTtsEngine = 'supertonic' | 'platform';
+export type SessionTtsRequested = 'auto' | 'platform' | 'supertonic';
+export type SessionTtsConfig = {
+  engine: SessionTtsRequested;
+  /** Supertonic speaker id 0-9 (F1-F5, M1-M5). Clamped. */
+  voice: number;
+  /** Supertonic diffusion steps 1-32. Clamped. */
+  steps: number;
+};
+export type SessionTtsStatus = {
+  requested: SessionTtsRequested;
+  supertonicModelReady: boolean;
+  supertonicLoaded: boolean;
+  supertonicLoading: boolean;
+  active: SessionTtsEngine;
+  lastError: string | null;
+};
 export type CueDueEvent = {
   id: string;
   atEpochMs: number;
