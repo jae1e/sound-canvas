@@ -112,6 +112,8 @@ export const takes = sqliteTable(
     id: text('id').primaryKey(),
     sessionId: text('session_id'),
     fileUri: text('file_uri').notNull(),
+    /** Practice block (a `plan_templates` row of kind `coach_block`) the take was recorded for. */
+    blockId: text('block_id'),
     durationMs: integer('duration_ms'),
     note: text('note'),
     metricsJson: text('metrics_json'),
@@ -123,6 +125,8 @@ export const takes = sqliteTable(
 /** Saved places (Travel Guide, M3). */
 export const places = sqliteTable('places', {
   id: text('id').primaryKey(),
+  /** Provider place id (for example the Kakao place id), used to avoid saving the same place twice. */
+  externalId: text('external_id'),
   name: text('name').notNull(),
   address: text('address'),
   latitude: real('latitude').notNull(),
@@ -138,6 +142,8 @@ export const routes = sqliteTable(
   {
     id: text('id').primaryKey(),
     sessionId: text('session_id'),
+    /** `walked` (GPS walk log) or `planned` (route preview). */
+    kind: text('kind').notNull().default('walked'),
     fromPlaceId: text('from_place_id'),
     toPlaceId: text('to_place_id'),
     distanceM: real('distance_m'),
@@ -160,6 +166,8 @@ export const settings = sqliteTable('settings', {
 export const planTemplates = sqliteTable('plan_templates', {
   id: text('id').primaryKey(),
   name: text('name').notNull(),
+  /** `work` (plan template, steps in `steps_json`) or `coach_block` (Voice Coach practice block, block JSON in `steps_json`). */
+  kind: text('kind').notNull().default('work'),
   lang: text('lang'),
   stepsJson: text('steps_json').notNull(),
   createdAt: integer('created_at').notNull(),

@@ -1,4 +1,4 @@
-import { desc, eq, inArray } from 'drizzle-orm';
+import { and, desc, eq, inArray } from 'drizzle-orm';
 import { parseSession, stepsOf, type Session } from '@vlc/session-engine';
 
 import { events, sessions, tasks, timers } from '../schema';
@@ -123,4 +123,19 @@ export function deleteSession(db: AppDb, id: string): void {
     tx.delete(events).where(eq(events.sessionId, id)).run();
     tx.delete(sessions).where(eq(sessions.id, id)).run();
   });
+}
+
+/**
+ * Marks unfinished sessions of an engine mode as ended, except `exceptId`. Used for Travel Guide and Voice Coach sessions
+ * whose native service is gone (app killed), so they never show up as resumable.
+ */
+export function closeUnfinishedSessions(db: AppDb, mode: Session['mode'], now: number, exceptId?: string): number {
+  const rows = db.select({ id: sessions.id }).from(sessions).where(and(eq(sessions.mode, mode), inArray(sessions.status, RESUMABLE))).all();
+  let n = 0;
+  for (const r of rows) {
+    if (r.id === exceptId) continue;
+    db.update(sessions).set({ status: 'ended', endedAt: now, updatedAt: now }).where(eq(sessions.id, r.id)).run();
+    n++;
+  }
+  return n;
 }
