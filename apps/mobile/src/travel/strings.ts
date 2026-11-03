@@ -13,6 +13,8 @@ const S = {
   searchPlaceholder: { ko: '장소 검색 (예: 조용한 카페)', en: 'Search places (e.g. quiet cafe)' },
   search: { ko: '검색', en: 'Search' },
   whereAmI: { ko: '지금 어디?', en: 'Where am I?' },
+  savePlace: { ko: '장소 저장', en: 'Save place' },
+  placeSaved: { ko: '저장됨', en: 'Saved' },
   results: { ko: '검색 결과', en: 'Results' },
   noResults: { ko: '결과가 없어요', en: 'No results' },
   routeTo: { ko: '경로 보기', en: 'Preview route' },

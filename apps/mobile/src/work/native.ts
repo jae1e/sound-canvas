@@ -8,6 +8,44 @@ import type { NativePort } from './controller';
 const REQUIRED: Permission = 'android.permission.RECORD_AUDIO';
 // Notifications keep the foreground service visible; Bluetooth lets the app see earbuds. Neither blocks the session.
 const OPTIONAL: Permission[] = ['android.permission.POST_NOTIFICATIONS', 'android.permission.BLUETOOTH_CONNECT'];
+const FINE_LOCATION: Permission = 'android.permission.ACCESS_FINE_LOCATION';
+
+export type SessionModeName = 'work' | 'travel' | 'coach';
+
+/** The mode that owns the running native session, or null. The native service is the single source of truth. */
+export function runningSessionMode(): SessionModeName | null {
+  try {
+    return VlcSessionService.getSessionState() === 'running' ? VlcSessionService.getSessionMode() : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Starts the native foreground session for one mode: microphone permission (required), notifications and Bluetooth
+ * (optional), fine location for Travel Guide. Throws when another mode already owns the session.
+ */
+export async function startNativeSession(lang: Lang, mode: SessionModeName): Promise<void> {
+  if (Platform.OS !== 'android') throw new Error('Voice sessions are Android-only for now.');
+  const other = runningSessionMode();
+  if (other && other !== mode) throw new Error(`Another mode (${other}) is using the voice session. End it first.`);
+  const granted = await PermissionsAndroid.request(REQUIRED);
+  if (granted !== PermissionsAndroid.RESULTS.GRANTED) throw new Error('Microphone permission was not granted.');
+  await PermissionsAndroid.requestMultiple(OPTIONAL);
+  let locationEnabled = false;
+  if (mode === 'travel') {
+    // Without it the session still runs (voice Q&A works) but there is no GPS; the screen says so.
+    locationEnabled = (await PermissionsAndroid.request(FINE_LOCATION)) === PermissionsAndroid.RESULTS.GRANTED;
+  }
+  await VlcSessionService.startSession({
+    language: lang,
+    bargeIn: false,
+    allowMissingModels: true,
+    locationEnabled,
+    sttEngine: 'platform',
+    mode,
+  });
+}
 
 /** Applies the speech settings to the native session. Nothing here makes a sound. */
 export function applySpeechSettings(settings: AppSettings, lang: Lang): void {
@@ -33,17 +71,7 @@ export function createNativePort(getSettings: () => AppSettings): NativePort {
     },
 
     async start(lang) {
-      if (Platform.OS !== 'android') throw new Error('Voice sessions are Android-only for now.');
-      const granted = await PermissionsAndroid.request(REQUIRED);
-      if (granted !== PermissionsAndroid.RESULTS.GRANTED) throw new Error('Microphone permission was not granted.');
-      await PermissionsAndroid.requestMultiple(OPTIONAL);
-      await VlcSessionService.startSession({
-        language: lang,
-        bargeIn: false,
-        allowMissingModels: true,
-        locationEnabled: false,
-        sttEngine: 'platform',
-      });
+      await startNativeSession(lang, 'work');
       applySpeechSettings(getSettings(), lang);
     },
 

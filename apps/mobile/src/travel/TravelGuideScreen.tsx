@@ -17,9 +17,16 @@ export type TravelGuideScreenProps = {
   client?: TravelClient;
   /** Pass a shared controller to route voice utterances (`controller.handleUtterance`) into this screen. */
   controller?: TravelController;
+  /**
+   * Feed this screen's GPS fixes into the controller. Default true. Turn it off when the app already feeds the controller
+   * from the session's location events, so fixes are not applied twice.
+   */
+  feedLocation?: boolean;
+  /** Adds a "save place" button to each result; called with the result to store. */
+  onSavePlace?: (place: Place) => void;
 };
 
-export function TravelGuideScreen({ onSpeak, lang = 'ko', client, controller }: TravelGuideScreenProps) {
+export function TravelGuideScreen({ onSpeak, lang = 'ko', client, controller, feedLocation = true, onSavePlace }: TravelGuideScreenProps) {
   const speakRef = useRef(onSpeak);
   speakRef.current = onSpeak;
   const theClient = useMemo(() => client ?? createTravelClient(), [client]);
@@ -36,9 +43,11 @@ export function TravelGuideScreen({ onSpeak, lang = 'ko', client, controller }: 
   const simIndex = useRef(0);
   const mock = theClient.mode === 'mock';
 
+  const [savedIds, setSavedIds] = useState<Set<string>>(() => new Set());
+
   useEffect(() => {
-    if (fix) ctl.setFix(fix);
-  }, [fix, ctl]);
+    if (fix && feedLocation) ctl.setFix(fix);
+  }, [fix, ctl, feedLocation]);
 
   const runSearch = () => ctl.search({ category, query: query.trim() || undefined });
   const dist = (m: number) => formatDistance(m, lang);
@@ -99,7 +108,17 @@ export function TravelGuideScreen({ onSpeak, lang = 'ko', client, controller }: 
         <Section title={t('results', lang)}>
           {s.places.length === 0 && <Text>{t('noResults', lang)}</Text>}
           {s.places.map((pl, i) => (
-            <PlaceRow key={pl.id} place={pl} index={i} lang={lang} selected={s.destination?.id === pl.id} onPress={() => ctl.preview(pl, true)} />
+            <PlaceRow key={pl.id} place={pl} index={i} lang={lang} selected={s.destination?.id === pl.id} onPress={() => ctl.preview(pl, true)}
+              saved={savedIds.has(pl.id)}
+              onSave={
+                onSavePlace
+                  ? () => {
+                      onSavePlace(pl);
+                      setSavedIds((prev) => new Set(prev).add(pl.id));
+                    }
+                  : undefined
+              }
+            />
           ))}
         </Section>
       )}
@@ -158,7 +177,23 @@ function Chip({ label, active, onPress }: { label: string; active: boolean; onPr
   );
 }
 
-function PlaceRow({ place, index, lang, selected, onPress }: { place: Place; index: number; lang: Lang; selected: boolean; onPress: () => void }) {
+function PlaceRow({
+  place,
+  index,
+  lang,
+  selected,
+  onPress,
+  saved,
+  onSave,
+}: {
+  place: Place;
+  index: number;
+  lang: Lang;
+  selected: boolean;
+  onPress: () => void;
+  saved: boolean;
+  onSave?: () => void;
+}) {
   return (
     <Pressable onPress={onPress} style={[styles.place, selected && styles.placeSelected]} accessibilityLabel={`place-${index}`}>
       <Text style={styles.placeName}>
@@ -167,6 +202,11 @@ function PlaceRow({ place, index, lang, selected, onPress }: { place: Place; ind
       <Text style={styles.dim}>
         {formatDistance(place.distanceM, lang)} · {place.category} · {place.address}
       </Text>
+      {onSave ? (
+        <Pressable onPress={onSave} disabled={saved} accessibilityRole="button" accessibilityLabel={`save-place-${index}`} style={styles.saveBtn}>
+          <Text style={styles.saveText}>{saved ? t('placeSaved', lang) : t('savePlace', lang)}</Text>
+        </Pressable>
+      ) : null}
     </Pressable>
   );
 }
@@ -186,5 +226,7 @@ const styles = StyleSheet.create({
   placeSelected: { backgroundColor: '#eff6ff' },
   placeName: { fontSize: 16, fontWeight: '600' },
   step: { paddingVertical: 2 },
+  saveBtn: { alignSelf: 'flex-start', marginTop: 6, paddingVertical: 4, paddingHorizontal: 10, borderWidth: 1, borderColor: '#cbd5e1', borderRadius: 14 },
+  saveText: { fontSize: 13, color: '#2563eb' },
   stepActive: { fontWeight: '700', color: '#2563eb' },
 });

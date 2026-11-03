@@ -1,4 +1,4 @@
-import type { Lang, TakeMode } from '@vlc/voice-analysis';
+import type { Lang, TakeMode, TakeSummary } from '@vlc/voice-analysis';
 
 export interface PracticeBlock {
   id: string;
@@ -33,4 +33,22 @@ export interface VoiceCoachScreenProps {
   /** Called when a take file is created or deleted so the app can persist its row. */
   onTakeRecorded?: (take: { id: string; path: string; durationS: number; createdAtMs: number; blockId?: string }) => void;
   onTakeDeleted?: (takeId: string) => void;
+  /** Called after a take was analysed, with its summary (metrics, speech metrics, feedback lines) for persistence. */
+  onTakeAnalyzed?: (take: { id: string; blockId?: string; summary: TakeSummary }) => void;
+  /**
+   * Hands the app an imperative handle for voice commands (start take, stop, play back, same block again), or null on
+   * unmount. Commands are rejected (resolve false) while they do not apply, for example "stop" without a take.
+   */
+  onControls?: (controls: VoiceCoachControls | null) => void;
+}
+
+export interface VoiceCoachControls {
+  startTake(): Promise<boolean>;
+  stopTake(): Promise<boolean>;
+  /** Plays the latest take. Only ever called in response to an explicit user command. */
+  playLast(): Promise<boolean>;
+  /** Runs the selected practice block again from its first repeat. */
+  sameBlockAgain(): Promise<boolean>;
+  /** Id of the most recent take of this screen's lifetime (or the newest on disk), if any. */
+  lastTakeId(): string | null;
 }

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { PermissionsAndroid, Platform } from 'react-native';
 import type { Frame } from '@vlc/voice-analysis';
+import { captureGate } from './gate';
 import VlcVoiceCoach, { type CaptureInfo, type FrameEvent, type StartedTake, type TakeInfo } from '../../modules/vlc-voice-coach';
 
 const WINDOW_S = 8;
@@ -42,7 +43,13 @@ export function useLiveTracker() {
       const cutoff = e.t - WINDOW_S;
       while (buf.current.length && buf.current[0]!.t < cutoff) buf.current.shift();
     });
-    const errSub = VlcVoiceCoach.addListener('captureError', (e) => setState((s) => ({ ...s, error: e.message, monitoring: false, recording: false })));
+    const errSub = VlcVoiceCoach.addListener('captureError', (e) => {
+      flags.current.monitoring = false;
+      flags.current.recording = false;
+      captureGate.release('monitor');
+      captureGate.release('take');
+      setState((s) => ({ ...s, error: e.message, monitoring: false, recording: false }));
+    });
     const timer = setInterval(() => {
       if (!flags.current.monitoring && !flags.current.recording) return;
       setState((s) => ({ ...s, last: last.current, frames: buf.current.slice() }));
@@ -52,6 +59,8 @@ export function useLiveTracker() {
       errSub.remove();
       clearInterval(timer);
       void VlcVoiceCoach.stopMonitor().catch(() => undefined);
+      captureGate.release('monitor');
+      captureGate.release('take');
     };
   }, []);
 
@@ -60,6 +69,7 @@ export function useLiveTracker() {
       setState((s) => ({ ...s, error: 'PERMISSION_RECORD_AUDIO' }));
       return false;
     }
+    await captureGate.acquire('monitor');
     try {
       const info = await VlcVoiceCoach.startMonitor();
       buf.current = [];
@@ -67,6 +77,7 @@ export function useLiveTracker() {
       setState((s) => ({ ...s, monitoring: true, info, error: null }));
       return true;
     } catch (e) {
+      captureGate.release('monitor');
       setState((s) => ({ ...s, error: String((e as Error).message ?? e) }));
       return false;
     }
@@ -75,6 +86,7 @@ export function useLiveTracker() {
   const stopMonitor = useCallback(async () => {
     flags.current.monitoring = false;
     await VlcVoiceCoach.stopMonitor().catch(() => undefined);
+    captureGate.release('monitor');
     setState((s) => ({ ...s, monitoring: false, last: flags.current.recording ? s.last : null }));
   }, []);
 
@@ -83,6 +95,7 @@ export function useLiveTracker() {
       setState((s) => ({ ...s, error: 'PERMISSION_RECORD_AUDIO' }));
       return null;
     }
+    await captureGate.acquire('take');
     try {
       takeFrames.current = [];
       const t = await VlcVoiceCoach.startTake();
@@ -90,6 +103,7 @@ export function useLiveTracker() {
       setState((s) => ({ ...s, recording: true, info: { sampleRate: t.sampleRate, source: t.source }, error: null }));
       return t;
     } catch (e) {
+      captureGate.release('take');
       setState((s) => ({ ...s, error: String((e as Error).message ?? e) }));
       return null;
     }
@@ -99,9 +113,11 @@ export function useLiveTracker() {
     flags.current.recording = false;
     try {
       const take = await VlcVoiceCoach.stopTake();
+      captureGate.release('take');
       setState((s) => ({ ...s, recording: false }));
       return { take, liveFrames: takeFrames.current };
     } catch (e) {
+      captureGate.release('take');
       setState((s) => ({ ...s, recording: false, error: String((e as Error).message ?? e) }));
       return null;
     }

@@ -2,12 +2,13 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ScrollView, Text } from 'react-native';
 import { parseTarget, type TakeSummary } from '@vlc/voice-analysis';
 import VlcVoiceCoach, { type TakeInfo } from '../../modules/vlc-voice-coach';
+import { captureGate } from './gate';
 import { contourToFrames, summarize, type SummaryContext } from './analysis';
 import { LiveView } from './LiveView';
 import { newBlock, SetupPanel } from './SetupPanel';
 import { makeT } from './strings';
 import { TakesPanel, type TakeEntry } from './TakesPanel';
-import type { PracticeBlock, VoiceCoachScreenProps } from './types';
+import type { PracticeBlock, VoiceCoachControls, VoiceCoachScreenProps } from './types';
 import { useLiveTracker } from './useLiveTracker';
 import { Button, Card, Row, s } from './ui';
 
@@ -50,6 +51,8 @@ export function VoiceCoachScreen(props: VoiceCoachScreenProps) {
   const cancel = useRef(false);
   const recording = useRef(false);
   recording.current = live.state.recording;
+  const lastTake = useRef<string | null>(null);
+  const running = useRef(false);
 
   const setBlocks = useCallback((next: PracticeBlock[]) => {
     setBlocksState(next);
@@ -69,9 +72,15 @@ export function VoiceCoachScreen(props: VoiceCoachScreenProps) {
 
   useEffect(() => {
     void refreshTakes().catch(() => undefined);
-    const sub = VlcVoiceCoach.addListener('playbackState', (e) => setPlayingId(e.state === 'playing' ? e.id : null));
+    // Playback is output only, but the session STT would transcribe it, so it holds the mic gate like a recorder does.
+    const sub = VlcVoiceCoach.addListener('playbackState', (e) => {
+      setPlayingId(e.state === 'playing' ? e.id : null);
+      if (e.state === 'playing') void captureGate.acquire('playback');
+      else captureGate.release('playback');
+    });
     return () => {
       sub.remove();
+      captureGate.release('playback');
       cancel.current = true;
       if (recording.current) void VlcVoiceCoach.stopTake().catch(() => undefined);
       void VlcVoiceCoach.stopPlayback().catch(() => undefined);
@@ -90,6 +99,7 @@ export function VoiceCoachScreen(props: VoiceCoachScreenProps) {
       const stopped = await live.stopTake();
       if (!stopped) return;
       const info: TakeInfo = stopped.take;
+      lastTake.current = info.id;
       latest.current.props.onTakeRecorded?.({ id: info.id, path: info.path, durationS: info.durationS, createdAtMs: info.createdAtMs, blockId: blk.id });
       setBusy(true);
       try {
@@ -106,6 +116,7 @@ export function VoiceCoachScreen(props: VoiceCoachScreenProps) {
         const { frames, summary } = await analyze(info, ctx, prev);
         const entry: TakeEntry = { id: info.id, durationS: info.durationS, createdAtMs: info.createdAtMs, frames, summary };
         setTakes((old) => [entry, ...old.filter((x) => x.id !== info.id)]);
+        cur.props.onTakeAnalyzed?.({ id: info.id, blockId: blk.id, summary });
         setFeedback({ takeId: info.id, text: summary.text[cur.lang] });
         cur.props.onFeedback?.(summary.text[cur.lang], cur.lang);
       } catch (e) {
@@ -129,6 +140,8 @@ export function VoiceCoachScreen(props: VoiceCoachScreenProps) {
 
   const runBlock = useCallback(async () => {
     const blk = latest.current.block;
+    if (running.current) return;
+    running.current = true;
     cancel.current = false;
     for (let r = 1; r <= blk.repeats && !cancel.current; r++) {
       const started = await live.startTake();
@@ -139,6 +152,7 @@ export function VoiceCoachScreen(props: VoiceCoachScreenProps) {
       if (r < blk.repeats && blk.restS > 0) await countdown(blk.restS, 'rest', r);
     }
     setRunner(null);
+    running.current = false;
   }, [countdown, finishTake, live]);
 
   const manualRecord = async () => {
@@ -166,6 +180,46 @@ export function VoiceCoachScreen(props: VoiceCoachScreenProps) {
     setCompare((c) => c.filter((x) => x !== id));
     setTakes((old) => old.filter((x) => x.id !== id));
   };
+
+  // Imperative handle for voice commands from the app. Reads the latest state through refs.
+  const liveRef = useRef(live);
+  liveRef.current = live;
+  const runBlockRef = useRef(runBlock);
+  runBlockRef.current = runBlock;
+  const finishRef = useRef(finishTake);
+  finishRef.current = finishTake;
+  const onControls = props.onControls;
+  useEffect(() => {
+    const controls: VoiceCoachControls = {
+      startTake: async () => {
+        if (recording.current || running.current) return false;
+        return (await liveRef.current.startTake()) !== null;
+      },
+      stopTake: async () => {
+        if (!recording.current) return false;
+        if (running.current) {
+          cancel.current = true;
+          return true;
+        }
+        await finishRef.current(latest.current.block);
+        return true;
+      },
+      playLast: async () => {
+        const id = lastTake.current ?? [...latest.current.takes].sort((a, b) => b.createdAtMs - a.createdAtMs)[0]?.id ?? null;
+        if (!id || recording.current) return false;
+        await VlcVoiceCoach.playTake(id);
+        return true;
+      },
+      sameBlockAgain: async () => {
+        if (recording.current || running.current) return false;
+        void runBlockRef.current();
+        return true;
+      },
+      lastTakeId: () => lastTake.current ?? [...latest.current.takes].sort((a, b) => b.createdAtMs - a.createdAtMs)[0]?.id ?? null,
+    };
+    onControls?.(controls);
+    return () => onControls?.(null);
+  }, [onControls]);
 
   const locked = runner !== null || live.state.recording;
   const err = live.state.error;
