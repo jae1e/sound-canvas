@@ -4,3 +4,10 @@ packages:
   - "modules/*"
   - "services/*"
   - "tools/*"
+
+# Dependency build scripts are intentionally not run. esbuild (drizzle-kit, vitest, wrangler) and workerd (wrangler)
+# ship their native binaries as platform optionalDependencies; their postinstall scripts only verify the binary and swap
+# a JS shim for it (a startup-time optimization). Verified 2026-11-03: both binaries run and all tests pass without them.
+allowBuilds:
+  esbuild: false
+  workerd: false
