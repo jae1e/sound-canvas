@@ -1,0 +1,57 @@
+plugins {
+  id 'com.android.library'
+  id 'expo-module-gradle-plugin'
+}
+
+group = 'expo.modules.vlcsessionservice'
+version = '0.1.0'
+
+android {
+  namespace "expo.modules.vlcsessionservice"
+  defaultConfig {
+    versionCode 1
+    versionName "0.1.0"
+  }
+  lintOptions {
+    abortOnError false
+  }
+}
+
+// ---------------------------------------------------------------------------
+// sherpa-onnx (k2-fsa) is NOT published on Maven Central. The official Android
+// distribution is the release .aar on GitHub (Kotlin API + JNI + onnxruntime).
+// It is downloaded once at Gradle configuration time (SHA-256 verified) into
+// android/libs/, which is git-ignored. Nothing large is committed.
+// ---------------------------------------------------------------------------
+def sherpaVersion = '2.0.1'
+def sherpaSha256 = 'a8d09d1d32f3eb8520482c6d3d43fae674681c5b050385967c70a3c2c9bf0ee7'
+def sherpaUrl = "https://github.com/k2-fsa/sherpa-onnx/releases/download/v${sherpaVersion}/sherpa-onnx-${sherpaVersion}.aar"
+def sherpaAar = file("libs/sherpa-onnx-${sherpaVersion}.aar")
+
+def sha256Of = { File f ->
+  def md = java.security.MessageDigest.getInstance('SHA-256')
+  f.withInputStream { is ->
+    byte[] buf = new byte[1 << 16]
+    int n
+    while ((n = is.read(buf)) > 0) md.update(buf, 0, n)
+  }
+  md.digest().collect { String.format('%02x', it & 0xff) }.join()
+}
+
+if (!sherpaAar.exists() || sha256Of(sherpaAar) != sherpaSha256) {
+  sherpaAar.parentFile.mkdirs()
+  def tmp = new File(sherpaAar.parentFile, sherpaAar.name + '.part')
+  logger.lifecycle("[vlc-session-service] downloading ${sherpaUrl}")
+  new URL(sherpaUrl).openStream().withCloseable { is -> tmp.withOutputStream { os -> os << is } }
+  def actual = sha256Of(tmp)
+  if (actual != sherpaSha256) {
+    tmp.delete()
+    throw new GradleException("sherpa-onnx AAR checksum mismatch: expected ${sherpaSha256}, got ${actual}")
+  }
+  tmp.renameTo(sherpaAar)
+}
+
+dependencies {
+  implementation files(sherpaAar)
+  implementation 'com.google.android.gms:play-services-location:21.3.0'
+}

@@ -18,11 +18,26 @@
         "monochromeImage": "./assets/android-icon-monochrome.png"
       },
       "predictiveBackGestureEnabled": false,
-      "package": "com.jae1e.voicelifecompanion"
+      "package": "com.jae1e.voicelifecompanion",
+      "softwareKeyboardLayoutMode": "resize"
     },
     "web": {
       "favicon": "./assets/favicon.png"
     },
-    "scheme": "vlc"
+    "scheme": "vlc",
+    "plugins": [
+      "expo-sharing",
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "buildArchs": [
+              "arm64-v8a"
+            ],
+            "minSdkVersion": 31
+          }
+        }
+      ]
+    ]
   }
 }
