@@ -141,6 +141,8 @@ The user describes Work Partner as a copilot rather than a timer or routine tool
 - **Active nudges:** proactive check-ins, reminders, and suggestions, bounded so they do not become noise.
 - **More of the same kind** ("you get what I mean"): capture of notes and decisions, recaps, and resuming after interruptions.
 
+**Start small (decided by user, 2026-11-03):** general assistant requests outside an active task, such as "remind me to call mom at 7" or "what's on my plate today", would be nice but are deferred. The first version focuses on short, in-task interactions: short commands, quick questions, and short nudges during an active session. Longer and more open-ended requests come later.
+
 Candidate activities beyond cooking (the user rarely cooks) and workouts: focus work sessions, chores, DIY/assembly/repair, stretching and physio routines, and hands-busy professional checklists (inspection, maintenance, 3D scanning sessions). These are assistant suggestions, not yet user-selected.
 
 ### Cooking Example
