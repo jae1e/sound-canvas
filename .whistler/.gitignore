@@ -1,0 +1,5 @@
+# Written by Whistler. Set git_sessions in .whistler/config.json to include history copies in git.
+notes/
+attachments/
+pages/
+sessions/
