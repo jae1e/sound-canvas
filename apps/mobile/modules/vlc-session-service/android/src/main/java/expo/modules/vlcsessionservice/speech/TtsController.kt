@@ -1,13 +1,13 @@
 package expo.modules.vlcsessionservice.speech
 
 import android.content.Context
-import android.media.AudioAttributes
 import android.media.AudioFocusRequest
 import android.media.AudioManager
 import android.os.Bundle
 import android.os.SystemClock
 import android.speech.tts.TextToSpeech
 import android.speech.tts.UtteranceProgressListener
+import expo.modules.vlcsessionservice.audio.SpeechOutput
 import expo.modules.vlcsessionservice.log.DiagLog
 import java.util.Locale
 import java.util.concurrent.ConcurrentHashMap
@@ -72,6 +72,8 @@ class TtsController(
     communicationUsage = enabled
   }
 
+  private fun currentUsage() = SpeechOutput.usageFor(inProcess = false, communicationMode = communicationUsage)
+
   private fun applyLanguage() {
     val t = tts ?: return
     val r = t.setLanguage(locale)
@@ -92,12 +94,9 @@ class TtsController(
       if (t == null) {
         finish(id, "error")
       } else {
-        t.setAudioAttributes(
-          AudioAttributes.Builder()
-            .setUsage(if (communicationUsage) AudioAttributes.USAGE_VOICE_COMMUNICATION else AudioAttributes.USAGE_ASSISTANT)
-            .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
-            .build(),
-        )
+        // Forced-speaker mode switches routing and attributes here (platform engine = other process).
+        SpeechOutput.beginSpeech(context, inProcess = false)
+        t.setAudioAttributes(SpeechOutput.attributes(currentUsage()))
         requestFocus()
         val mode = if (priority == "high" || priority == "cue") TextToSpeech.QUEUE_FLUSH else TextToSpeech.QUEUE_ADD
         val r = t.speak(text, mode, Bundle(), id)
@@ -144,7 +143,9 @@ class TtsController(
       val p = pending[utteranceId] ?: return
       lastActivityRt.set(rt)
       log.log("tts_start", mapOf("utteranceId" to utteranceId, "cueId" to p.cueId, "speakToStartMs" to rt - p.requestedRt))
-      emit("ttsStart", mapOf("utteranceId" to utteranceId, "text" to p.text, "cueId" to p.cueId, "speakToStartMs" to rt - p.requestedRt))
+      // Logs `speech_output_route` + emits `speechOutputRoute`: where this utterance is actually going.
+      val route = SpeechOutput.report("tts_start", currentUsage(), null, mapOf("utteranceId" to utteranceId))
+      emit("ttsStart", mapOf("utteranceId" to utteranceId, "text" to p.text, "cueId" to p.cueId, "speakToStartMs" to rt - p.requestedRt, "routeLabel" to route["label"]))
       onAudibleStart(utteranceId, p.cueId, rt, p.source)
     }
 
@@ -175,11 +176,7 @@ class TtsController(
   private fun requestFocus() {
     if (focusRequest != null) return
     val req = AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN_TRANSIENT_MAY_DUCK)
-      .setAudioAttributes(
-        AudioAttributes.Builder()
-          .setUsage(if (communicationUsage) AudioAttributes.USAGE_VOICE_COMMUNICATION else AudioAttributes.USAGE_ASSISTANT)
-          .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH).build(),
-      )
+      .setAudioAttributes(SpeechOutput.attributes(currentUsage()))
       .setOnAudioFocusChangeListener { }
       .build()
     val r = audioManager.requestAudioFocus(req)

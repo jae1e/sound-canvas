@@ -2,6 +2,8 @@ package expo.modules.vlcsessionservice.speech
 
 import android.content.Context
 import expo.modules.vlcsessionservice.log.DiagLog
+import org.apache.commons.compress.archivers.tar.TarArchiveInputStream
+import org.apache.commons.compress.compressors.bzip2.BZip2CompressorInputStream
 import java.io.File
 import java.io.IOException
 import java.net.HttpURLConnection
@@ -20,7 +22,13 @@ class ModelManager(context: Context) {
 
   fun fileFor(setId: String, name: String): File = File(dir(setId), name)
 
-  fun isReady(set: ModelSet): Boolean = set.files.all { f -> fileFor(set.id, f.name).let { it.isFile && it.length() == f.sizeBytes } }
+  /** Marker written after an archive has been verified and extracted (the archive itself is then deleted). */
+  private fun markerFor(setId: String, f: ModelFile) = File(dir(setId), f.name + ".extracted")
+
+  fun isPresent(setId: String, f: ModelFile): Boolean =
+    if (f.archive) markerFor(setId, f).isFile else fileFor(setId, f.name).let { it.isFile && it.length() == f.sizeBytes }
+
+  fun isReady(set: ModelSet): Boolean = set.files.all { isPresent(set.id, it) }
 
   fun status(): List<Map<String, Any?>> = ModelCatalog.all.map { set ->
     mapOf(
@@ -30,8 +38,7 @@ class ModelManager(context: Context) {
       "totalBytes" to set.totalBytes,
       "dir" to dir(set.id).absolutePath,
       "files" to set.files.map { f ->
-        val local = fileFor(set.id, f.name)
-        mapOf("name" to f.name, "url" to f.url, "sizeBytes" to f.sizeBytes, "present" to (local.isFile && local.length() == f.sizeBytes))
+        mapOf("name" to f.name, "url" to f.url, "sizeBytes" to f.sizeBytes, "present" to isPresent(set.id, f))
       },
     )
   }
@@ -53,7 +60,7 @@ class ModelManager(context: Context) {
         dir(set.id).mkdirs()
         for (f in set.files) {
           val target = fileFor(set.id, f.name)
-          if (target.isFile && target.length() == f.sizeBytes) {
+          if (isPresent(set.id, f)) {
             doneBytes += f.sizeBytes
             onProgress(progress(set, f, f.sizeBytes, doneBytes, total, "skipped"))
             continue
@@ -63,6 +70,10 @@ class ModelManager(context: Context) {
           downloadOne(set, f, target) { fileBytes ->
             onProgress(progress(set, f, fileBytes, doneBytes + fileBytes, total, "downloading"))
           }
+          if (f.archive) {
+            onProgress(progress(set, f, f.sizeBytes, doneBytes + f.sizeBytes, total, "extracting"))
+            extractArchive(set, f, target)
+          }
           doneBytes += f.sizeBytes
           log.log("model_download_done", mapOf("set" to set.id, "file" to f.name, "ms" to System.currentTimeMillis() - started))
           onProgress(progress(set, f, f.sizeBytes, doneBytes, total, "verified"))
@@ -70,6 +81,34 @@ class ModelManager(context: Context) {
       }
     } finally {
       downloading.set(false)
+    }
+  }
+
+  /** Extracts a verified tar.bz2 into the set directory (top-level folder stripped), then replaces it with a marker. */
+  private fun extractArchive(set: ModelSet, f: ModelFile, archive: File) {
+    val outDir = dir(set.id).canonicalFile
+    try {
+      TarArchiveInputStream(BZip2CompressorInputStream(archive.inputStream().buffered(1 shl 16))).use { tar ->
+        while (true) {
+          if (cancelled.get()) throw IOException("Extraction cancelled")
+          val entry = tar.nextEntry ?: break
+          val rel = entry.name.removePrefix("./").substringAfter('/', "")
+          if (rel.isEmpty() || f.extractSkip.any { rel.startsWith(it) }) continue
+          val dest = File(outDir, rel).canonicalFile
+          if (!dest.path.startsWith(outDir.path + File.separator)) throw IOException("Unsafe archive entry ${entry.name}")
+          if (entry.isDirectory) {
+            dest.mkdirs()
+          } else if (entry.isFile) {
+            dest.parentFile?.mkdirs()
+            dest.outputStream().use { tar.copyTo(it) }
+          }
+        }
+      }
+      markerFor(set.id, f).writeText("ok ${System.currentTimeMillis()}\n")
+      archive.delete()
+    } catch (e: Exception) {
+      log.log("error", mapOf("where" to "model_extract", "set" to set.id, "file" to f.name, "message" to e.toString()))
+      throw e
     }
   }
 

@@ -15,6 +15,10 @@ android {
     versionCode 1
     versionName "0.1.0"
   }
+  kotlinOptions {
+    // ML Kit GenAI (and its kotlin-stdlib 2.4.0) is compiled with a newer Kotlin than Expo SDK 58's compiler (2.2.x).
+    freeCompilerArgs += ['-Xskip-metadata-version-check']
+  }
   lintOptions {
     abortOnError false
   }
@@ -57,4 +61,8 @@ if (!sherpaAar.exists() || sha256Of(sherpaAar) != sherpaSha256) {
 dependencies {
   implementation files(sherpaAar)
   implementation 'com.google.android.gms:play-services-location:21.3.0'
+  // ML Kit GenAI Text-to-Speech (alpha; Pixel 8+/Galaxy S25+, needs Google Speech Services).
+  implementation 'com.google.mlkit:genai-text-to-speech:1.0.0-alpha1'
+  // tar.bz2 extraction for model packages that ship as a single archive (Kokoro).
+  implementation 'org.apache.commons:commons-compress:1.27.1'
 }

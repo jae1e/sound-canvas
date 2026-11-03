@@ -32,6 +32,7 @@ class AudioRouting(
       ?: return mapOf("ok" to false, "reason" to "Device $id not in available communication devices")
     am.mode = AudioManager.MODE_IN_COMMUNICATION
     val ok = am.setCommunicationDevice(dev)
+    SpeechOutput.onExternalRouteChange(selectedDevice = true)
     log.log("route_select", mapOf("requested" to describe(dev), "ok" to ok))
     return mapOf("ok" to ok, "route" to state())
   }
@@ -39,6 +40,7 @@ class AudioRouting(
   fun clear(): Map<String, Any?> {
     if (Build.VERSION.SDK_INT >= 31) am.clearCommunicationDevice()
     am.mode = AudioManager.MODE_NORMAL
+    SpeechOutput.onExternalRouteChange(selectedDevice = false)
     log.log("route_clear")
     return mapOf("ok" to true, "route" to state())
   }

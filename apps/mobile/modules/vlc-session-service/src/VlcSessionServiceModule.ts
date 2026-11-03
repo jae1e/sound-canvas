@@ -10,6 +10,12 @@ import type {
   RouteState,
   SessionOptions,
   SessionStateName,
+  SpeechOutputMode,
+  SpeechOutputRoute,
+  TtsLabEngineId,
+  TtsLabEngineInfo,
+  TtsLabPrepareResult,
+  TtsLabVoice,
   VlcSessionServiceModuleEvents,
 } from './VlcSessionService.types';
 
@@ -31,6 +37,21 @@ declare class VlcSessionServiceNative extends NativeModule<VlcSessionServiceModu
   setCommunicationDevice(id: number): Promise<{ ok: boolean; reason?: string; route?: RouteState }>;
   clearCommunicationDevice(): Promise<{ ok: boolean; route: RouteState }>;
   getRouteState(): Promise<RouteState>;
+
+  /** 'speaker' forces speech to the phone speaker (see SPIKE.md for how and the trade-offs). Default 'auto'. */
+  setSpeechOutput(mode: SpeechOutputMode): Promise<SpeechOutputRoute>;
+  getSpeechOutputRoute(): Promise<SpeechOutputRoute>;
+
+  ttsLabEngines(): TtsLabEngineInfo[];
+  /** Binds / loads the engine for a BCP-47 locale tag such as "ko-KR". */
+  ttsLabPrepare(engine: TtsLabEngineId, locale: string): Promise<TtsLabPrepareResult>;
+  ttsLabVoices(engine: TtsLabEngineId, locale: string): Promise<TtsLabVoice[]>;
+  /** Downloads one ML Kit voice; progress arrives as ttsLabProgress events. */
+  ttsLabDownloadVoice(voice: string): Promise<{ ok: boolean; error?: string }>;
+  /** Returns a request id; results arrive as ttsLabEvent. voice: engine specific voice id or null. */
+  ttsLabSpeak(engine: TtsLabEngineId, text: string, locale: string, voice: string | null): string;
+  ttsLabStop(): void;
+  ttsLabSetMlKitPlayback(enabled: boolean, sampleRate: number): void;
 
   getModelStatus(): Promise<ModelStatus[]>;
   downloadModels(setIds: string[]): Promise<ModelStatus[]>;

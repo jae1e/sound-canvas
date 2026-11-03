@@ -55,7 +55,7 @@ export type FinalTranscriptEvent = {
   forcedEnd: boolean;
 };
 export type EchoSuppressedEvent = { seq: number; text: string };
-export type TtsStartEvent = { utteranceId: string; text: string; cueId: string | null; speakToStartMs: number };
+export type TtsStartEvent = { utteranceId: string; text: string; cueId: string | null; speakToStartMs: number; routeLabel?: string };
 export type TtsDoneEvent = { utteranceId: string; outcome: string; cueId: string | null };
 export type CueDueEvent = {
   id: string;
@@ -85,7 +85,7 @@ export type RouteChangedEvent = {
 export type ModelDownloadProgressEvent = {
   setId: string;
   file: string;
-  phase: 'downloading' | 'verified' | 'skipped';
+  phase: 'downloading' | 'verified' | 'skipped' | 'extracting';
   fileBytes: number;
   fileTotalBytes: number;
   overallBytes: number;
@@ -93,7 +93,82 @@ export type ModelDownloadProgressEvent = {
   overallFraction: number;
 };
 
+// ---- Speech output route + TTS lab -------------------------------------------------------------
+
+export type SpeechOutputMode = 'auto' | 'speaker';
+
+/** Where speech goes (AudioManager.getAudioDevicesForAttributes + full output list). */
+export type SpeechOutputRoute = {
+  /** Why it was reported: tts_start, device_added, device_removed, mode_change, query. */
+  reason: string;
+  usage: string;
+  mode: SpeechOutputMode;
+  /** For example "Bluetooth A2DP \u2014 Galaxy Buds3". */
+  label: string;
+  /** True when the device is the phone speaker or the communication device the user selected. */
+  ok: boolean;
+  warning: string | null;
+  /** Devices the platform would route a track with the usage above to. */
+  planned: AudioDevice[];
+  /** Device an in-process AudioTrack reported via getRoutedDevice(), when the engine owns the track. */
+  trackRouted: AudioDevice | null;
+  allOutputs: AudioDevice[];
+  communicationDevice: AudioDevice | null;
+  audioMode: number;
+  utteranceId?: string;
+  requestId?: string;
+  engine?: string;
+};
+
+export type TtsLabEngineId = 'platform-google' | 'platform-samsung' | 'mlkit' | 'supertonic' | 'kokoro';
+
+export type TtsLabEngineInfo = {
+  id: TtsLabEngineId;
+  label: string;
+  inProcess: boolean;
+  supportsKo: boolean;
+  supportsEn: boolean;
+};
+
+export type TtsLabVoice = {
+  name: string;
+  label: string;
+  networkRequired?: boolean;
+  installed?: boolean;
+  status?: string;
+};
+
+/** Free-form engine status for the UI (ok/error plus engine specific fields). */
+export type TtsLabPrepareResult = { ok: boolean; error?: string | null; needsDownload?: string } & Record<string, unknown>;
+
+export type TtsLabEvent = {
+  requestId: string;
+  engine: TtsLabEngineId;
+  phase: 'requested' | 'first_audio' | 'done' | 'error';
+  /** phase first_audio: request -> first audio, ms. */
+  latencyMs?: number;
+  routeLabel?: string;
+  routeOk?: boolean;
+  routeWarning?: string | null;
+  totalMs?: number;
+  outcome?: string;
+  message?: string | null;
+  /** Engine stats: genMs, audioSec, rtf, firstChunkMs, sampleRate, chunks, pcmBytes, method... */
+  info?: Record<string, unknown>;
+};
+
+export type TtsLabProgressEvent = {
+  engine: string;
+  voice: string;
+  phase: 'started' | 'progress';
+  bytes: number;
+  totalBytes: number;
+};
+
 export type VlcSessionServiceModuleEvents = {
+  speechOutputRoute: (e: SpeechOutputRoute) => void;
+  ttsLabEvent: (e: TtsLabEvent) => void;
+  ttsLabProgress: (e: TtsLabProgressEvent) => void;
   sessionState: (e: SessionStateEvent) => void;
   sessionError: (e: SessionErrorEvent) => void;
   pipelineState: (e: PipelineStateEvent) => void;

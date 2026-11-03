@@ -5,9 +5,7 @@ import {
   Alert,
   PermissionsAndroid,
   Platform,
-  Pressable,
   ScrollView,
-  StyleSheet,
   Switch,
   Text,
   TextInput,
@@ -15,6 +13,8 @@ import {
   type Permission,
 } from 'react-native';
 
+import { Btn, Row, Section, styles } from './ui';
+import { TtsLabPanel } from './TtsLabPanel';
 import VlcSessionService, {
   type AudioDevice,
   type CapabilityReport,
@@ -22,6 +22,7 @@ import VlcSessionService, {
   type LogSummary,
   type ModelStatus,
   type RouteState,
+  type SpeechOutputRoute,
   type SessionStateName,
 } from '../modules/vlc-session-service';
 
@@ -60,6 +61,8 @@ export default function SpikeScreen() {
   const [summary, setSummary] = useState<LogSummary | null>(null);
   const [capability, setCapability] = useState<CapabilityReport | null>(null);
   const [messages, setMessages] = useState<string[]>([]);
+  const [speechRoute, setSpeechRoute] = useState<SpeechOutputRoute | null>(null);
+  const [forceSpeaker, setForceSpeaker] = useState(false);
   const [ttsInput, setTtsInput] = useState('안녕하세요, 음성 테스트입니다.');
 
   const cueCounter = useRef(0);
@@ -149,6 +152,10 @@ export default function SpikeScreen() {
         refreshRoute().catch(() => {});
         note(`route ${e.change}: ${e.devices.map((d) => d.typeName).join(', ')}`);
       }),
+      VlcSessionService.addListener('speechOutputRoute', (e) => {
+        setSpeechRoute(e);
+        setForceSpeaker(e.mode === 'speaker');
+      }),
       VlcSessionService.addListener('modelDownloadProgress', (e) => {
         setDownloadInfo(
           `${e.setId}/${e.file} ${e.phase} ${mb(e.fileBytes)}/${mb(e.fileTotalBytes)} MB  total ${(e.overallFraction * 100).toFixed(0)}%`,
@@ -157,6 +164,7 @@ export default function SpikeScreen() {
     ];
     refreshModels().catch((e) => note(`models: ${e}`));
     refreshRoute().catch((e) => note(`route: ${e}`));
+    VlcSessionService.getSpeechOutputRoute().then(setSpeechRoute).catch((e) => note(`speech route: ${e}`));
     setSession(VlcSessionService.getSessionState());
     return () => subs.forEach((s) => s.remove());
   }, [note, refreshModels, refreshRoute, scheduleNext]);
@@ -251,6 +259,41 @@ export default function SpikeScreen() {
       <ScrollView contentContainerStyle={styles.content}>
         <Text style={styles.title}>VLC voice pipeline spike</Text>
 
+        <Section title="Speech output (where TTS is heard)">
+          <View style={[styles.banner, speechRoute && !speechRoute.ok && styles.bannerWarn]}>
+            <Text style={[styles.bannerText, speechRoute && !speechRoute.ok && styles.bannerWarnText]}>
+              Speech output: {speechRoute ? speechRoute.label : '...'}
+            </Text>
+            {speechRoute?.warning ? <Text style={styles.bannerWarnText}>WARNING: {speechRoute.warning}</Text> : null}
+          </View>
+          <Row>
+            <Text>Force phone speaker for speech</Text>
+            <Switch
+              value={forceSpeaker}
+              onValueChange={async (v) => {
+                setForceSpeaker(v);
+                try {
+                  setSpeechRoute(await VlcSessionService.setSpeechOutput(v ? 'speaker' : 'auto'));
+                } catch (e) {
+                  note(`setSpeechOutput failed: ${e}`);
+                }
+              }}
+            />
+            <Btn label="Refresh" onPress={async () => setSpeechRoute(await VlcSessionService.getSpeechOutputRoute())} />
+          </Row>
+          {speechRoute && (
+            <Text style={styles.mono}>
+              usage: {speechRoute.usage}  reason: {speechRoute.reason}  audio mode: {speechRoute.audioMode}
+              {'\n'}planned: {speechRoute.planned.map((d) => `${d.typeName}(${d.productName ?? ''})`).join(', ') || 'none'}
+              {speechRoute.trackRouted ? `\ntrack routed: ${speechRoute.trackRouted.typeName}` : ''}
+              {'\n'}all outputs: {speechRoute.allOutputs.map((d) => `${d.typeName}(${d.productName ?? ''})`).join(', ')}
+            </Text>
+          )}
+          <Text style={styles.small}>
+            Updated at every TTS start and on device changes. Warning = not the phone speaker nor the communication device you picked.
+          </Text>
+        </Section>
+
         <Section title="1. Permissions">
           <Btn label="Request permissions" onPress={requestPerms} />
           <Text style={styles.mono}>{Object.entries(perms).map(([k, v]) => `${k}: ${v}`).join('\n') || 'not requested yet'}</Text>
@@ -343,6 +386,8 @@ export default function SpikeScreen() {
           </Row>
         </Section>
 
+        <TtsLabPanel note={note} onModelsChanged={refreshModels} />
+
         <Section title="7. GPS / battery">
           <Text style={styles.mono}>
             fixes: {gps.count}   last accuracy: {fmt(gps.accuracy, 1)} m{'\n'}max gap: {gps.maxGap} ms   last gap: {gps.lastGap} ms
@@ -375,47 +420,3 @@ export default function SpikeScreen() {
     </View>
   );
 }
-
-function Section({ title, children }: { title: string; children: React.ReactNode }) {
-  return (
-    <View style={styles.section}>
-      <Text style={styles.sectionTitle}>{title}</Text>
-      {children}
-    </View>
-  );
-}
-
-function Row({ children }: { children: React.ReactNode }) {
-  return <View style={styles.row}>{children}</View>;
-}
-
-function Btn({ label, onPress, disabled, active }: { label: string; onPress: () => void; disabled?: boolean; active?: boolean }) {
-  return (
-    <Pressable
-      onPress={onPress}
-      disabled={disabled}
-      style={[styles.btn, active && styles.btnActive, disabled && styles.btnDisabled]}
-    >
-      <Text style={[styles.btnText, active && { color: '#fff' }]}>{label}</Text>
-    </Pressable>
-  );
-}
-
-const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: '#f6f6f4' },
-  content: { padding: 14, paddingTop: 48, paddingBottom: 80, gap: 10 },
-  title: { fontSize: 20, fontWeight: '700' },
-  section: { backgroundColor: '#fff', borderRadius: 8, padding: 10, gap: 6 },
-  sectionTitle: { fontWeight: '700', fontSize: 15 },
-  row: { flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap' },
-  btn: { borderWidth: 1, borderColor: '#2a5db0', borderRadius: 6, paddingVertical: 8, paddingHorizontal: 12 },
-  btnActive: { backgroundColor: '#2a5db0' },
-  btnDisabled: { opacity: 0.4 },
-  btnText: { color: '#2a5db0' },
-  mono: { fontFamily: 'monospace', fontSize: 11 },
-  small: { fontSize: 11, color: '#555' },
-  partial: { fontSize: 16, color: '#888', minHeight: 22 },
-  transcript: { borderTopWidth: StyleSheet.hairlineWidth, borderColor: '#ccc', paddingTop: 4 },
-  transcriptText: { fontSize: 16 },
-  input: { borderWidth: 1, borderColor: '#bbb', borderRadius: 6, paddingHorizontal: 8, paddingVertical: 4, minWidth: 56 },
-});

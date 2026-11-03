@@ -10,6 +10,7 @@ import expo.modules.kotlin.exception.CodedException
 import expo.modules.kotlin.modules.Module
 import expo.modules.kotlin.modules.ModuleDefinition
 import expo.modules.vlcsessionservice.audio.AudioRouting
+import expo.modules.vlcsessionservice.audio.SpeechOutput
 import expo.modules.vlcsessionservice.log.DiagLog
 import expo.modules.vlcsessionservice.log.LogSummary
 import expo.modules.vlcsessionservice.service.CapabilityReport
@@ -18,6 +19,7 @@ import expo.modules.vlcsessionservice.service.SessionRuntime
 import expo.modules.vlcsessionservice.service.SessionService
 import expo.modules.vlcsessionservice.speech.ModelCatalog
 import expo.modules.vlcsessionservice.speech.ModelManager
+import expo.modules.vlcsessionservice.speech.TtsLab
 import java.util.concurrent.Executors
 
 /** JS-facing surface. All real work lives in [SessionService] and the audio/speech/location/log packages. */
@@ -38,13 +40,17 @@ class VlcSessionServiceModule : Module() {
       "cueDue", "cueAudible",
       "location", "locationGap",
       "routeChanged", "modelDownloadProgress",
+      "speechOutputRoute", "ttsLabEvent", "ttsLabProgress",
     )
 
     OnCreate {
       SessionRuntime.sink = { event, payload -> sendEvent(event, payload) }
+      appContext.reactContext?.let { SpeechOutput.startMonitoring(it) }
     }
     OnDestroy {
       SessionRuntime.sink = null
+      SpeechOutput.stopMonitoring()
+      labOrNull?.release()
     }
     OnActivityEntersForeground { activityVisible = true }
     OnActivityEntersBackground { activityVisible = false }
@@ -113,6 +119,28 @@ class VlcSessionServiceModule : Module() {
     AsyncFunction("clearCommunicationDevice") { routingOrTemp().clear() }
     AsyncFunction("getRouteState") { routingOrTemp().state() }
 
+    // ---- speech output route + forced speaker ------------------------------------------------------
+    AsyncFunction("setSpeechOutput") { mode: String -> SpeechOutput.setMode(context, mode) }
+    AsyncFunction("getSpeechOutputRoute") {
+      SpeechOutput.startMonitoring(context)
+      SpeechOutput.report("query", SpeechOutput.currentUsage())
+    }
+
+    // ---- TTS A/B lab -------------------------------------------------------------------------------
+    Function("ttsLabEngines") { lab.engineList() }
+    AsyncFunction("ttsLabPrepare") { engineId: String, locale: String, promise: Promise ->
+      io.execute { runCatching { lab.prepare(engineId, locale) }.fold({ promise.resolve(it) }, { promise.reject(CodedException("TTS_LAB", it.toString(), it)) }) }
+    }
+    AsyncFunction("ttsLabVoices") { engineId: String, locale: String, promise: Promise ->
+      io.execute { runCatching { lab.voices(engineId, locale) }.fold({ promise.resolve(it) }, { promise.reject(CodedException("TTS_LAB", it.toString(), it)) }) }
+    }
+    AsyncFunction("ttsLabDownloadVoice") { voice: String, promise: Promise ->
+      io.execute { runCatching { lab.downloadMlKitVoice(voice) }.fold({ promise.resolve(it) }, { promise.reject(CodedException("TTS_LAB", it.toString(), it)) }) }
+    }
+    Function("ttsLabSpeak") { engineId: String, text: String, locale: String, voice: String? -> lab.speak(engineId, text, locale, voice) }
+    Function("ttsLabStop") { labOrNull?.stop(); Unit }
+    Function("ttsLabSetMlKitPlayback") { enabled: Boolean, sampleRate: Int -> lab.setMlKitOwnPlayback(enabled, sampleRate); Unit }
+
     // ---- models ------------------------------------------------------------------------------
     AsyncFunction("getModelStatus") { models.status() }
     AsyncFunction("downloadModels") { setIds: List<String>, promise: Promise ->
@@ -143,6 +171,16 @@ class VlcSessionServiceModule : Module() {
       r
     }
   }
+
+  private var labInstance: TtsLab? = null
+  private val labOrNull: TtsLab? get() = labInstance
+  private val lab: TtsLab
+    get() = labInstance ?: synchronized(this) {
+      labInstance ?: TtsLab(context, io) { e, p -> sendEvent(e, p) }.also {
+        SpeechOutput.startMonitoring(context)
+        labInstance = it
+      }
+    }
 
   /** Routing helper that also works when no session is running (for the route picker). */
   private fun routingOrTemp(): AudioRouting =

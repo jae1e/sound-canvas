@@ -28,8 +28,71 @@ URLs, sizes and SHA-256 are constants in `speech/ModelCatalog.kt`; the downloade
 | `vad` | Silero VAD, k2-fsa `asr-models` release asset (`silero_vad.onnx`) | 0.64 MB |
 | `ko` | `kangkyu/icefall-asr-ko-streaming-zipformer-174m` on Hugging Face (Apache-2.0), int8, chunk-16 / left-128 files | about 159.7 MB |
 | `en` (optional) | `csukuangfj/sherpa-onnx-streaming-zipformer-en-2023-06-26` (Apache-2.0), int8, chunk-16 / left-128 | about 72.7 MB |
+| `tts-supertonic` (TTS lab) | `csukuangfj2/sherpa-onnx-supertonic-3-tts-int8-2026-05-11` on Hugging Face: 7 files (4 int8 ONNX + `tts.json`, `unicode_indexer.bin`, `voice.bin`), same content as the 128.8 MB tts-models release tarball | about 145.3 MB |
+| `tts-kokoro-en` (TTS lab) | `kokoro-int8-multi-lang-v1_0.tar.bz2` from the k2-fsa `tts-models` release (Kokoro-82M v1.0 int8). One archive, extracted in-app (commons-compress), Chinese/GB lexicon and `dict/` skipped | 132.4 MB download, about 150 MB on disk after extraction (the archive is deleted) |
+
+Model licenses (recorded 2026-11-03; every model must allow commercial use; verify again before shipping). Source links are also in the `ModelCatalog.kt` comments.
+
+| Model | License (source) | Commercial use | Flags |
+| --- | --- | --- | --- |
+| Silero VAD | MIT, https://github.com/snakers4/silero-vad/blob/master/LICENSE | yes | none |
+| Korean zipformer ASR | Apache-2.0, https://huggingface.co/kangkyu/icefall-asr-ko-streaming-zipformer-174m | weights yes | **Dataset doubt**: trained on KsponSpeech + "AIHub mix" (about 6,500 h). AI Hub / KsponSpeech data terms are separate from the weights' Apache-2.0 tag and have historically restricted use; needs legal review |
+| English zipformer ASR | Apache-2.0, https://huggingface.co/csukuangfj/sherpa-onnx-streaming-zipformer-en-2023-06-26 | yes | LibriSpeech-trained (CC BY 4.0) |
+| Supertonic 3 TTS | **OpenRAIL-M** (weights), https://huggingface.co/Supertone/supertonic-3 (LICENSE); sample code MIT | allowed **with use-based restrictions** (License Attachment A) that must be passed on to downstream users; licensor reserves the right to restrict violating use | Not an OSI open-source license. The upstream repo https://github.com/supertone-inc/supertonic is archived (no further fixes expected). Check Attachment A against the product (e.g. voice cloning / impersonation clauses) |
+| Kokoro-82M v1.0 TTS | Apache-2.0, https://huggingface.co/hexgrad/Kokoro-82M | yes (card says "deployed in commercial APIs") | **Dataset doubts**: card says training audio includes synthetic speech from closed TTS providers (their output terms are not documented), plus CC BY audio that needs attribution (Koniwa tnc CC BY 3.0, SIWIS CC BY 4.0). The sherpa-onnx package also ships `espeak-ng-data`, and espeak-ng is GPL-3.0: review before shipping in a closed-source app |
+| ML Kit GenAI TTS | Google ML Kit terms + Google Speech Services voices; SDK `com.google.mlkit:genai-text-to-speech:1.0.0-alpha1` | not assessed | **Alpha, no SLA or deprecation policy**; only Pixel 8-11 and Galaxy S25/S26/Fold8/Flip8 class devices; needs current Speech Recognition & Synthesis app |
 
 The Korean model's file layout matched what sherpa-onnx needs (separate encoder/decoder/joiner/tokens), so the fallback `sherpa-onnx-streaming-zipformer-korean-2024-06-16` was not needed.
+
+## Speech output route and the TTS A/B lab
+
+### Why this exists
+
+On the first S25 run, cue TTS reported `onStart` within 50 ms and the user heard nothing: `dumpsys audio` showed the Google TTS AudioTrack (`USAGE_ASSISTANT`) routed to `AUDIO_DEVICE_OUT_BLUETOOTH_A2DP`, a device the route picker never showed (the picker lists only *communication* devices). "TTS started" says nothing about where it is audible, so the app now reports the real route.
+
+### Output route (top banner on the screen, `speech_output_route` in the log)
+
+- Source: `AudioManager.getAudioDevicesForAttributes(AudioAttributes(usage, CONTENT_TYPE_SPEECH))` (API 31+) for the usage the engine really uses (`USAGE_ASSISTANT`, or `USAGE_VOICE_COMMUNICATION` when a communication device is selected or the speaker is forced), plus the full `getDevices(GET_DEVICES_OUTPUTS)` list (A2DP, BLE, USB, wired, speaker...) and the current communication device. For engines that own their AudioTrack (sherpa-onnx), `AudioTrack.routedDevice` is reported too (`trackRouted`).
+- Logged and sent as the `speechOutputRoute` event at every `tts_start` (cue TTS and lab), on `AudioDeviceCallback` add/remove, and when the mode changes. Log fields: `reason`, `usage`, `mode`, `label`, `ok`, `warning`, `planned`, `trackRouted`, `allOutputs`, `communicationDevice`, `audioMode`.
+- Banner text: "Speech output: Bluetooth A2DP - <productName>". It switches to a warning style when the device is neither the phone speaker nor the communication device you picked in section 4 (`ok: false`). Wired/USB headsets you did not select also warn on purpose: the point is "never silently play somewhere you did not choose".
+- Meaning of "planned": what the platform would route a new track with those attributes to. It is a prediction at `tts_start` time, not a measurement of the other process's track; `dumpsys audio` remains the ground truth for platform engines.
+
+### Force phone speaker (`setSpeechOutput('auto' | 'speaker')`, default `auto`)
+
+| Engine kind | Method used | Logged as |
+| --- | --- | --- |
+| Out-of-process: Google/Samsung `TextToSpeech`, ML Kit GenAI (which wraps `TextToSpeech`), cue TTS | `AudioManager.mode = MODE_IN_COMMUNICATION` + `setCommunicationDevice(builtin speaker)`, and the TTS gets `USAGE_VOICE_COMMUNICATION` attributes (`TextToSpeech.setAudioAttributes`). Voice-communication tracks follow the communication strategy, which `setCommunicationDevice` controls, so the engine's own track lands on the speaker. | `speech_force_speaker`, `speech_output_mode` (method), `tts_start.method` / lab `info.method` = `communication_device(builtin_speaker)+voice_communication` |
+| In-process: sherpa-onnx Supertonic/Kokoro (our `AudioTrack`) | `AudioTrack.setPreferredDevice(builtin speaker)` with normal `USAGE_ASSISTANT`; any communication route we set earlier is released first. | `info.method` = `preferred_device(builtin_speaker)`, `info.preferredDeviceApplied` |
+
+The routing is applied lazily right before each utterance, so it also survives the session's `clear()` on stop. Picking a device in the section 4 picker turns the forced mode off (your explicit choice wins); "Auto (clear)" only drops the communication route, and the forced route is re-applied on the next utterance.
+
+Trade-offs of the communication-device method (this is the weak part; verify on the phone):
+- Volume: speech now follows the voice-call volume stream, not media/assistant volume. The phone may be quiet until the call volume is raised.
+- While `MODE_IN_COMMUNICATION` is active, Bluetooth earbuds are pushed out of the A2DP media path (music in other apps may switch or route oddly), and the system treats the app like a call: other apps' audio focus and ducking can differ.
+- It matches the VOICE_COMMUNICATION capture the session already uses (AEC/NS, mic on the built-in microphone when the speaker is the communication device), which is a benefit for the half-duplex echo story but means earbud mic input is not used while forced.
+- A TTS engine that ignores `setAudioAttributes` (some OEM engines) would still go to A2DP; the route banner would then show the warning.
+- Alternative not implemented: `TextToSpeech.synthesizeToFile` and play the PCM through our own AudioTrack with `setPreferredDevice`. That gives deterministic routing for every engine but loses streaming (first-audio latency = whole synthesis).
+
+### TTS A/B panel (section 6b)
+
+One text box (defaults: the Korean pasta sentence, or an English equivalent when en-US is chosen), a language switch, and per engine: **Prepare** (bind/load/check), **Speak**, a voice picker, and engine specific controls. Results list request -> first-audio latency, total time, the output device used (red when it triggers the route warning), and for sherpa engines generation time, audio length and RTF.
+
+Procedure:
+1. Choose the language. For Supertonic and Kokoro tap **Download** on desktop Wi-Fi (about 145 MB and 132 MB), wait for READY.
+2. Tap **Prepare** on each engine once (so latency excludes load/bind), then **Speak** two or three times. Compare the first Speak (cold) and later ones.
+3. Compare naturalness by ear, and note the output route line for each result. If the route warning shows, flip **Force phone speaker** and repeat.
+4. Tap **Share log** and keep `tts_lab_*` and `speech_output_route` events.
+
+Engines:
+- **Platform - Google** (`com.google.android.tts`): lists installed voices for the chosen language, "Local voices only" hides voices that need the network (names ending in `-local` are the offline ones); pick one before **Speak**. Latency = `UtteranceProgressListener.onStart`.
+- **Platform - Samsung** (`com.samsung.SMT`): `TextToSpeech(ctx, listener, "com.samsung.SMT")` does not fall back to the default engine, so success means that engine bound. Prepare reports `requestedEngine`, `defaultEngine`, `boundEngine` (via the hidden `getCurrentEngine()`, null when blocked), `installedEngines`. If init fails or `requestedInstalled` is false, the engine is not usable by third-party apps on this phone. Selectable for A/B only if it initialises.
+- **ML Kit GenAI TTS**: Prepare shows the per-voice `checkStatus` (`UNAVAILABLE`, `DOWNLOADABLE`, `DOWNLOADING`, `AVAILABLE`); voices with `DOWNLOADABLE` get a **Download voice** button with progress; errors (unsupported device, missing/outdated Speech Services, error codes) are shown as text. **Important finding from decompiling the SDK**: it calls `TextToSpeech.setAudioAttributes(request.audioAttributes)` + `speak()` and exposes `onAudioAvailable` as `AudioAvailable`, so the SDK plays the audio itself inside Google Speech Services; the PCM chunks are a copy and their sample rate is undocumented. The panel therefore measures first audio from the first chunk (fallback: playback `START`), and offers an optional "also play chunks with our AudioTrack" switch with an assumed PCM16 mono sample rate (default 24000; wrong rate = pitch/speed off, and expect double audio). Default is off.
+- **Supertonic 3 (sherpa-onnx OfflineTts)**: Korean is `extra["lang"]="ko"` in `GenerationConfig` (English `en`), `numSteps` 8, speaker id from `numSpeakers()` (upstream presets are named M1-M5/F1-F5; the sherpa package does not label them, so only `sid N` is shown). Generation runs on a background thread, float PCM is streamed into an `AudioTrack` from the generator callback. Reported: generation ms (excluding time blocked on playback), audio seconds, RTF, first chunk ms.
+- **Kokoro 82M (sherpa-onnx, English only)**: voices are sid 0-27 (US `af_*`/`am_*`, GB `bf_*`/`bm_*`); default sid 3 `af_heart`. Same measurements as Supertonic.
+
+Code layout: `speech/engine/SpeechEngine.kt` (interface: `supports(locale)`, `prepare`, `voices`, `speak(request, callback)`, `stop`, `release`), `PlatformTtsEngine`, `MlKitTtsEngine`, `SherpaTtsEngine`; `speech/TtsLab.kt` owns instances and measurement; `audio/SpeechOutput.kt` owns route reporting and forcing. The session's cue TTS (`TtsController`) still uses the platform default engine; it already shares `SpeechOutput` (routing and usage). Selecting an engine per locale for cues is not wired: engines are selected by id and `supports(locale)` is in place for it.
+
+Build notes: ML Kit GenAI and its kotlin-stdlib 2.4.0 are newer than Expo SDK 58's Kotlin 2.2 compiler, so the module compiles with `-Xskip-metadata-version-check` (runtime uses stdlib 2.4.0). R8 keep rules for sherpa-onnx JNI and ML Kit are in `consumer-rules.pro`; commons-compress (tar.bz2) is a new dependency.
 
 ## Build and install
 
@@ -78,7 +141,7 @@ Run it twice: once with earbuds (select the Bluetooth device in the route picker
 
 Also recorded: TTS engines (capability report) and `endpointLatencyMs` (VAD end-of-speech decision to final text; real end of speech is about 500 ms earlier, `trailingSilenceMs`). Not covered by this build: ML Kit GenAI availability and the Kakao walking-route call (section 10 "also record" items).
 
-Log events (JSONL in `<filesDir>/vlc-diag/diag.jsonl`; each line has `t` epoch ms, `rt` elapsedRealtime ms, `ev`): `service_start`, `service_running`, `service_stop`, `pipeline_ready`, `audio_open`, `audio_stats`, `recorder_restart`, `speech_start`, `final_transcript`, `final_empty`, `echo_policy`, `echo_suppressed`, `barge_in`, `tts_request`, `tts_start`, `tts_done`, `cue_scheduled`, `cue_fire`, `cue_ack`, `cue_js_timeout`, `cue_audible`, `location_fix`, `location_gap`, `route_select`, `route_change`, `record_route`, `battery`, `capability_report`, `marker`, `error`. Partial transcripts are not logged (too noisy).
+Log events (JSONL in `<filesDir>/vlc-diag/diag.jsonl`; each line has `t` epoch ms, `rt` elapsedRealtime ms, `ev`): `service_start`, `service_running`, `service_stop`, `pipeline_ready`, `audio_open`, `audio_stats`, `recorder_restart`, `speech_start`, `final_transcript`, `final_empty`, `echo_policy`, `echo_suppressed`, `barge_in`, `tts_request`, `tts_start`, `tts_done`, `speech_output_route`, `speech_output_mode`, `speech_force_speaker`, `tts_lab_request`, `tts_lab_prepare`, `tts_lab_first_audio`, `tts_lab_done`, `tts_lab_mlkit_download`, `cue_scheduled`, `cue_fire`, `cue_ack`, `cue_js_timeout`, `cue_audible`, `location_fix`, `location_gap`, `route_select`, `route_change`, `record_route`, `battery`, `capability_report`, `marker`, `error`. Partial transcripts are not logged (too noisy).
 
 ## Behaviour notes and design choices
 
@@ -98,5 +161,6 @@ Log events (JSONL in `<filesDir>/vlc-diag/diag.jsonl`; each line has `t` epoch m
 - The `ko` model is a 174M int8 transducer: expect a few hundred MB RAM and noticeable CPU; check `battery` and `batteryMaxTempC`. English and Korean are separate sessions (restart to switch).
 - "Audible" latency is measured at TTS `onStart`, not at the speaker.
 - Bluetooth: SCO / LE Audio headsets appear only after `BLUETOOTH_CONNECT` is granted; classic Bluetooth headset mics are narrowband, so STT accuracy may drop with earbuds.
-- No ML Kit GenAI probe, no Kakao route call, no vocal-take capture mode.
+- ML Kit GenAI TTS is in the TTS lab (alpha, untested on the device); no Kakao route call, no vocal-take capture mode. The capability report's `mlKitGenAi` string is still a stub: use the lab's ML Kit status.
+- TTS lab and route reporting are untested on hardware. Forced speaker (communication-device method) is a best-supported approach but its effect on the Google engine's AudioTrack, call volume and Bluetooth media routing must be verified with `dumpsys audio`.
 - The partial transcript is only emitted while speech is detected, at most every 150 ms.
