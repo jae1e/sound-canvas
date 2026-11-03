@@ -9,6 +9,9 @@ version = '0.1.0'
 android {
   namespace "expo.modules.vlcsessionservice"
   defaultConfig {
+    // Keep sherpa-onnx classes intact in minified (release) builds: its JNI code looks up
+    // Kotlin config fields by name, and R8 renaming makes GetFieldID return null.
+    consumerProguardFiles "consumer-rules.pro"
     versionCode 1
     versionName "0.1.0"
   }
