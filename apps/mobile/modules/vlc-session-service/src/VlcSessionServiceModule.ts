@@ -15,6 +15,8 @@ import type {
   TtsLabEngineId,
   TtsLabEngineInfo,
   TtsLabPrepareResult,
+  TtsLabRoutePreview,
+  TtsLabSpeakOptions,
   TtsLabVoice,
   VlcSessionServiceModuleEvents,
 } from './VlcSessionService.types';
@@ -49,7 +51,10 @@ declare class VlcSessionServiceNative extends NativeModule<VlcSessionServiceModu
   /** Downloads one ML Kit voice; progress arrives as ttsLabProgress events. */
   ttsLabDownloadVoice(voice: string): Promise<{ ok: boolean; error?: string }>;
   /** Returns a request id; results arrive as ttsLabEvent. voice: engine specific voice id or null. */
-  ttsLabSpeak(engine: TtsLabEngineId, text: string, locale: string, voice: string | null): string;
+  ttsLabSpeak(engine: TtsLabEngineId, text: string, locale: string, voice: string | null, options: TtsLabSpeakOptions): string;
+  /** Starts the sequential all-engines self-test; returns false if one is already running. Results arrive as ttsLabSelfTest events. */
+  ttsLabRunAll(koText: string, enText: string): boolean;
+  ttsLabPreviewRoute(output: SpeechOutputMode): Promise<TtsLabRoutePreview>;
   ttsLabStop(): void;
   ttsLabSetMlKitPlayback(enabled: boolean, sampleRate: number): void;
 

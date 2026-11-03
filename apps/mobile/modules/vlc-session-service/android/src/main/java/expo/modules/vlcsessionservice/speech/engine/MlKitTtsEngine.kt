@@ -13,6 +13,7 @@ import com.google.mlkit.genai.texttospeech.SpeechSynthesizerRequest
 import com.google.mlkit.genai.texttospeech.SpeechSynthesizerResponse
 import com.google.mlkit.genai.texttospeech.VoiceInfo
 import expo.modules.vlcsessionservice.audio.SpeechOutput
+import expo.modules.vlcsessionservice.log.chainText
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -76,7 +77,7 @@ class MlKitTtsEngine(private val context: Context) : SpeechEngine {
         "statuses" to statuses.associate { it.first to statusName(it.second) },
       )
     } catch (e: Throwable) {
-      mapOf("ok" to false, "error" to "ML Kit failed: $e")
+      mapOf("ok" to false, "error" to "ML Kit failed: ${e.chainText()}")
     }
   }
 
@@ -114,7 +115,7 @@ class MlKitTtsEngine(private val context: Context) : SpeechEngine {
       }
       result
     } catch (e: Throwable) {
-      mapOf("ok" to false, "error" to "download error: $e")
+      mapOf("ok" to false, "error" to "download error: ${e.chainText()}")
     }
   }
 
@@ -163,7 +164,7 @@ class MlKitTtsEngine(private val context: Context) : SpeechEngine {
       } catch (e: kotlinx.coroutines.CancellationException) {
         outcome = "stopped"
       } catch (e: Throwable) {
-        outcome = "error:$e"
+        outcome = "error:${e.chainText()}"
       } finally {
         finishTrack()
         callback.onFinished(outcome, mapOf("chunks" to chunks, "pcmBytes" to bytes, "assumedSampleRate" to assumedSampleRate, "ownPlayback" to ownPlayback))

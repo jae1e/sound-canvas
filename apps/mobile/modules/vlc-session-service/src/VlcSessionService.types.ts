@@ -103,6 +103,10 @@ export type SpeechOutputRoute = {
   reason: string;
   usage: string;
   mode: SpeechOutputMode;
+  /** Mode actually in force (the TTS lab can override the global mode per utterance). */
+  effectiveMode?: SpeechOutputMode;
+  /** Who holds MODE_IN_COMMUNICATION / the communication device: speech_output, route_picker, unknown_external, none. */
+  commOwner?: string;
   /** For example "Bluetooth A2DP \u2014 Galaxy Buds3". */
   label: string;
   /** True when the device is the phone speaker or the communication device the user selected. */
@@ -120,7 +124,7 @@ export type SpeechOutputRoute = {
   engine?: string;
 };
 
-export type TtsLabEngineId = 'platform-google' | 'platform-samsung' | 'mlkit' | 'supertonic' | 'kokoro';
+export type TtsLabEngineId = 'platform-google' | 'platform-samsung' | 'mlkit' | 'supertonic' | 'kitten' | 'kokoro';
 
 export type TtsLabEngineInfo = {
   id: TtsLabEngineId;
@@ -140,6 +144,44 @@ export type TtsLabVoice = {
 
 /** Free-form engine status for the UI (ok/error plus engine specific fields). */
 export type TtsLabPrepareResult = { ok: boolean; error?: string | null; needsDownload?: string } & Record<string, unknown>;
+
+/** Side-effect free route preview for a lab output choice ('speaker' = phone speaker, 'auto' = system route). */
+export type TtsLabRoutePreview = {
+  output: SpeechOutputMode;
+  label: string;
+  ok: boolean;
+  warning: string | null;
+  audioMode: number;
+  communicationDevice: AudioDevice | null;
+  commOwner: string;
+  allOutputs: AudioDevice[];
+};
+
+/** Options for ttsLabSpeak. output defaults to 'speaker' in the lab; steps is Supertonic only. */
+export type TtsLabSpeakOptions = { output?: SpeechOutputMode; steps?: number };
+
+/** One row of the "Run all engines" self-test (also logged natively as tts_lab_selftest). */
+export type TtsLabSelfTestRow = {
+  engine: TtsLabEngineId;
+  lang: 'ko' | 'en';
+  ok: boolean;
+  error?: string | null;
+  modelMB?: number;
+  prepareMs?: number;
+  firstAudioMs?: number | null;
+  genMs?: number | null;
+  rtf?: number | null;
+  audioDurationMs?: number | null;
+  totalMs?: number;
+  routeLabel?: string | null;
+  routeOk?: boolean | null;
+  routedDevice?: AudioDevice | null;
+  voice?: string | null;
+};
+export type TtsLabSelfTestDone = { count: number; okCount: number; failed: string[]; cancelled: boolean };
+
+/** Emitted whenever a prepare finishes (also when started from Speak). */
+export type TtsLabPreparedEvent = { engine: TtsLabEngineId; locale: string; result: TtsLabPrepareResult };
 
 export type TtsLabEvent = {
   requestId: string;
@@ -168,6 +210,9 @@ export type TtsLabProgressEvent = {
 export type VlcSessionServiceModuleEvents = {
   speechOutputRoute: (e: SpeechOutputRoute) => void;
   ttsLabEvent: (e: TtsLabEvent) => void;
+  ttsLabPrepared: (e: TtsLabPreparedEvent) => void;
+  ttsLabSelfTest: (e: TtsLabSelfTestRow) => void;
+  ttsLabSelfTestDone: (e: TtsLabSelfTestDone) => void;
   ttsLabProgress: (e: TtsLabProgressEvent) => void;
   sessionState: (e: SessionStateEvent) => void;
   sessionError: (e: SessionErrorEvent) => void;

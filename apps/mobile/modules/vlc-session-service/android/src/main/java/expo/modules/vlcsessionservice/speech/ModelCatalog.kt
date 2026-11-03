@@ -106,12 +106,45 @@ object ModelCatalog {
         "https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/kokoro-int8-multi-lang-v1_0.tar.bz2",
         132_353_410, "72c347230107ef8a31098ec4d468a605244beef5f1ed00db97efa13518800653",
         archive = true,
-        extractSkip = listOf("dict/", "lexicon-zh", "lexicon-gb", "date-zh", "number-zh", "phone-zh"),
+        extractSkip = listOf("dict/", "lexicon-zh", "lexicon-gb", "date-zh", "number-zh", "phone-zh", "espeak-ng-data/"),
       ),
     ),
   )
 
-  val all: List<ModelSet> = listOf(vad, ko, en, supertonic, kokoroEn)
+  // Shared English lexicon (word || IPA phones) used by Kokoro and Kitten. sherpa-onnx >= 2.0 no longer uses espeak-ng,
+  // so no espeak-ng-data is shipped or extracted. Asset of the k2-fsa `tts-models` release, built by the sherpa-onnx
+  // authors (script scripts/kokoro or build_lexicon.py: CMUDict + extra word lists). Covers plurals such as
+  // "mushrooms" and "minutes" that Kokoro's bundled lexicon-us-en.txt misses. License: derived from CMUDict (BSD-style);
+  // the release page does not state a license for the file itself, so re-verify before shipping.
+  // Size and SHA-256 from the GitHub release API digest (2026-11-03).
+  val lexiconEn = ModelSet(
+    "tts-lexicon-en", "English lexicon for Kokoro/Kitten (lexicon-en-us.txt, shared)",
+    listOf(
+      ModelFile(
+        "lexicon-en-us.txt", "https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/lexicon-en-us.txt",
+        6_305_773, "8b67ae549a465eee78f92ecb74644ad90c3c58ce65f19c68baf85878a10ef73a",
+      ),
+    ),
+  )
+
+  // Kitten TTS nano 0.8 int8 (English, ~15M params). Upstream https://github.com/KittenML/KittenTTS (Apache-2.0; the
+  // archive carries an Apache-2.0 LICENSE). sherpa-onnx packaging from the k2-fsa `tts-models` release; files used:
+  // model.int8.onnx (24.4 MB), voices.bin, tokens.txt. espeak-ng-data in the archive is skipped.
+  // Dataset provenance of the weights is not documented in the archive README: not assessed.
+  val kitten = ModelSet(
+    "tts-kitten-en", "Kitten TTS nano 0.8 int8 (English, Apache-2.0)",
+    listOf(
+      ModelFile(
+        "kitten-nano-en-v0_8-int8.tar.bz2",
+        "https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/kitten-nano-en-v0_8-int8.tar.bz2",
+        31_220_690, "6fa5be852612ce761094ba74ee6123b4fc4acfefa79bf64dc63acae4a83af2fd",
+        archive = true,
+        extractSkip = listOf("espeak-ng-data/"),
+      ),
+    ),
+  )
+
+  val all: List<ModelSet> = listOf(vad, ko, en, supertonic, kokoroEn, lexiconEn, kitten)
 
   fun find(id: String): ModelSet? = all.firstOrNull { it.id == id }
 }

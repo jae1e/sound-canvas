@@ -35,6 +35,19 @@ object SpeechOutput {
   /** True while we ourselves hold MODE_IN_COMMUNICATION + a communication device for forcing. */
   @Volatile private var ownsCommRoute = false
 
+  /** True after the session route picker (AudioRouting.select) set a communication device; cleared by AudioRouting.clear. */
+  @Volatile private var pickerOwnsCommRoute = false
+
+  /**
+   * Per-utterance override used by the TTS lab so the lab can default to the phone speaker without changing the
+   * global [mode] that the session cue path uses. Valid while [labToken] names the active lab request.
+   */
+  @Volatile private var labOverride: String? = null
+  @Volatile private var labToken: String? = null
+
+  /** The mode in force right now: the lab override while a lab utterance is active, otherwise the global mode. */
+  val effectiveMode: String get() = labOverride ?: mode
+
   private var appContext: Context? = null
   private var callback: AudioDeviceCallback? = null
   @Volatile var lastReport: Map<String, Any?>? = null
@@ -70,7 +83,7 @@ object SpeechOutput {
 
   /** @param communicationMode the session routed to a communication device (existing picker behaviour). */
   fun usageFor(inProcess: Boolean, communicationMode: Boolean): Int = when {
-    mode == MODE_SPEAKER && !inProcess -> AudioAttributes.USAGE_VOICE_COMMUNICATION
+    effectiveMode == MODE_SPEAKER && !inProcess -> AudioAttributes.USAGE_VOICE_COMMUNICATION
     communicationMode && !inProcess -> AudioAttributes.USAGE_VOICE_COMMUNICATION
     else -> AudioAttributes.USAGE_ASSISTANT
   }
@@ -104,7 +117,14 @@ object SpeechOutput {
   fun beginSpeech(context: Context, inProcess: Boolean): String {
     val c = context.applicationContext
     appContext = c
-    if (mode != MODE_SPEAKER) return "auto"
+    log(c).log(
+      "speech_begin",
+      mapOf(
+        "effectiveMode" to effectiveMode, "inProcess" to inProcess, "audioMode" to am(c).mode,
+        "communicationDevice" to am(c).communicationDevice?.let(AudioRouting::describe), "commOwner" to commOwner(),
+      ),
+    )
+    if (effectiveMode != MODE_SPEAKER) return "auto"
     return if (inProcess) {
       releaseCommRoute(c)
       "preferred_device(builtin_speaker)"
@@ -115,9 +135,77 @@ object SpeechOutput {
 
   /** In-process engines call this on their AudioTrack. Returns true if the preferred device was applied. */
   fun applyToTrack(context: Context, track: android.media.AudioTrack): Boolean {
-    if (mode != MODE_SPEAKER) return false
+    if (effectiveMode != MODE_SPEAKER) return false
     val sp = builtinSpeaker(context) ?: return false
     return track.setPreferredDevice(sp)
+  }
+
+  /** Who holds MODE_IN_COMMUNICATION / the communication device right now (for diagnostics). */
+  private fun commOwner(): String = when {
+    ownsCommRoute -> "speech_output"
+    pickerOwnsCommRoute -> "route_picker"
+    appContext?.let { am(it).mode == AudioManager.MODE_IN_COMMUNICATION } == true -> "unknown_external"
+    else -> "none"
+  }
+
+  /**
+   * Starts a lab utterance with its own output mode ("speaker" or "auto"). Releases a communication route we hold
+   * when the lab wants auto, so "auto" really means the system route.
+   */
+  fun beginLab(context: Context, labMode: String, token: String) {
+    val c = context.applicationContext
+    appContext = c
+    labToken = token
+    labOverride = if (labMode == MODE_SPEAKER) MODE_SPEAKER else MODE_AUTO
+    if (effectiveMode != MODE_SPEAKER) releaseCommRoute(c)
+  }
+
+  /**
+   * Ends the lab utterance [token] (no-op if a newer request already took over). Restores MODE_NORMAL and clears the
+   * communication device if the lab's forced speaker route is the only reason we hold them.
+   */
+  fun endLab(context: Context, token: String) {
+    if (labToken != token) return
+    val c = context.applicationContext
+    labToken = null
+    labOverride = null
+    if (mode != MODE_SPEAKER) releaseCommRoute(c)
+  }
+
+  /** Releases any lab override unconditionally (lab stop / release). */
+  fun endLabAny(context: Context) {
+    labToken?.let { endLab(context, it) }
+  }
+
+  /**
+   * Route a lab utterance would take for [labMode], without side effects or events. Phone speaker mode reports the
+   * built-in speaker (that is where we force it); auto reports the platform's pick for assistant speech.
+   */
+  fun previewRoute(context: Context, labMode: String): Map<String, Any?> {
+    val c = context.applicationContext
+    appContext = c
+    val a = am(c)
+    val outputs = a.getDevices(AudioManager.GET_DEVICES_OUTPUTS)
+    val target = if (labMode == MODE_SPEAKER) {
+      builtinSpeaker(c)
+    } else {
+      a.getAudioDevicesForAttributes(attributes(AudioAttributes.USAGE_ASSISTANT)).firstOrNull()
+    }
+    val ok = target?.type == AudioDeviceInfo.TYPE_BUILTIN_SPEAKER
+    return mapOf(
+      "output" to labMode,
+      "label" to (target?.let(::label) ?: "unknown"),
+      "ok" to ok,
+      "warning" to when {
+        target == null -> "No output device reported"
+        ok -> null
+        else -> "Speech goes to ${label(target)}, not the phone speaker"
+      },
+      "audioMode" to a.mode,
+      "communicationDevice" to a.communicationDevice?.let(AudioRouting::describe),
+      "commOwner" to commOwner(),
+      "allOutputs" to outputs.map(AudioRouting::describe),
+    )
   }
 
   private fun ensureCommRoute(c: Context): Boolean {
@@ -127,6 +215,7 @@ object SpeechOutput {
     a.mode = AudioManager.MODE_IN_COMMUNICATION
     val ok = a.setCommunicationDevice(sp)
     ownsCommRoute = ok
+    if (ok) pickerOwnsCommRoute = false
     log(c).log("speech_force_speaker", mapOf("ok" to ok, "device" to AudioRouting.describe(sp)))
     return ok
   }
@@ -137,12 +226,16 @@ object SpeechOutput {
     val a = am(c)
     a.clearCommunicationDevice()
     a.mode = AudioManager.MODE_NORMAL
-    log(c).log("speech_force_speaker_released")
+    log(c).log(
+      "speech_force_speaker_released",
+      mapOf("audioMode" to a.mode, "communicationDevice" to a.communicationDevice?.let(AudioRouting::describe)),
+    )
   }
 
   /** The session's route picker changed or cleared the communication device: our forced route is no longer ours. */
   fun onExternalRouteChange(selectedDevice: Boolean) {
     ownsCommRoute = false
+    pickerOwnsCommRoute = selectedDevice
     if (selectedDevice && mode == MODE_SPEAKER) {
       mode = MODE_AUTO
       appContext?.let { log(it).log("speech_output_mode", mapOf("mode" to mode, "method" to "reset: user picked a communication device")) }
@@ -186,13 +279,15 @@ object SpeechOutput {
     val warning = when {
       effective == null -> "No output device reported for this usage"
       ok -> null
-      mode == MODE_SPEAKER -> "Forced speaker is on but speech goes to ${label(effective)}"
+      effectiveMode == MODE_SPEAKER -> "Forced speaker is on but speech goes to ${label(effective)}"
       else -> "Speech goes to ${label(effective)}, which is not the phone speaker or a headset you selected"
     }
     val payload = mapOf(
       "reason" to reason,
       "usage" to usageName(usage),
       "mode" to mode,
+      "effectiveMode" to effectiveMode,
+      "commOwner" to commOwner(),
       "label" to (effective?.let(::label) ?: "unknown"),
       "ok" to ok,
       "warning" to warning,

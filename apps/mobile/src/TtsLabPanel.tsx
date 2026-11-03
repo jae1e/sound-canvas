@@ -8,6 +8,11 @@ import VlcSessionService, {
   type TtsLabEngineInfo,
   type TtsLabEvent,
   type TtsLabPrepareResult,
+  type TtsLabPreparedEvent,
+  type TtsLabSelfTestRow,
+  type TtsLabSelfTestDone,
+  type TtsLabRoutePreview,
+  type SpeechOutputMode,
   type TtsLabVoice,
 } from '../modules/vlc-session-service';
 import { Btn, Row, Section, styles } from './ui';
@@ -16,9 +21,10 @@ const KO_TEXT = '파스타 1분 남았어요. 버섯 다 됐는지 확인해 주
 const EN_TEXT = 'One minute left on the pasta. Please check whether the mushrooms are done.';
 
 /** Engines that need a downloaded model set before they can run. */
-const MODEL_SET: Partial<Record<TtsLabEngineId, string>> = {
-  supertonic: 'tts-supertonic',
-  kokoro: 'tts-kokoro-en',
+const MODEL_SETS: Partial<Record<TtsLabEngineId, string[]>> = {
+  supertonic: ['tts-supertonic'],
+  kitten: ['tts-kitten-en', 'tts-lexicon-en'],
+  kokoro: ['tts-kokoro-en', 'tts-lexicon-en'],
 };
 
 type LabResult = {
@@ -33,6 +39,7 @@ type LabResult = {
   message?: string | null;
   totalMs?: number;
   info?: Record<string, unknown>;
+  output?: SpeechOutputMode;
 };
 
 const mb = (n: number) => (n / 1e6).toFixed(1);
@@ -62,9 +69,34 @@ export function TtsLabPanel({ note, onModelsChanged }: { note: (m: string) => vo
   const [mlkitProgress, setMlkitProgress] = useState('');
   const [ownPlayback, setOwnPlayback] = useState(false);
   const [sampleRate, setSampleRate] = useState('24000');
-  const [busy, setBusy] = useState<string | null>(null);
-  const pendingMeta = useRef<Record<string, { voice: string | null; lang: string }>>({});
+  // Several operations can run at once (a download and a prepare of another engine), so busy is a map key -> start time.
+  const [busyMap, setBusyMap] = useState<Record<string, number>>({});
+  const [, setTick] = useState(0);
+  const [output, setOutput] = useState<SpeechOutputMode>('speaker');
+  const [selfTest, setSelfTest] = useState<TtsLabSelfTestRow[]>([]);
+  const [selfTestState, setSelfTestState] = useState<string>('');
+  const [steps, setSteps] = useState<8 | 16>(8);
+  const [routePreview, setRoutePreview] = useState<TtsLabRoutePreview | null>(null);
+  const pendingMeta = useRef<Record<string, { voice: string | null; lang: string; output: SpeechOutputMode }>>({});
+  const busy = (k: string) => k in busyMap;
+  const setBusyKey = (k: string, on: boolean) =>
+    setBusyMap((m) => {
+      const n = { ...m };
+      if (on) n[k] = Date.now();
+      else delete n[k];
+      return n;
+    });
+  const busyLabel = (k: string, idle: string, working: string) =>
+    k in busyMap ? `${working} ${Math.round((Date.now() - busyMap[k]) / 1000)} s` : idle;
+  const anyBusy = Object.keys(busyMap).length > 0;
+  useEffect(() => {
+    if (!anyBusy) return;
+    const t = setInterval(() => setTick((x) => x + 1), 1000);
+    return () => clearInterval(t);
+  }, [anyBusy]);
 
+  const outputRef = useRef<SpeechOutputMode>(output);
+  outputRef.current = output;
   const locale = lang === 'ko' ? 'ko-KR' : 'en-US';
 
   const refreshModels = useCallback(async () => {
@@ -72,14 +104,42 @@ export function TtsLabPanel({ note, onModelsChanged }: { note: (m: string) => vo
     onModelsChanged();
   }, [onModelsChanged]);
 
+  const refreshRoute = useCallback(async (o: SpeechOutputMode) => {
+    try {
+      setRoutePreview(await VlcSessionService.ttsLabPreviewRoute(o));
+    } catch (e) {
+      note(`route preview failed: ${e}`);
+    }
+  }, [note]);
+  useEffect(() => {
+    refreshRoute(output).catch(() => {});
+  }, [output, refreshRoute]);
+
+  const applyPrepared = useCallback((id: TtsLabEngineId, r: TtsLabPrepareResult) => {
+    setStatus((s) => ({ ...s, [id]: r }));
+  }, []);
+
   useEffect(() => {
     setEngines(VlcSessionService.ttsLabEngines());
-    refreshModels().catch(() => {});
+    refreshModels().catch((e) => note(`model status failed: ${e}`));
     const subs = [
+      VlcSessionService.addListener('ttsLabPrepared', (e: TtsLabPreparedEvent) => applyPrepared(e.engine, e.result)),
+      VlcSessionService.addListener('ttsLabSelfTest', (r: TtsLabSelfTestRow) => setSelfTest((p) => [...p, r])),
+      VlcSessionService.addListener('ttsLabSelfTestDone', (d: TtsLabSelfTestDone) => {
+        refreshModels().catch(() => {});
+        setSelfTestState(`done: ${d.okCount}/${d.count} ok${d.cancelled ? ' (cancelled)' : ''}${d.failed.length ? `\nfailed: ${d.failed.join('; ')}` : ''}`);
+      }),
+      VlcSessionService.addListener('speechOutputRoute', () => {
+        refreshRoute(outputRef.current).catch(() => {});
+      }),
       VlcSessionService.addListener('ttsLabEvent', (e: TtsLabEvent) => {
         if (e.phase === 'requested') {
-          const meta = pendingMeta.current[e.requestId] ?? { voice: null, lang: '' };
-          setResults((prev) => [{ requestId: e.requestId, engine: e.engine, voice: meta.voice, lang: meta.lang }, ...prev].slice(0, 30));
+          const meta = pendingMeta.current[e.requestId] ?? { voice: null, lang: '', output: 'speaker' as SpeechOutputMode };
+          setResults((prev) =>
+            prev.some((r) => r.requestId === e.requestId)
+              ? prev
+              : [{ requestId: e.requestId, engine: e.engine, voice: meta.voice, lang: meta.lang, output: meta.output }, ...prev].slice(0, 30),
+          );
           return;
         }
         setResults((prev) =>
@@ -109,7 +169,19 @@ export function TtsLabPanel({ note, onModelsChanged }: { note: (m: string) => vo
       }),
     ];
     return () => subs.forEach((s) => s.remove());
-  }, [refreshModels]);
+  }, [refreshModels, note, refreshRoute, applyPrepared]);
+
+  // Sherpa voices are static lists (Supertonic F1-F5 / M1-M5, Kokoro names): show them before the first Prepare.
+  useEffect(() => {
+    (['supertonic', 'kitten', 'kokoro'] as const).forEach((id) => {
+      VlcSessionService.ttsLabVoices(id, locale)
+        .then((v) => {
+          setVoices((s) => (s[id]?.length ? s : { ...s, [id]: v }));
+          setSelected((s) => (s[id] ? s : { ...s, [id]: v[0]?.name ?? null }));
+        })
+        .catch((e) => note(`${id} voices failed: ${e}`));
+    });
+  }, [locale, note]);
 
   const switchLang = (l: 'ko' | 'en') => {
     setLang(l);
@@ -120,47 +192,62 @@ export function TtsLabPanel({ note, onModelsChanged }: { note: (m: string) => vo
   };
 
   const prepare = async (id: TtsLabEngineId) => {
-    setBusy(id);
+    setBusyKey(id, true);
+    setStatus((st) => ({ ...st, [id]: { ok: false, error: 'preparing...' } }));
     try {
       const r = await VlcSessionService.ttsLabPrepare(id, locale);
-      setStatus((s) => ({ ...s, [id]: r }));
+      setStatus((st) => ({ ...st, [id]: r }));
+      note(`prepare ${id}: ${r.ok ? 'ready' : r.error ?? 'failed'}`);
       if (r.ok || id === 'mlkit') {
         const v = await VlcSessionService.ttsLabVoices(id, locale);
-        setVoices((s) => ({ ...s, [id]: v }));
-        setSelected((s) => {
-          if (s[id]) return s;
+        setVoices((st) => ({ ...st, [id]: v }));
+        setSelected((st) => {
+          if (st[id]) return st;
           const first = v.find((x) => x.installed !== false && !x.networkRequired && x.status !== 'DOWNLOADABLE') ?? v[0];
-          return { ...s, [id]: first?.name ?? null };
+          return { ...st, [id]: first?.name ?? null };
         });
       }
     } catch (e) {
-      setStatus((s) => ({ ...s, [id]: { ok: false, error: String(e) } }));
+      setStatus((st) => ({ ...st, [id]: { ok: false, error: String(e) } }));
+      note(`prepare ${id} rejected: ${e}`);
     } finally {
-      setBusy(null);
+      setBusyKey(id, false);
     }
   };
 
   const speak = (id: TtsLabEngineId) => {
     const voice = selected[id] ?? null;
     try {
-      const rid = VlcSessionService.ttsLabSpeak(id, text, locale, voice);
-      pendingMeta.current[rid] = { voice, lang };
+      const rid = VlcSessionService.ttsLabSpeak(id, text, locale, voice, { output, steps: id === 'supertonic' ? steps : undefined });
+      pendingMeta.current[rid] = { voice, lang, output };
       // The native side also emits 'requested'; seed here in case that event raced ahead of the return value.
-      setResults((prev) => (prev.some((r) => r.requestId === rid) ? prev : [{ requestId: rid, engine: id, voice, lang }, ...prev].slice(0, 30)));
+      setResults((prev) => (prev.some((r) => r.requestId === rid) ? prev : [{ requestId: rid, engine: id, voice, lang, output }, ...prev].slice(0, 30)));
     } catch (e) {
       note(`speak failed: ${e}`);
     }
   };
 
-  const downloadSet = async (setId: string) => {
-    setBusy(setId);
+  const runAll = () => {
+    setSelfTest([]);
+    setSelfTestState('running... (downloads missing models, 30 s timeout per utterance)');
+    setOutput('speaker');
     try {
-      await VlcSessionService.downloadModels([setId]);
+      if (!VlcSessionService.ttsLabRunAll(KO_TEXT, EN_TEXT)) setSelfTestState('already running');
+    } catch (e) {
+      setSelfTestState(`failed to start: ${e}`);
+    }
+  };
+
+  const downloadSets = async (setIds: string[]) => {
+    const setId = setIds.join('+');
+    setBusyKey(setId, true);
+    try {
+      await VlcSessionService.downloadModels(setIds);
       note(`${setId} downloaded and verified`);
     } catch (e) {
       note(`download ${setId} failed: ${e}`);
     } finally {
-      setBusy(null);
+      setBusyKey(setId, false);
       refreshModels().catch(() => {});
     }
   };
@@ -169,6 +256,33 @@ export function TtsLabPanel({ note, onModelsChanged }: { note: (m: string) => vo
 
   return (
     <Section title="6b. TTS A/B test">
+      <Text style={{ fontWeight: '700' }}>Output</Text>
+      <Row>
+        <Btn label="Phone speaker" active={output === 'speaker'} onPress={() => setOutput('speaker')} />
+        <Btn label="Auto (system route)" active={output === 'auto'} onPress={() => setOutput('auto')} />
+        <Btn label="Refresh" onPress={() => refreshRoute(output)} />
+      </Row>
+      <View style={[styles.banner, routePreview && !routePreview.ok && styles.bannerWarn]}>
+        <Text style={[styles.bannerText, routePreview && !routePreview.ok && styles.bannerWarnText]}>
+          Speech route: {routePreview ? routePreview.label : '...'}
+        </Text>
+        {routePreview?.warning ? <Text style={styles.bannerWarnText}>WARNING: {routePreview.warning}</Text> : null}
+        {routePreview ? (
+          <Text style={styles.small}>
+            audio mode {routePreview.audioMode}, comm device {routePreview.communicationDevice?.typeName ?? 'none'}, held by {routePreview.commOwner}
+          </Text>
+        ) : null}
+      </View>
+ <Row>
+        <Btn label="Run all engines" testID="tts-lab-run-all" onPress={runAll} />
+      </Row>
+      {!!selfTestState && <Text style={styles.mono}>{selfTestState}</Text>}
+      {selfTest.map((r, i) => (
+        <Text key={`${r.engine}-${r.lang}-${i}`} style={[styles.mono, !r.ok && { color: '#a83a0c' }]}>
+          {r.ok ? 'OK  ' : 'FAIL'} {r.engine}/{r.lang} prep {num(r.prepareMs)} ms, first {num(r.firstAudioMs)} ms, gen {num(r.genMs)} ms, RTF {num(r.rtf, 2)}, audio {num(r.audioDurationMs)} ms, model {num(r.modelMB)} MB
+          {'\n'}     route: {r.routeLabel ?? r.routedDevice?.typeName ?? '-'}{r.routeOk === false ? ' (NOT SPEAKER)' : ''}{r.error ? `\n     ${r.error}` : ''}
+        </Text>
+      ))}
       <Row>
         <Btn label="ko-KR" active={lang === 'ko'} onPress={() => switchLang('ko')} />
         <Btn label="en-US" active={lang === 'en'} onPress={() => switchLang('en')} />
@@ -181,28 +295,39 @@ export function TtsLabPanel({ note, onModelsChanged }: { note: (m: string) => vo
       </Text>
 
       {visible.map((eng) => {
-        const setId = MODEL_SET[eng.id];
-        const set = setId ? models.find((m) => m.id === setId) : undefined;
+        const setIds = MODEL_SETS[eng.id];
+        const setId = setIds?.join('+');
+        const sets = (setIds ?? []).map((id) => models.find((m) => m.id === id));
+        const allReady = sets.length > 0 && sets.every((m) => m?.ready);
+        const totalBytes = sets.reduce((a, m) => a + (m?.totalBytes ?? 0), 0);
         const vs = voices[eng.id] ?? [];
         const shown = eng.id.startsWith('platform') && localOnly ? vs.filter((v) => !v.networkRequired) : vs;
         return (
           <View key={eng.id} style={styles.transcript}>
             <Text style={{ fontWeight: '700' }}>{eng.label}</Text>
             <Text style={styles.small}>{eng.inProcess ? 'plays in our process (own AudioTrack)' : 'plays in the engine process'}</Text>
-            {setId && (
+            {setIds && setId && (
               <Row>
                 <Text style={styles.mono}>
-                  model {setId}: {set?.ready ? 'READY' : 'missing'} ({set ? mb(set.totalBytes) : '?'} MB)
+                  model {setIds.join(' + ')}: {allReady ? 'READY' : 'missing'} ({mb(totalBytes)} MB download)
                 </Text>
-                {!set?.ready && <Btn label={busy === setId ? 'Downloading...' : 'Download'} disabled={busy === setId} onPress={() => downloadSet(setId)} />}
-                {busy === setId && <Btn label="Cancel" onPress={() => VlcSessionService.cancelModelDownload()} />}
+                {!allReady && <Btn label={busyLabel(setId, 'Download', 'Downloading...')} disabled={busy(setId)} onPress={() => downloadSets(setIds)} />}
+                {busy(setId) && <Btn label="Cancel" onPress={() => VlcSessionService.cancelModelDownload()} />}
               </Row>
             )}
             <Row>
-              <Btn label={busy === eng.id ? 'Preparing...' : 'Prepare'} disabled={busy === eng.id} onPress={() => prepare(eng.id)} />
+              <Btn label={busyLabel(eng.id, 'Prepare', 'Preparing...')} disabled={busy(eng.id)} onPress={() => prepare(eng.id)} />
               <Btn label="Speak" onPress={() => speak(eng.id)} />
             </Row>
             <Text style={styles.mono}>{statusText(status[eng.id])}</Text>
+
+            {eng.id === 'supertonic' && (
+              <Row>
+                <Text style={styles.small}>Denoising steps (more = slower, may reduce choppy Korean)</Text>
+                <Btn label="8" active={steps === 8} onPress={() => setSteps(8)} />
+                <Btn label="16" active={steps === 16} onPress={() => setSteps(16)} />
+              </Row>
+            )}
 
             {eng.id.startsWith('platform') && (
               <Row>
@@ -236,17 +361,17 @@ export function TtsLabPanel({ note, onModelsChanged }: { note: (m: string) => vo
                 </Row>
                 {selected.mlkit && vs.find((v) => v.name === selected.mlkit)?.status === 'DOWNLOADABLE' && (
                   <Btn
-                    label={busy === 'mlkit-dl' ? 'Downloading voice...' : `Download voice ${selected.mlkit}`}
-                    disabled={busy === 'mlkit-dl'}
+                    label={busy('mlkit-dl') ? 'Downloading voice...' : `Download voice ${selected.mlkit}`}
+                    disabled={busy('mlkit-dl')}
                     onPress={async () => {
-                      setBusy('mlkit-dl');
+                      setBusyKey('mlkit-dl', true);
                       try {
                         const r = await VlcSessionService.ttsLabDownloadVoice(selected.mlkit as string);
                         note(r.ok ? `ML Kit voice ${selected.mlkit} downloaded` : `ML Kit download: ${r.error}`);
                       } catch (e) {
                         note(`ML Kit download error: ${e}`);
                       } finally {
-                        setBusy(null);
+                        setBusyKey('mlkit-dl', false);
                         prepare('mlkit');
                       }
                     }}
@@ -276,7 +401,7 @@ export function TtsLabPanel({ note, onModelsChanged }: { note: (m: string) => vo
       {results.map((r) => (
         <View key={r.requestId} style={styles.transcript}>
           <Text style={styles.mono}>
-            {r.engine} {r.voice ? `[${r.voice}]` : ''} {r.lang} {r.requestId}
+            {r.engine} {r.voice ? `[${r.voice}]` : ''} {r.lang} {r.requestId} out={r.output ?? '?'}
             {'\n'}first audio: {r.latencyMs != null ? `${r.latencyMs} ms` : r.outcome ? '-' : '...'}   total: {r.totalMs != null ? `${r.totalMs} ms` : '...'}   {r.outcome ?? ''}
           </Text>
           <Text style={[styles.mono, r.routeOk === false && { color: '#a83a0c', fontWeight: '700' }]}>
@@ -287,7 +412,7 @@ export function TtsLabPanel({ note, onModelsChanged }: { note: (m: string) => vo
           {r.info && (r.info.genMs != null || r.info.chunks != null) ? (
             <Text style={styles.mono}>
               {r.info.genMs != null
-                ? `generation ${num(r.info.genMs)} ms, audio ${num(r.info.audioSec, 2)} s, RTF ${num(r.info.rtf, 2)}, first chunk ${num(r.info.firstChunkMs)} ms, ${num(r.info.sampleRate)} Hz`
+                ? `generation ${num(r.info.genMs)} ms, audio ${num(r.info.audioSec, 2)} s, RTF ${num(r.info.rtf, 2)}${r.info.steps != null ? `, steps ${num(r.info.steps)}` : ''}, sid ${num(r.info.sid)}, first chunk ${num(r.info.firstChunkMs)} ms, ${num(r.info.sampleRate)} Hz`
                 : `ML Kit chunks ${num(r.info.chunks)}, ${num(r.info.pcmBytes)} bytes`}
               {r.info.method ? `\nroute method: ${String(r.info.method)}` : ''}
             </Text>

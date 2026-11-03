@@ -13,6 +13,7 @@ import expo.modules.vlcsessionservice.audio.AudioRouting
 import expo.modules.vlcsessionservice.audio.SpeechOutput
 import expo.modules.vlcsessionservice.log.DiagLog
 import expo.modules.vlcsessionservice.log.LogSummary
+import expo.modules.vlcsessionservice.log.chainText
 import expo.modules.vlcsessionservice.service.CapabilityReport
 import expo.modules.vlcsessionservice.service.SessionConfig
 import expo.modules.vlcsessionservice.service.SessionRuntime
@@ -40,7 +41,7 @@ class VlcSessionServiceModule : Module() {
       "cueDue", "cueAudible",
       "location", "locationGap",
       "routeChanged", "modelDownloadProgress",
-      "speechOutputRoute", "ttsLabEvent", "ttsLabProgress",
+      "speechOutputRoute", "ttsLabEvent", "ttsLabProgress", "ttsLabPrepared", "ttsLabSelfTest", "ttsLabSelfTestDone",
     )
 
     OnCreate {
@@ -129,15 +130,19 @@ class VlcSessionServiceModule : Module() {
     // ---- TTS A/B lab -------------------------------------------------------------------------------
     Function("ttsLabEngines") { lab.engineList() }
     AsyncFunction("ttsLabPrepare") { engineId: String, locale: String, promise: Promise ->
-      io.execute { runCatching { lab.prepare(engineId, locale) }.fold({ promise.resolve(it) }, { promise.reject(CodedException("TTS_LAB", it.toString(), it)) }) }
+      io.execute { runCatching { lab.prepare(engineId, locale) }.fold({ promise.resolve(it) }, { promise.reject(CodedException("TTS_LAB", it.chainText(), it)) }) }
     }
     AsyncFunction("ttsLabVoices") { engineId: String, locale: String, promise: Promise ->
-      io.execute { runCatching { lab.voices(engineId, locale) }.fold({ promise.resolve(it) }, { promise.reject(CodedException("TTS_LAB", it.toString(), it)) }) }
+      io.execute { runCatching { lab.voices(engineId, locale) }.fold({ promise.resolve(it) }, { promise.reject(CodedException("TTS_LAB", it.chainText(), it)) }) }
     }
     AsyncFunction("ttsLabDownloadVoice") { voice: String, promise: Promise ->
-      io.execute { runCatching { lab.downloadMlKitVoice(voice) }.fold({ promise.resolve(it) }, { promise.reject(CodedException("TTS_LAB", it.toString(), it)) }) }
+      io.execute { runCatching { lab.downloadMlKitVoice(voice) }.fold({ promise.resolve(it) }, { promise.reject(CodedException("TTS_LAB", it.chainText(), it)) }) }
     }
-    Function("ttsLabSpeak") { engineId: String, text: String, locale: String, voice: String? -> lab.speak(engineId, text, locale, voice) }
+    Function("ttsLabSpeak") { engineId: String, text: String, locale: String, voice: String?, options: Map<String, Any?> ->
+      lab.speak(engineId, text, locale, voice, options)
+    }
+    Function("ttsLabRunAll") { koText: String, enText: String -> lab.runSelfTest(koText, enText) }
+    AsyncFunction("ttsLabPreviewRoute") { output: String -> lab.previewRoute(output) }
     Function("ttsLabStop") { labOrNull?.stop(); Unit }
     Function("ttsLabSetMlKitPlayback") { enabled: Boolean, sampleRate: Int -> lab.setMlKitOwnPlayback(enabled, sampleRate); Unit }
 

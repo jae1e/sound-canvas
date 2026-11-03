@@ -13,11 +13,13 @@ export function Row({ children }: { children: React.ReactNode }) {
   return <View style={styles.row}>{children}</View>;
 }
 
-export function Btn({ label, onPress, disabled, active }: { label: string; onPress: () => void; disabled?: boolean; active?: boolean }) {
+export function Btn({ label, onPress, disabled, active, testID }: { label: string; onPress: () => void; disabled?: boolean; active?: boolean; testID?: string }) {
   return (
     <Pressable
       onPress={onPress}
       disabled={disabled}
+      testID={testID}
+      accessibilityLabel={testID}
       style={[styles.btn, active && styles.btnActive, disabled && styles.btnDisabled]}
     >
       <Text style={[styles.btnText, active && { color: '#fff' }]}>{label}</Text>

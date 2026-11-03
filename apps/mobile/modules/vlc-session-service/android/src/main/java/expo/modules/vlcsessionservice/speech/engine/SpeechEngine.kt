@@ -11,6 +11,8 @@ data class SpeakRequest(
   val voice: String?,
   /** SystemClock.elapsedRealtime() when the user/session asked for speech. */
   val requestedRt: Long,
+  /** Engine specific options, e.g. Supertonic `steps` (Int). */
+  val options: Map<String, Any?> = emptyMap(),
 )
 
 interface SpeakCallback {
