@@ -22,6 +22,10 @@ The three modes are:
 
 The assistant previously recommended completing vocal practice first and adding the other modes later. The user explicitly superseded that recommendation: **implement all three together**. Shared infrastructure can be built first, but the first product must contain functional experiences in all three modes. A vocal-only release with placeholder walking/activity screens does not meet the request.
 
+## First-Version Specification
+
+The buildable first-version scope, milestones and the user's 2026-11-03 scope updates are in [v1-spec.md](v1-spec.md).
+
 ## Mode Names (Decided by user, 2026-11-03)
 
 | Mode | English name | Korean name | Notes |
