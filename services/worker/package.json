@@ -1,0 +1,22 @@
+{
+  "name": "@vlc/worker",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit",
+    "mint-token": "node scripts/mint-token.mjs"
+  },
+  "dependencies": {
+    "@vlc/travel": "workspace:*",
+    "zod": "^4.0.0"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20260101.0",
+    "typescript": "^7.0.2",
+    "vitest": "^5.0.5",
+    "wrangler": "^4.0.0"
+  }
+}
