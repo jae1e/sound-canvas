@@ -221,8 +221,22 @@ User constraints:
 | Korean STT (rejected) | Moonshine tiny-ko / base-ko | ~34 MB | Moonshine Community License, **non-commercial** per the repository LICENSE [LF] | Third-party "MIT" labels contradict the LICENSE file |
 | Korean STT (to evaluate) | Qwen3-ASR-0.6B int8 (sherpa-onnx package) | Unverified, likely > 100 MB | Apache-2.0 [MC] | Size and Korean CER to measure |
 | English STT | Moonshine v2 streaming tiny (`UsefulSensors/moonshine-streaming-tiny`) | ~34–44M params | MIT [LF] | Open ASR average WER 12.0 [MC]. Compare against platform on-device recognition |
-| Korean TTS | Supertonic 3 (int8) | ~102 MB | OpenRAIL-M weights [LF]: commercial use allowed with use restrictions | Restrictions must be passed through in the terms of service. They include no medical advice and disclosure of machine-generated output. Upstream archived. Alternative: MOSS-TTS-Nano (Apache-2.0, redistribution caveat in its README) and ML Kit GenAI TTS |
-| English TTS | Kitten TTS nano 0.8 | ~50 MB | Apache-2.0 [MC] | Quality reference: Kokoro int8 (~215 MB, Apache-2.0) |
+| Korean and English TTS | **Supertonic 3 int8, 8 steps** (sherpa-onnx package `sherpa-onnx-supertonic-3-tts-int8-2026-05-11`). **Selected by the user on 2026-11-03** after listening on PC and phone | ~145 MB download (over the 100 MB preference, accepted) | OpenRAIL-M weights [LF]: commercial use allowed with use restrictions | Restrictions must be passed through in the terms of service. They include no medical advice and disclosure of machine-generated output. Upstream is archived. The user found no audible difference between int8/fp32 or 8/16 steps, so the lightest option was kept. Tone is "a bit awkward but fine for a first version." |
+
+TTS evaluation results (2026-11-03, Galaxy S25, Android 17, QCY HT08 earbuds over A2DP):
+
+| Engine | Result |
+| --- | --- |
+| Supertonic 3 int8 (ko, en) | Works. Load 0.4–0.8 s. RTF ≈ 0.35 on the phone. First audio ≈ 1.75–1.86 s for a ~5 s sentence, because generation is not streamed; the first chunk arrives only after the whole utterance is generated. |
+| Google platform TTS (ko, en) | Works. First audio 0.1–0.35 s. Kept as the **low-latency fallback** (for example, if Supertonic is not downloaded yet or fails). |
+| Samsung TTS (`com.samsung.SMT`) | Blocked for third-party apps ("not allowed to bind to private engine"); silently falls back to Google. |
+| ML Kit GenAI TTS | No ko-KR voices on this device; en-US voices are only downloadable. Dropped. |
+| MOSS-TTS-Nano | Rejected by the user after listening (poor Korean, English not liked; 763 MB). |
+| Kitten nano, Kokoro | Not adopted; testing stopped by the user once Supertonic was selected. |
+
+Implications:
+- Supertonic latency needs work for timer cues and navigation prompts: synthesize sentence by sentence; pre-generate predictable cue phrases while idle (such as "N minutes left" and turn instructions) and cache the PCM; and start with Google TTS when a cue must play immediately and no cached audio exists.
+- Lab audio must follow the system route (Bluetooth earbuds when connected) on the media stream so the volume keys work. Never force the phone loudspeaker in tests.
 
 sherpa-onnx itself is Apache-2.0. The shipped `sherpa-onnx-2.0.1.aar` was inspected on 2026-11-03. Its native libraries state that espeak-ng (GPL-3.0) is no longer used from v2.0.0, so English TTS phonemization relies on lexicon files. Words missing from the lexicon (names, Korean words in English sentences) need a pronunciation test. The license of each lexicon file must also be recorded.
 

@@ -168,6 +168,8 @@ class TtsController(
     if (activeCount.decrementAndGet() <= 0) {
       activeCount.set(0)
       abandonFocus()
+      // Forced-speaker mode holds MODE_IN_COMMUNICATION only while speaking; release it between cues.
+      SpeechOutput.onSpeechIdle(context)
     }
     log.log("tts_done", mapOf("utteranceId" to utteranceId, "outcome" to outcome, "cueId" to p.cueId))
     emit("ttsDone", mapOf("utteranceId" to utteranceId, "outcome" to outcome, "cueId" to p.cueId))

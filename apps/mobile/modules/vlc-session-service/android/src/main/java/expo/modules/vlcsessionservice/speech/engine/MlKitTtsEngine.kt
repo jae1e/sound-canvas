@@ -13,6 +13,7 @@ import com.google.mlkit.genai.texttospeech.SpeechSynthesizerRequest
 import com.google.mlkit.genai.texttospeech.SpeechSynthesizerResponse
 import com.google.mlkit.genai.texttospeech.VoiceInfo
 import expo.modules.vlcsessionservice.audio.SpeechOutput
+import expo.modules.vlcsessionservice.log.DiagLog
 import expo.modules.vlcsessionservice.log.chainText
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -48,8 +49,35 @@ class MlKitTtsEngine(private val context: Context) : SpeechEngine {
 
   override fun supports(locale: Locale) = true
 
-  private fun client(locale: Locale): SpeechSynthesizer =
-    client ?: SpeechSynthesis.getClient(SpeechSynthesizerOptions.builder(locale).build()).also { client = it }
+  private var clientLanguage: String? = null
+  private val log = DiagLog.get(context)
+
+  /** The client is built for one locale; rebuild when the language changes so ko and en runs each get their own. */
+  private fun client(locale: Locale): SpeechSynthesizer {
+    if (client != null && clientLanguage != locale.language) {
+      try { client?.close() } catch (_: Throwable) {}
+      client = null
+    }
+    return client ?: SpeechSynthesis.getClient(SpeechSynthesizerOptions.builder(locale).build()).also {
+      client = it
+      clientLanguage = locale.language
+    }
+  }
+
+  /** Logs the full voice + status list for ko-KR and en-US (and [extra]) so we learn whether the device supports it at all. */
+  private fun probe(c: SpeechSynthesizer, extra: Locale) {
+    val tags = linkedSetOf(extra.toLanguageTag(), "ko-KR", "en-US")
+    val all = LinkedHashMap<String, Any?>()
+    for (tag in tags) {
+      all[tag] = try {
+        val vs = runBlocking { c.getSupportedVoices(Locale.forLanguageTag(tag)) }
+        vs.map { v -> mapOf("name" to v.name, "gender" to v.gender.toString(), "locale" to v.locale.toLanguageTag(), "status" to statusName(runBlocking { c.checkStatus(v) })) }
+      } catch (e: Throwable) {
+        "error: ${e.chainText()}"
+      }
+    }
+    log.log("tts_lab_mlkit_probe", mapOf("requested" to extra.toLanguageTag(), "voices" to all))
+  }
 
   private fun statusName(s: Int) = when (s) {
     FeatureStatus.UNAVAILABLE -> "UNAVAILABLE"
@@ -64,6 +92,7 @@ class MlKitTtsEngine(private val context: Context) : SpeechEngine {
       val c = client(locale)
       val voices = runBlocking { c.getSupportedVoices(locale) }
       voiceCache = voices.associateBy { it.name }
+      probe(c, locale)
       val statuses = voices.map { v -> v.name to runBlocking { c.checkStatus(v) } }
       val avail = statuses.count { it.second == FeatureStatus.AVAILABLE }
       mapOf(
@@ -177,7 +206,7 @@ class MlKitTtsEngine(private val context: Context) : SpeechEngine {
     if (t == null) {
       val sr = assumedSampleRate
       t = AudioTrack.Builder()
-        .setAudioAttributes(SpeechOutput.attributes(android.media.AudioAttributes.USAGE_ASSISTANT))
+        .setAudioAttributes(SpeechOutput.attributes(SpeechOutput.trackUsage()))
         .setAudioFormat(AudioFormat.Builder().setEncoding(AudioFormat.ENCODING_PCM_16BIT).setSampleRate(sr).setChannelMask(AudioFormat.CHANNEL_OUT_MONO).build())
         .setBufferSizeInBytes(maxOf(AudioTrack.getMinBufferSize(sr, AudioFormat.CHANNEL_OUT_MONO, AudioFormat.ENCODING_PCM_16BIT), sr * 2 * 20))
         .setTransferMode(AudioTrack.MODE_STREAM)

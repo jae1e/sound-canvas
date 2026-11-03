@@ -1,3 +1,4 @@
+import { useRef } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 export function Section({ title, children }: { title: string; children: React.ReactNode }) {
@@ -27,7 +28,32 @@ export function Btn({ label, onPress, disabled, active, testID }: { label: strin
   );
 }
 
+/** Minimal 0-100 slider (no extra native dependency). Calls onChange while dragging and on release. */
+export function PercentSlider({ value, onChange }: { value: number; onChange: (percent: number) => void }) {
+  const width = useRef(1);
+  const at = (x: number) => Math.max(0, Math.min(100, Math.round((x / width.current) * 100)));
+  return (
+    <View
+      style={styles.sliderTrack}
+      onLayout={(e) => {
+        width.current = Math.max(1, e.nativeEvent.layout.width);
+      }}
+      onStartShouldSetResponder={() => true}
+      onMoveShouldSetResponder={() => true}
+      onResponderTerminationRequest={() => false}
+      onResponderGrant={(e) => onChange(at(e.nativeEvent.locationX))}
+      onResponderMove={(e) => onChange(at(e.nativeEvent.locationX))}
+    >
+      <View style={[styles.sliderFill, { width: `${value}%` }]} />
+      <View style={[styles.sliderThumb, { left: `${value}%` }]} />
+    </View>
+  );
+}
+
 export const styles = StyleSheet.create({
+  sliderTrack: { height: 36, flex: 1, minWidth: 160, justifyContent: 'center', backgroundColor: '#e3e8f0', borderRadius: 18, overflow: 'hidden' },
+  sliderFill: { position: 'absolute', left: 0, top: 0, bottom: 0, backgroundColor: '#9db8e3' },
+  sliderThumb: { position: 'absolute', top: 4, width: 8, height: 28, marginLeft: -4, borderRadius: 4, backgroundColor: '#2a5db0' },
   root: { flex: 1, backgroundColor: '#f6f6f4' },
   content: { padding: 14, paddingTop: 48, paddingBottom: 80, gap: 10 },
   title: { fontSize: 20, fontWeight: '700' },

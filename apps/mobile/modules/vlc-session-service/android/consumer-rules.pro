@@ -19,3 +19,10 @@
 -keep class com.google.android.gms.internal.mlkit_** { *; }
 -keep class com.google.firebase.components.** { *; }
 -dontwarn com.google.android.gms.internal.mlkit_**
+# sherpa-onnx JNI calls the Kotlin generator callback as `Function1.invoke(float[]): java.lang.Integer` by name and
+# signature (OfflineTts.generateWithConfigImpl). R8 must not rewrite or drop that method on any Function1 passed in.
+-keep class expo.modules.vlcsessionservice.speech.engine.SherpaAudioCallback { *; }
+-keepclassmembers class * implements kotlin.jvm.functions.Function1 {
+    public java.lang.Integer invoke(float[]);
+    public java.lang.Object invoke(java.lang.Object);
+}

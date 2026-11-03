@@ -45,6 +45,60 @@ class ModelManager(context: Context) {
 
   fun cancel() = cancelled.set(true)
 
+  private fun sizeOf(f: File): Long = if (f.isFile) f.length() else f.walkTopDown().filter { it.isFile }.sumOf { it.length() }
+
+  /**
+   * Everything under `<filesDir>/vlc-models/`: one entry per directory, catalog or not (stray directories, partial
+   * `.part` files and half-extracted archives are counted in `bytes`). Loose files at the root are listed as sets too.
+   */
+  fun installedSets(): List<Map<String, Any?>> =
+    (root.listFiles() ?: emptyArray()).sortedBy { it.name }.map { d ->
+      val files = if (d.isDirectory) d.walkTopDown().filter { it.isFile }.toList() else listOf(d)
+      val set = ModelCatalog.find(d.name)
+      mapOf(
+        "setId" to d.name,
+        "title" to (set?.title ?: "(not in catalog)"),
+        "bytes" to files.sumOf { it.length() },
+        "files" to files.size,
+        "inCatalog" to (set != null),
+        "ready" to (set?.let { isReady(it) } ?: false),
+        "partial" to files.any { it.name.endsWith(".part") || it.name.endsWith(".tmp") },
+      )
+    }
+
+  /** Deletes one set directory (also strays and partial downloads). [release] runs first so loaded engines let go of the files. */
+  fun deleteSet(setId: String, release: (String) -> Unit = {}): Map<String, Any?> {
+    if (setId.isEmpty() || setId.contains('/') || setId.contains("..")) throw IllegalArgumentException("Bad set id '$setId'")
+    if (downloading.get()) throw IllegalStateException("A download is running: cancel it first")
+    val target = File(root, setId)
+    if (!target.exists()) return mapOf("setId" to setId, "bytesFreed" to 0L, "deleted" to false)
+    release(setId)
+    val bytes = sizeOf(target)
+    val ok = target.deleteRecursively()
+    log.log("model_deleted", mapOf("setId" to setId, "bytes" to bytes, "ok" to ok))
+    return mapOf("setId" to setId, "bytesFreed" to if (ok) bytes else 0L, "deleted" to ok)
+  }
+
+  /** Deletes every installed set except [keep]; logs a `model_storage` summary. */
+  fun deleteUnused(keep: List<String>, release: (String) -> Unit = {}): Map<String, Any?> {
+    val results = installedSets().map { it["setId"] as String }.filter { it !in keep }.map { deleteSet(it, release) }
+    val freed = results.sumOf { it["bytesFreed"] as Long }
+    val summary = logStorage("delete_unused", mapOf("kept" to keep, "deleted" to results.filter { it["deleted"] == true }.map { it["setId"] }, "bytesFreed" to freed))
+    return summary + ("results" to results)
+  }
+
+  /** Logs a `model_storage` event with totals and returns it. */
+  fun logStorage(reason: String, extra: Map<String, Any?> = emptyMap()): Map<String, Any?> {
+    val sets = installedSets()
+    val payload = mapOf(
+      "reason" to reason,
+      "totalBytes" to sets.sumOf { it["bytes"] as Long },
+      "sets" to sets.map { mapOf("setId" to it["setId"], "bytes" to it["bytes"]) },
+    ) + extra
+    log.log("model_storage", payload)
+    return payload
+  }
+
   /**
    * Blocking download of the given sets. Emits progress through [onProgress]. Throws on failure
    * (size or SHA-256 mismatch deletes the partial file). Call from a background thread.

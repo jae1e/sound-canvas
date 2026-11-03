@@ -145,20 +145,35 @@ export type TtsLabVoice = {
 /** Free-form engine status for the UI (ok/error plus engine specific fields). */
 export type TtsLabPrepareResult = { ok: boolean; error?: string | null; needsDownload?: string } & Record<string, unknown>;
 
-/** Side-effect free route preview for a lab output choice ('speaker' = phone speaker, 'auto' = system route). */
+export type MusicVolume = { volume: number; max: number; percent: number };
+
+export type TtsLabOutputDevice = AudioDevice & { label: string };
+
+/** Side-effect free route preview for a lab output selection (null id = system route). */
 export type TtsLabRoutePreview = {
-  output: SpeechOutputMode;
+  /** "system" or the device id as text. */
+  output: string;
+  /** Human readable selection, also what is logged as outputSelection. */
+  selection: string;
+  /** Device the selection plays on (the selected device, or the system route). */
   label: string;
+  /** What the OS would pick right now for media speech. */
+  systemRoute: string;
   ok: boolean;
   warning: string | null;
+  /** Set when a specific device is selected: platform engines ignore it and follow the system route. */
+  platformNote: string | null;
   audioMode: number;
   communicationDevice: AudioDevice | null;
   commOwner: string;
+  /** Connected outputs the picker can offer (phone speaker, Bluetooth A2DP / LE, wired, USB). */
+  outputs: TtsLabOutputDevice[];
   allOutputs: AudioDevice[];
+  music: MusicVolume;
 };
 
-/** Options for ttsLabSpeak. output defaults to 'speaker' in the lab; steps is Supertonic only. */
-export type TtsLabSpeakOptions = { output?: SpeechOutputMode; steps?: number };
+/** Options for ttsLabSpeak. outputDeviceId omitted/null = system route; steps is Supertonic only. */
+export type TtsLabSpeakOptions = { outputDeviceId?: number | null; steps?: number };
 
 /** One row of the "Run all engines" self-test (also logged natively as tts_lab_selftest). */
 export type TtsLabSelfTestRow = {
@@ -177,8 +192,9 @@ export type TtsLabSelfTestRow = {
   routeOk?: boolean | null;
   routedDevice?: AudioDevice | null;
   voice?: string | null;
+  outputSelection?: string;
 };
-export type TtsLabSelfTestDone = { count: number; okCount: number; failed: string[]; cancelled: boolean };
+export type TtsLabSelfTestDone = { count: number; okCount: number; failed: string[]; cancelled: boolean; outputSelection?: string };
 
 /** Emitted whenever a prepare finishes (also when started from Speak). */
 export type TtsLabPreparedEvent = { engine: TtsLabEngineId; locale: string; result: TtsLabPrepareResult };
@@ -187,6 +203,7 @@ export type TtsLabEvent = {
   requestId: string;
   engine: TtsLabEngineId;
   phase: 'requested' | 'first_audio' | 'done' | 'error';
+  outputSelection?: string;
   /** phase first_audio: request -> first audio, ms. */
   latencyMs?: number;
   routeLabel?: string;
@@ -242,6 +259,19 @@ export type ModelStatus = {
   dir: string;
   files: { name: string; url: string; sizeBytes: number; present: boolean }[];
 };
+
+export type InstalledModelSet = {
+  setId: string;
+  title: string;
+  bytes: number;
+  files: number;
+  inCatalog: boolean;
+  ready: boolean;
+  partial: boolean;
+};
+
+export type DeleteModelResult = { setId: string; bytesFreed: number; deleted: boolean };
+export type DeleteUnusedResult = { totalBytes: number; bytesFreed: number; kept: string[]; deleted: string[]; results: DeleteModelResult[] };
 
 export type ModelCatalogEntry = {
   id: string;

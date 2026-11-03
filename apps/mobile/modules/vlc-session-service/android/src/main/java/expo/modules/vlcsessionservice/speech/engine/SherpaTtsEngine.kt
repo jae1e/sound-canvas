@@ -175,7 +175,7 @@ class SherpaTtsEngine(
       // About 30 s of audio so the generator callback rarely blocks on playback (keeps generation time honest).
       val bufBytes = maxOf(minBuf, sr * 4 * 30)
       val tr = AudioTrack.Builder()
-        .setAudioAttributes(SpeechOutput.attributes(AudioAttributes.USAGE_ASSISTANT))
+        .setAudioAttributes(SpeechOutput.attributes(SpeechOutput.trackUsage()))
         .setAudioFormat(
           AudioFormat.Builder().setEncoding(AudioFormat.ENCODING_PCM_FLOAT).setSampleRate(sr).setChannelMask(AudioFormat.CHANNEL_OUT_MONO).build(),
         )
@@ -196,25 +196,35 @@ class SherpaTtsEngine(
       val steps = (req.options["steps"] as? Number)?.toInt()?.coerceIn(1, 64) ?: 8
       val gc = GenerationConfig(sid = sid, speed = 1.0f, numSteps = steps, extra = mapOf("lang" to req.locale.language))
       var callbackError: Throwable? = null
-      t.generateWithConfigAndCallback(req.text, gc) { samples: FloatArray ->
+      // Shared by the streaming callback and the returned-audio fallback.
+      val writeSamples = { samples: FloatArray ->
+        val w0 = System.nanoTime()
+        val n = tr.write(samples, 0, samples.size, AudioTrack.WRITE_BLOCKING)
+        writeNanos += System.nanoTime() - w0
+        if (n > 0) frames += n
+        if (firstAudioRt == 0L && n > 0) {
+          firstAudioRt = SystemClock.elapsedRealtime()
+          firstChunkMs = firstAudioRt - genStart
+          cb.onFirstAudio(firstAudioRt, tr.routedDevice, mapOf("preferredDeviceApplied" to preferredApplied, "method" to method))
+        }
+      }
+      val audioCallback = SherpaAudioCallback { samples ->
         try {
-          if (stopFlag || gen != generation.get()) return@generateWithConfigAndCallback 0
-          val w0 = System.nanoTime()
-          val n = tr.write(samples, 0, samples.size, AudioTrack.WRITE_BLOCKING)
-          writeNanos += System.nanoTime() - w0
-          if (n > 0) frames += n
-          if (firstAudioRt == 0L && n > 0) {
-            firstAudioRt = SystemClock.elapsedRealtime()
-            firstChunkMs = firstAudioRt - genStart
-            cb.onFirstAudio(firstAudioRt, tr.routedDevice, mapOf("preferredDeviceApplied" to preferredApplied, "method" to method))
-          }
+          if (stopFlag || gen != generation.get()) return@SherpaAudioCallback 0
+          writeSamples(samples)
           1
         } catch (e: Throwable) {
           callbackError = e // never let a Kotlin exception unwind into the JNI frame
           0
         }
       }
+      val generated = t.generateWithConfigAndCallback(req.text, gc, audioCallback)
+      val callbackFrames = frames
       callbackError?.let { throw it }
+      // Some models (Kitten) return the whole utterance without ever invoking the callback: play the returned samples.
+      if (callbackFrames == 0L && generated.samples.isNotEmpty() && !stopFlag && gen == generation.get()) {
+        writeSamples(generated.samples)
+      }
       val genMs = SystemClock.elapsedRealtime() - genStart - writeNanos / 1_000_000
       val audioSec = frames.toDouble() / sr
       // Let the buffered audio play out (stop() on a stream track drains), then wait for the head to pass the end.
@@ -230,6 +240,8 @@ class SherpaTtsEngine(
         "rtf" to if (audioSec > 0) (genMs / 1000.0) / audioSec else null,
         "firstChunkMs" to firstChunkMs,
         "sampleRate" to sr,
+        "callbackFrames" to callbackFrames,
+        "returnedFrames" to generated.samples.size,
         "method" to method,
         "sid" to sid,
         "steps" to if (kind == Kind.SUPERTONIC) steps else null,
@@ -275,4 +287,15 @@ class SherpaTtsEngine(
       "bf_alice", "bf_emma", "bf_isabella", "bf_lily", "bm_daniel", "bm_fable", "bm_george", "bm_lewis",
     )
   }
+}
+
+/**
+ * The generator callback handed to sherpa-onnx. The JNI layer looks up `invoke([F)Ljava/lang/Integer;` on the object by
+ * name and signature, so this must stay a real class whose method survives R8: a Kotlin lambda gets rewritten (invokedynamic /
+ * merged / signature-changed) and the process aborts with NoSuchMethodError. consumer-rules.pro keeps this class and the
+ * `Function1.invoke(float[])` signature.
+ */
+class SherpaAudioCallback(private val onSamples: (FloatArray) -> Int) : (FloatArray) -> Int {
+  /** Returns 1 to continue generating, 0 to stop. */
+  override fun invoke(samples: FloatArray): Int = onSamples(samples)
 }

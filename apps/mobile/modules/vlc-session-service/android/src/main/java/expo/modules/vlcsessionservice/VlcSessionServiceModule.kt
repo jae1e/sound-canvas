@@ -4,6 +4,7 @@ import android.Manifest
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.media.AudioManager
 import androidx.core.content.ContextCompat
 import expo.modules.kotlin.Promise
 import expo.modules.kotlin.exception.CodedException
@@ -53,8 +54,14 @@ class VlcSessionServiceModule : Module() {
       SpeechOutput.stopMonitoring()
       labOrNull?.release()
     }
-    OnActivityEntersForeground { activityVisible = true }
-    OnActivityEntersBackground { activityVisible = false }
+    OnActivityEntersForeground {
+      activityVisible = true
+      applyVolumeControlStream(true)
+    }
+    OnActivityEntersBackground {
+      activityVisible = false
+      applyVolumeControlStream(false)
+    }
 
     // ---- session lifecycle -------------------------------------------------------------------
     AsyncFunction("startSession") { options: Map<String, Any?> ->
@@ -139,10 +146,16 @@ class VlcSessionServiceModule : Module() {
       io.execute { runCatching { lab.downloadMlKitVoice(voice) }.fold({ promise.resolve(it) }, { promise.reject(CodedException("TTS_LAB", it.chainText(), it)) }) }
     }
     Function("ttsLabSpeak") { engineId: String, text: String, locale: String, voice: String?, options: Map<String, Any?> ->
+      applyVolumeControlStream(true)
       lab.speak(engineId, text, locale, voice, options)
     }
-    Function("ttsLabRunAll") { koText: String, enText: String -> lab.runSelfTest(koText, enText) }
-    AsyncFunction("ttsLabPreviewRoute") { output: String -> lab.previewRoute(output) }
+    Function("ttsLabRunAll") { koText: String, enText: String, outputDeviceId: Int?, onlyEngine: String? ->
+      applyVolumeControlStream(true)
+      lab.runSelfTest(koText, enText, outputDeviceId, onlyEngine)
+    }
+    AsyncFunction("ttsLabPreviewRoute") { outputDeviceId: Int? -> lab.previewRoute(outputDeviceId) }
+    Function("ttsLabGetVolume") { SpeechOutput.musicVolume(context) }
+    Function("ttsLabSetVolume") { percent: Int -> SpeechOutput.setMusicVolume(context, percent) }
     Function("ttsLabStop") { labOrNull?.stop(); Unit }
     Function("ttsLabSetMlKitPlayback") { enabled: Boolean, sampleRate: Int -> lab.setMlKitOwnPlayback(enabled, sampleRate); Unit }
 
@@ -156,6 +169,19 @@ class VlcSessionServiceModule : Module() {
         } catch (e: Exception) {
           promise.reject(CodedException("MODEL_DOWNLOAD_FAILED", e.message ?: e.toString(), e))
         }
+      }
+    }
+    AsyncFunction("listInstalledModels") { models.installedSets() }
+    AsyncFunction("deleteModelSet") { setId: String, promise: Promise ->
+      io.execute {
+        runCatching { models.deleteSet(setId) { labOrNull?.releaseForSet(it) }.also { models.logStorage("delete_set") } }
+          .fold({ promise.resolve(it) }, { promise.reject(CodedException("MODEL_DELETE_FAILED", it.chainText(), it)) })
+      }
+    }
+    AsyncFunction("deleteUnusedModels") { keep: List<String>, promise: Promise ->
+      io.execute {
+        runCatching { models.deleteUnused(keep) { labOrNull?.releaseForSet(it) } }
+          .fold({ promise.resolve(it) }, { promise.reject(CodedException("MODEL_DELETE_FAILED", it.chainText(), it)) })
       }
     }
     Function("cancelModelDownload") { models.cancel() ; Unit }
@@ -174,6 +200,14 @@ class VlcSessionServiceModule : Module() {
       val r = CapabilityReport.build(context, routingOrTemp())
       log.log("capability_report", r)
       r
+    }
+  }
+
+  /** Hardware volume keys control STREAM_MUSIC while the app is in the foreground (speech uses media-style attributes). */
+  private fun applyVolumeControlStream(media: Boolean) {
+    val activity = appContext.currentActivity ?: return
+    activity.runOnUiThread {
+      activity.volumeControlStream = if (media) AudioManager.STREAM_MUSIC else AudioManager.USE_DEFAULT_STREAM_TYPE
     }
   }
 

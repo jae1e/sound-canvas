@@ -20,6 +20,7 @@ import VlcSessionService, {
   type CapabilityReport,
   type FinalTranscriptEvent,
   type LogSummary,
+  type InstalledModelSet,
   type ModelStatus,
   type RouteState,
   type SpeechOutputRoute,
@@ -45,6 +46,7 @@ export default function SpikeScreen() {
   const [bargeIn, setBargeIn] = useState(false);
   const [perms, setPerms] = useState<Record<string, string>>({});
   const [models, setModels] = useState<ModelStatus[]>([]);
+  const [installed, setInstalled] = useState<InstalledModelSet[]>([]);
   const [downloadInfo, setDownloadInfo] = useState('');
   const [downloading, setDownloading] = useState(false);
   const [session, setSession] = useState<SessionStateName>('stopped');
@@ -76,7 +78,11 @@ export default function SpikeScreen() {
     setMessages((prev) => [`${new Date().toLocaleTimeString()} ${m}`, ...prev].slice(0, 30));
   }, []);
 
-  const refreshModels = useCallback(async () => setModels(await VlcSessionService.getModelStatus()), []);
+  const refreshInstalled = useCallback(async () => setInstalled(await VlcSessionService.listInstalledModels()), []);
+  const refreshModels = useCallback(async () => {
+    setModels(await VlcSessionService.getModelStatus());
+    refreshInstalled().catch(() => {});
+  }, [refreshInstalled]);
   const refreshRoute = useCallback(async () => {
     setDevices(await VlcSessionService.listCommunicationDevices());
     setRoute(await VlcSessionService.getRouteState());
@@ -315,6 +321,46 @@ export default function SpikeScreen() {
           </Row>
           {!!downloadInfo && <Text style={styles.mono}>{downloadInfo}</Text>}
           <Text style={styles.small}>Selected set ready: {vadReady && koReady ? 'yes' : 'no'}</Text>
+        </Section>
+
+        <Section title="2b. Model storage">
+          {installed.length === 0 && <Text style={styles.small}>No model files on the phone.</Text>}
+          {installed.map((m) => (
+            <Row key={m.setId}>
+              <Text style={styles.mono}>
+                {m.setId}: {mb(m.bytes)} MB, {m.files} files{m.partial ? ', PARTIAL' : ''}{m.inCatalog ? '' : ', not in catalog'}
+              </Text>
+              <Btn
+                label="Delete"
+                disabled={running || downloading}
+                onPress={async () => {
+                  try {
+                    const r = await VlcSessionService.deleteModelSet(m.setId);
+                    note(`deleted ${r.setId}: ${mb(r.bytesFreed)} MB freed`);
+                  } catch (e) {
+                    note(`delete ${m.setId} failed: ${e}`);
+                  }
+                  refreshModels().catch(() => {});
+                }}
+              />
+            </Row>
+          ))}
+          <Text style={styles.small}>Total {mb(installed.reduce((a, m) => a + m.bytes, 0))} MB</Text>
+          <Btn
+            label="Delete unused models"
+            testID="models-delete-unused"
+            disabled={running || downloading}
+            onPress={async () => {
+              try {
+                const r = await VlcSessionService.deleteUnusedModels(['tts-supertonic', 'vad', 'ko', 'en']);
+                note(`deleted ${r.deleted.join(', ') || 'nothing'}: ${mb(r.bytesFreed)} MB freed`);
+              } catch (e) {
+                note(`delete unused failed: ${e}`);
+              }
+              refreshModels().catch(() => {});
+            }}
+          />
+          <Text style={styles.small}>Keeps tts-supertonic, vad, ko and en. ML Kit voices live in Google Speech Services and cannot be deleted from here.</Text>
         </Section>
 
         <Section title="3. Session">

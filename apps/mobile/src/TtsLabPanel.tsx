@@ -12,10 +12,10 @@ import VlcSessionService, {
   type TtsLabSelfTestRow,
   type TtsLabSelfTestDone,
   type TtsLabRoutePreview,
-  type SpeechOutputMode,
+  type MusicVolume,
   type TtsLabVoice,
 } from '../modules/vlc-session-service';
-import { Btn, Row, Section, styles } from './ui';
+import { Btn, PercentSlider, Row, Section, styles } from './ui';
 
 const KO_TEXT = '파스타 1분 남았어요. 버섯 다 됐는지 확인해 주세요.';
 const EN_TEXT = 'One minute left on the pasta. Please check whether the mushrooms are done.';
@@ -39,7 +39,7 @@ type LabResult = {
   message?: string | null;
   totalMs?: number;
   info?: Record<string, unknown>;
-  output?: SpeechOutputMode;
+  output?: string;
 };
 
 const mb = (n: number) => (n / 1e6).toFixed(1);
@@ -72,12 +72,14 @@ export function TtsLabPanel({ note, onModelsChanged }: { note: (m: string) => vo
   // Several operations can run at once (a download and a prepare of another engine), so busy is a map key -> start time.
   const [busyMap, setBusyMap] = useState<Record<string, number>>({});
   const [, setTick] = useState(0);
-  const [output, setOutput] = useState<SpeechOutputMode>('speaker');
+  // null = system route (Auto); otherwise an AudioDeviceInfo id from the preview's outputs list.
+  const [outputId, setOutputId] = useState<number | null>(null);
+  const [volume, setVolume] = useState<MusicVolume | null>(null);
   const [selfTest, setSelfTest] = useState<TtsLabSelfTestRow[]>([]);
   const [selfTestState, setSelfTestState] = useState<string>('');
   const [steps, setSteps] = useState<8 | 16>(8);
   const [routePreview, setRoutePreview] = useState<TtsLabRoutePreview | null>(null);
-  const pendingMeta = useRef<Record<string, { voice: string | null; lang: string; output: SpeechOutputMode }>>({});
+  const pendingMeta = useRef<Record<string, { voice: string | null; lang: string; output: string }>>({});
   const busy = (k: string) => k in busyMap;
   const setBusyKey = (k: string, on: boolean) =>
     setBusyMap((m) => {
@@ -95,8 +97,8 @@ export function TtsLabPanel({ note, onModelsChanged }: { note: (m: string) => vo
     return () => clearInterval(t);
   }, [anyBusy]);
 
-  const outputRef = useRef<SpeechOutputMode>(output);
-  outputRef.current = output;
+  const outputRef = useRef<number | null>(outputId);
+  outputRef.current = outputId;
   const locale = lang === 'ko' ? 'ko-KR' : 'en-US';
 
   const refreshModels = useCallback(async () => {
@@ -104,16 +106,31 @@ export function TtsLabPanel({ note, onModelsChanged }: { note: (m: string) => vo
     onModelsChanged();
   }, [onModelsChanged]);
 
-  const refreshRoute = useCallback(async (o: SpeechOutputMode) => {
+  const refreshRoute = useCallback(async (o: number | null) => {
     try {
-      setRoutePreview(await VlcSessionService.ttsLabPreviewRoute(o));
+      const p = await VlcSessionService.ttsLabPreviewRoute(o);
+      setRoutePreview(p);
+      setVolume(p.music);
+      // The selected device was unplugged: fall back to the system route.
+      if (o !== null && !p.outputs.some((d) => d.id === o)) setOutputId(null);
     } catch (e) {
       note(`route preview failed: ${e}`);
     }
   }, [note]);
   useEffect(() => {
-    refreshRoute(output).catch(() => {});
-  }, [output, refreshRoute]);
+    refreshRoute(outputId).catch(() => {});
+  }, [outputId, refreshRoute]);
+  // Hardware volume keys change STREAM_MUSIC behind our back: poll so the slider follows.
+  useEffect(() => {
+    const t = setInterval(() => {
+      try {
+        setVolume(VlcSessionService.ttsLabGetVolume());
+      } catch {
+        /* module not ready */
+      }
+    }, 1500);
+    return () => clearInterval(t);
+  }, []);
 
   const applyPrepared = useCallback((id: TtsLabEngineId, r: TtsLabPrepareResult) => {
     setStatus((s) => ({ ...s, [id]: r }));
@@ -134,11 +151,11 @@ export function TtsLabPanel({ note, onModelsChanged }: { note: (m: string) => vo
       }),
       VlcSessionService.addListener('ttsLabEvent', (e: TtsLabEvent) => {
         if (e.phase === 'requested') {
-          const meta = pendingMeta.current[e.requestId] ?? { voice: null, lang: '', output: 'speaker' as SpeechOutputMode };
+          const meta = pendingMeta.current[e.requestId] ?? { voice: null, lang: '', output: '' };
           setResults((prev) =>
             prev.some((r) => r.requestId === e.requestId)
               ? prev
-              : [{ requestId: e.requestId, engine: e.engine, voice: meta.voice, lang: meta.lang, output: meta.output }, ...prev].slice(0, 30),
+              : [{ requestId: e.requestId, engine: e.engine, voice: meta.voice, lang: meta.lang, output: e.outputSelection ?? meta.output }, ...prev].slice(0, 30),
           );
           return;
         }
@@ -218,21 +235,21 @@ export function TtsLabPanel({ note, onModelsChanged }: { note: (m: string) => vo
   const speak = (id: TtsLabEngineId) => {
     const voice = selected[id] ?? null;
     try {
-      const rid = VlcSessionService.ttsLabSpeak(id, text, locale, voice, { output, steps: id === 'supertonic' ? steps : undefined });
-      pendingMeta.current[rid] = { voice, lang, output };
+      const rid = VlcSessionService.ttsLabSpeak(id, text, locale, voice, { outputDeviceId: outputId, steps: id === 'supertonic' ? steps : undefined });
+      const outputText = routePreview?.selection ?? (outputId === null ? 'system' : String(outputId));
+      pendingMeta.current[rid] = { voice, lang, output: outputText };
       // The native side also emits 'requested'; seed here in case that event raced ahead of the return value.
-      setResults((prev) => (prev.some((r) => r.requestId === rid) ? prev : [{ requestId: rid, engine: id, voice, lang, output }, ...prev].slice(0, 30)));
+      setResults((prev) => (prev.some((r) => r.requestId === rid) ? prev : [{ requestId: rid, engine: id, voice, lang, output: outputText }, ...prev].slice(0, 30)));
     } catch (e) {
       note(`speak failed: ${e}`);
     }
   };
 
-  const runAll = () => {
+  const runAll = (onlyEngine: TtsLabEngineId | null = null) => {
     setSelfTest([]);
-    setSelfTestState('running... (downloads missing models, 30 s timeout per utterance)');
-    setOutput('speaker');
+    setSelfTestState(`running${onlyEngine ? ` ${onlyEngine}` : ''}... (output: ${routePreview?.selection ?? 'system'}; downloads missing models, 30 s timeout per utterance, 1 s between engines)`);
     try {
-      if (!VlcSessionService.ttsLabRunAll(KO_TEXT, EN_TEXT)) setSelfTestState('already running');
+      if (!VlcSessionService.ttsLabRunAll(KO_TEXT, EN_TEXT, outputId, onlyEngine)) setSelfTestState('already running');
     } catch (e) {
       setSelfTestState(`failed to start: ${e}`);
     }
@@ -258,35 +275,52 @@ export function TtsLabPanel({ note, onModelsChanged }: { note: (m: string) => vo
     <Section title="6b. TTS A/B test">
       <Text style={{ fontWeight: '700' }}>Output</Text>
       <Row>
-        <Btn label="Phone speaker" active={output === 'speaker'} onPress={() => setOutput('speaker')} />
-        <Btn label="Auto (system route)" active={output === 'auto'} onPress={() => setOutput('auto')} />
-        <Btn label="Refresh" onPress={() => refreshRoute(output)} />
+        <Btn label="System route (Auto)" active={outputId === null} onPress={() => setOutputId(null)} />
+        {(routePreview?.outputs ?? []).map((d) => (
+          <Btn key={d.id} label={d.label} active={outputId === d.id} onPress={() => setOutputId(d.id)} />
+        ))}
+        <Btn label="Refresh" onPress={() => refreshRoute(outputId)} />
       </Row>
       <View style={[styles.banner, routePreview && !routePreview.ok && styles.bannerWarn]}>
         <Text style={[styles.bannerText, routePreview && !routePreview.ok && styles.bannerWarnText]}>
           Speech route: {routePreview ? routePreview.label : '...'}
         </Text>
+        {routePreview && outputId !== null ? <Text style={styles.small}>System route right now: {routePreview.systemRoute}</Text> : null}
         {routePreview?.warning ? <Text style={styles.bannerWarnText}>WARNING: {routePreview.warning}</Text> : null}
+        {routePreview?.platformNote ? <Text style={styles.small}>Note: platform engines follow the system route. {routePreview.platformNote}</Text> : null}
         {routePreview ? (
           <Text style={styles.small}>
             audio mode {routePreview.audioMode}, comm device {routePreview.communicationDevice?.typeName ?? 'none'}, held by {routePreview.commOwner}
           </Text>
         ) : null}
       </View>
- <Row>
-        <Btn label="Run all engines" testID="tts-lab-run-all" onPress={runAll} />
+      <Row>
+        <Text style={styles.small}>Media volume {volume ? `${volume.percent}% (${volume.volume}/${volume.max})` : '-'}</Text>
+        <PercentSlider
+          value={volume?.percent ?? 0}
+          onChange={(p) => {
+            try {
+              setVolume(VlcSessionService.ttsLabSetVolume(p));
+            } catch (e) {
+              note(`set volume failed: ${e}`);
+            }
+          }}
+        />
+      </Row>
+      <Row>
+        <Btn label="Run all engines" testID="tts-lab-run-all" onPress={() => runAll(null)} />
+        <Btn label="Stop" onPress={() => VlcSessionService.ttsLabStop()} />
       </Row>
       {!!selfTestState && <Text style={styles.mono}>{selfTestState}</Text>}
       {selfTest.map((r, i) => (
         <Text key={`${r.engine}-${r.lang}-${i}`} style={[styles.mono, !r.ok && { color: '#a83a0c' }]}>
           {r.ok ? 'OK  ' : 'FAIL'} {r.engine}/{r.lang} prep {num(r.prepareMs)} ms, first {num(r.firstAudioMs)} ms, gen {num(r.genMs)} ms, RTF {num(r.rtf, 2)}, audio {num(r.audioDurationMs)} ms, model {num(r.modelMB)} MB
-          {'\n'}     route: {r.routeLabel ?? r.routedDevice?.typeName ?? '-'}{r.routeOk === false ? ' (NOT SPEAKER)' : ''}{r.error ? `\n     ${r.error}` : ''}
+          {'\n'}     route: {r.routeLabel ?? r.routedDevice?.typeName ?? '-'}{r.routeOk === false ? ' (NOT THE SELECTED OUTPUT)' : ''}{r.error ? `\n     ${r.error}` : ''}
         </Text>
       ))}
       <Row>
         <Btn label="ko-KR" active={lang === 'ko'} onPress={() => switchLang('ko')} />
         <Btn label="en-US" active={lang === 'en'} onPress={() => switchLang('en')} />
-        <Btn label="Stop" onPress={() => VlcSessionService.ttsLabStop()} />
       </Row>
       <TextInput style={[styles.input, { minHeight: 56 }]} value={text} onChangeText={setText} multiline />
       <Text style={styles.small}>
@@ -318,6 +352,7 @@ export function TtsLabPanel({ note, onModelsChanged }: { note: (m: string) => vo
             <Row>
               <Btn label={busyLabel(eng.id, 'Prepare', 'Preparing...')} disabled={busy(eng.id)} onPress={() => prepare(eng.id)} />
               <Btn label="Speak" onPress={() => speak(eng.id)} />
+              <Btn label="Test this engine" onPress={() => runAll(eng.id)} />
             </Row>
             <Text style={styles.mono}>{statusText(status[eng.id])}</Text>
 
@@ -406,7 +441,7 @@ export function TtsLabPanel({ note, onModelsChanged }: { note: (m: string) => vo
           </Text>
           <Text style={[styles.mono, r.routeOk === false && { color: '#a83a0c', fontWeight: '700' }]}>
             output: {r.routeLabel ?? '...'}
-            {r.routeOk === false ? '   (WARNING: not speaker / selected device)' : ''}
+            {r.routeOk === false ? '   (WARNING: not the selected output)' : ''}
           </Text>
           {r.message ? <Text style={[styles.mono, { color: '#a83a0c' }]}>{r.message}</Text> : null}
           {r.info && (r.info.genMs != null || r.info.chunks != null) ? (

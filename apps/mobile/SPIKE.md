@@ -73,6 +73,15 @@ Trade-offs of the communication-device method (this is the weak part; verify on 
 - A TTS engine that ignores `setAudioAttributes` (some OEM engines) would still go to A2DP; the route banner would then show the warning.
 - Alternative not implemented: `TextToSpeech.synthesizeToFile` and play the PCM through our own AudioTrack with `setPreferredDevice`. That gives deterministic routing for every engine but loses streaming (first-audio latency = whole synthesis).
 
+### TTS lab output and volume (2026-11-03, after the first S25 run)
+
+- The lab never forces the speaker and never sets `MODE_IN_COMMUNICATION` / a communication device. Default output is **System route (Auto)**: it follows the OS (Bluetooth earbuds when connected). The picker lists connected outputs (phone speaker, Bluetooth A2DP / LE, wired, USB). In-process engines (sherpa Supertonic/Kitten/Kokoro) apply the pick with `AudioTrack.setPreferredDevice`; platform engines (Google, Samsung, ML Kit) cannot be routed and follow the system route (the panel shows a note, and the route report says where they will actually play).
+- Lab audio uses media-style attributes (`USAGE_MEDIA` + `CONTENT_TYPE_SPEECH`), and the activity's `volumeControlStream` is `STREAM_MUSIC` while the app is in the foreground, so the hardware keys change media volume. The panel has a 0-100 % slider that sets `STREAM_MUSIC` (it follows hardware key presses by polling). Audio mode is logged as `audio_mode` at lab start/end and self-test start/end.
+- Self-test: uses the selected output; per-engine "Test this engine"; **Stop** cancels mid-run (utterance, download, gap); 1 s gap between engines; each `tts_lab_selftest` / `tts_lab_selftest_done` event carries `outputSelection`. ko and en are separate rows.
+- Cue path: the session's force-speaker option still uses the communication-device method, but the route is now released whenever TTS goes idle (`speech_force_speaker_released`).
+- R8 and sherpa: the generator callback is the named class `SherpaAudioCallback` because sherpa-onnx's JNI looks up `Function1.invoke(float[]): Integer`; a Kotlin lambda was rewritten by R8 and aborted the process. Keep rules are in `consumer-rules.pro`.
+- ML Kit: `tts_lab_mlkit_probe` logs every voice and its status for the requested locale, ko-KR and en-US.
+
 ### TTS A/B panel (section 6b)
 
 One text box (defaults: the Korean pasta sentence, or an English equivalent when en-US is chosen), a language switch, and per engine: **Prepare** (bind/load/check), **Speak**, a voice picker, and engine specific controls. Results list request -> first-audio latency, total time, the output device used (red when it triggers the route warning), and for sherpa engines generation time, audio length and RTF.

@@ -96,21 +96,23 @@ class TtsLab(
     val id = "lab${seq.incrementAndGet()}"
     val requestedRt = SystemClock.elapsedRealtime()
     val locale = Locale.forLanguageTag(localeTag)
-    val output = if (options["output"] == SpeechOutput.MODE_AUTO) SpeechOutput.MODE_AUTO else SpeechOutput.MODE_SPEAKER
-    log.log("tts_lab_request", mapOf("requestId" to id, "engine" to engineId, "locale" to localeTag, "voice" to voice, "chars" to text.length, "output" to output, "steps" to options["steps"]))
-    emit("ttsLabEvent", mapOf("requestId" to id, "engine" to engineId, "phase" to "requested"))
+    // null = system route (default). Otherwise an AudioDeviceInfo id; only in-process engines can honour it.
+    val deviceId = (options["outputDeviceId"] as? Number)?.toInt()
+    val selection = SpeechOutput.selectionText(ctx, deviceId)
+    log.log("tts_lab_request", mapOf("requestId" to id, "engine" to engineId, "locale" to localeTag, "voice" to voice, "chars" to text.length, "outputSelection" to selection, "steps" to options["steps"]))
+    emit("ttsLabEvent", mapOf("requestId" to id, "engine" to engineId, "phase" to "requested", "outputSelection" to selection))
     io.execute {
      try {
       val e = engine(engineId)
       // Only one A/B utterance at a time.
       current?.let { if (it !== e) it.stop() }
       current = e
-      SpeechOutput.beginLab(ctx, output, id)
+      SpeechOutput.beginLab(ctx, deviceId, id)
       // Speak prepares on demand (e.g. after a model download, or after a failed earlier prepare).
       if (!prepared.contains("$engineId|${locale.language}")) {
         val p = prepare(engineId, localeTag)
         if (p["ok"] != true) {
-          log.log("tts_lab_done", mapOf("requestId" to id, "engine" to engineId, "outcome" to "error:prepare_failed"))
+          log.log("tts_lab_done", mapOf("requestId" to id, "engine" to engineId, "outcome" to "error:prepare_failed", "outputSelection" to selection))
           emit("ttsLabEvent", mapOf("requestId" to id, "engine" to engineId, "phase" to "error", "outcome" to "error:prepare_failed", "message" to (p["error"] ?: "prepare failed"), "prepare" to p))
           observer?.onFinished("error:prepare_failed: ${p["error"]}", emptyMap())
           SpeechOutput.endLab(ctx, id)
@@ -125,7 +127,7 @@ class TtsLab(
             val route = SpeechOutput.report("tts_start", usage, routed, mapOf("requestId" to id, "engine" to engineId))
             val latency = rt - requestedRt
             observer?.onFirstAudio(latency, route)
-            log.log("tts_lab_first_audio", mapOf("requestId" to id, "engine" to engineId, "latencyMs" to latency) + info.filterKeys { it != "usage" })
+            log.log("tts_lab_first_audio", mapOf("requestId" to id, "engine" to engineId, "latencyMs" to latency, "outputSelection" to selection) + info.filterKeys { it != "usage" })
             emit(
               "ttsLabEvent",
               mapOf(
@@ -139,7 +141,7 @@ class TtsLab(
           override fun onFinished(outcome: String, info: Map<String, Any?>) {
             SpeechOutput.endLab(ctx, id)
             observer?.onFinished(outcome, info)
-            log.log("tts_lab_done", mapOf("requestId" to id, "engine" to engineId, "outcome" to outcome, "totalMs" to SystemClock.elapsedRealtime() - requestedRt) + info)
+            log.log("tts_lab_done", mapOf("requestId" to id, "engine" to engineId, "outcome" to outcome, "outputSelection" to selection, "totalMs" to SystemClock.elapsedRealtime() - requestedRt) + info)
             emit(
               "ttsLabEvent",
               mapOf(
@@ -172,30 +174,38 @@ class TtsLab(
 
   @Volatile private var selfTestRunning = false
   @Volatile private var selfTestCancel = false
+  @Volatile private var selfTestLatch: java.util.concurrent.CountDownLatch? = null
   private val models = ModelManager(ctx)
 
   /**
-   * "Run all engines": for every engine and language it supports, downloads missing model files, prepares, speaks the
-   * test sentence through the phone speaker, waits up to [TIMEOUT_MS] for the utterance to finish and logs one
-   * `tts_lab_selftest` event (also emitted as `ttsLabSelfTest`), then `tts_lab_selftest_done`. Returns false if a run
-   * is already in progress. Runs on the lab's executor; progress arrives only as events.
+   * Self-test: for every engine (or only [onlyEngine]) and language it supports, downloads missing model files, prepares,
+   * speaks the test sentence through the lab output selection ([deviceId], null = system route; the self-test never forces
+   * the speaker), waits up to [TIMEOUT_MS] for the utterance to finish and logs one `tts_lab_selftest` event (also emitted as
+   * `ttsLabSelfTest`), then `tts_lab_selftest_done`. A 1 s gap separates engines. [stop] cancels it mid-run. Returns false if a
+   * run is already in progress. Runs on the lab's executor; progress arrives only as events.
    */
-  fun runSelfTest(koText: String, enText: String): Boolean {
+  fun runSelfTest(koText: String, enText: String, deviceId: Int? = null, onlyEngine: String? = null): Boolean {
     if (selfTestRunning) return false
     selfTestRunning = true
     selfTestCancel = false
+    val selection = SpeechOutput.selectionText(ctx, deviceId)
     io.execute {
       val rows = ArrayList<Map<String, Any?>>()
       try {
-        log.log("tts_lab_selftest_start", mapOf("engines" to ENGINE_IDS))
-        for (lang in listOf("ko" to koText, "en" to enText)) {
+        val ids = if (onlyEngine != null) listOf(onlyEngine) else ENGINE_IDS
+        log.log("tts_lab_selftest_start", mapOf("engines" to ids, "outputSelection" to selection))
+        SpeechOutput.logAudioMode(ctx, "selftest_start", mapOf("selection" to selection))
+        var first = true
+        loop@ for (lang in listOf("ko" to koText, "en" to enText)) {
           val tag = if (lang.first == "ko") "ko-KR" else "en-US"
-          for (eid in ENGINE_IDS) {
-            if (selfTestCancel) break
+          for (eid in ids) {
+            if (selfTestCancel) break@loop
             if (!engine(eid).supports(Locale.forLanguageTag(tag))) continue
-            val row = try { selfTestOne(eid, lang.first, tag, lang.second) } catch (t: Throwable) {
+            if (!first && !sleepCancellable(1000)) break@loop // gap between engines
+            first = false
+            val row = (try { selfTestOne(eid, lang.first, tag, lang.second, deviceId) } catch (t: Throwable) {
               mapOf("engine" to eid, "lang" to lang.first, "ok" to false, "error" to t.chainText())
-            }
+            }) + ("outputSelection" to selection)
             rows.add(row)
             log.log("tts_lab_selftest", row)
             try { emit("ttsLabSelfTest", row) } catch (_: Throwable) {}
@@ -210,7 +220,9 @@ class TtsLab(
           "okCount" to rows.count { it["ok"] == true },
           "failed" to rows.filter { it["ok"] != true }.map { "${it["engine"]}/${it["lang"]}: ${it["error"]}" },
           "cancelled" to selfTestCancel,
+          "outputSelection" to selection,
         )
+        SpeechOutput.logAudioMode(ctx, "selftest_end")
         log.log("tts_lab_selftest_done", summary)
         try { emit("ttsLabSelfTestDone", summary) } catch (_: Throwable) {}
       }
@@ -218,7 +230,17 @@ class TtsLab(
     return true
   }
 
-  private fun selfTestOne(eid: String, lang: String, tag: String, text: String): Map<String, Any?> {
+  /** Sleeps up to [ms] in short slices; false if the self-test was cancelled meanwhile. */
+  private fun sleepCancellable(ms: Long): Boolean {
+    val end = SystemClock.elapsedRealtime() + ms
+    while (SystemClock.elapsedRealtime() < end) {
+      if (selfTestCancel) return false
+      Thread.sleep(50)
+    }
+    return !selfTestCancel
+  }
+
+  private fun selfTestOne(eid: String, lang: String, tag: String, text: String, deviceId: Int?): Map<String, Any?> {
     val base = mutableMapOf<String, Any?>("engine" to eid, "lang" to lang)
     // 1. model files
     val sets = when (eid) {
@@ -235,12 +257,14 @@ class TtsLab(
         return base + mapOf("ok" to false, "error" to "download failed: ${t.chainText()}")
       }
     }
+    if (selfTestCancel) return base + mapOf("ok" to false, "error" to "cancelled")
     base["modelMB"] = sets.sumOf { ModelCatalog.find(it)?.totalBytes ?: 0L } / 1_000_000
     // 2. prepare
     val t0 = SystemClock.elapsedRealtime()
     val p = prepare(eid, tag)
     base["prepareMs"] = SystemClock.elapsedRealtime() - t0
     if (p["ok"] != true) return base + mapOf("ok" to false, "error" to (p["error"] ?: "prepare failed"))
+    if (selfTestCancel) return base + mapOf("ok" to false, "error" to "cancelled")
     // 3. voice: first installed local voice (same rule as the UI); sherpa engines use their default sid
     val voice = if (eid in listOf("supertonic", "kokoro", "kitten")) null else try {
       val v = engine(eid).voices(Locale.forLanguageTag(tag))
@@ -249,16 +273,18 @@ class TtsLab(
     base["voice"] = voice
     // 4. speak and wait
     val latch = java.util.concurrent.CountDownLatch(1)
+    selfTestLatch = latch
     var firstMs: Long? = null
     val started = SystemClock.elapsedRealtime()
-    val rid = speak(eid, text, tag, voice, mapOf("output" to SpeechOutput.MODE_SPEAKER, "steps" to 8), object : LabObserver {
+    val rid = speak(eid, text, tag, voice, mapOf("outputDeviceId" to deviceId, "steps" to 8), object : LabObserver {
       override fun onFirstAudio(latencyMs: Long, route: Map<String, Any?>) { firstMs = latencyMs; routeHolder = route }
       override fun onFinished(outcome: String, info: Map<String, Any?>) { infoHolder = info; outcomeHolder = outcome; latch.countDown() }
     })
     val finished = latch.await(TIMEOUT_MS, java.util.concurrent.TimeUnit.MILLISECONDS)
+    selfTestLatch = null
     if (!finished) engine(eid).stop()
     val route = routeHolder
-    val outcome = if (finished) outcomeHolder else "timeout"
+    val outcome = if (selfTestCancel && !(finished && outcomeHolder == "done")) "cancelled" else if (finished) outcomeHolder else "timeout"
     val info = infoHolder
     routeHolder = emptyMap(); infoHolder = emptyMap(); outcomeHolder = "timeout"
     val routed = (route["trackRouted"] as? Map<*, *>) ?: (route["planned"] as? List<*>)?.firstOrNull() as? Map<*, *>
@@ -283,14 +309,32 @@ class TtsLab(
   @Volatile private var infoHolder: Map<String, Any?> = emptyMap()
   @Volatile private var outcomeHolder: String = "timeout"
 
+  /** Releases (and forgets) every engine that reads files from model set [setId], before the files are deleted. */
+  fun releaseForSet(setId: String) {
+    val ids = when (setId) {
+      "tts-supertonic" -> listOf("supertonic")
+      "tts-kokoro-en" -> listOf("kokoro")
+      "tts-kitten-en" -> listOf("kitten")
+      "tts-lexicon-en" -> listOf("kokoro", "kitten")
+      else -> emptyList()
+    }
+    for (id in ids) {
+      engines.remove(id)?.let { try { it.release() } catch (_: Throwable) {} }
+      invalidate(id)
+    }
+  }
+
   fun invalidate(engineId: String) {
     prepared.removeAll { it.startsWith("$engineId|") }
   }
 
-  fun previewRoute(output: String): Map<String, Any?> = SpeechOutput.previewRoute(ctx, output)
+  fun previewRoute(deviceId: Int?): Map<String, Any?> = SpeechOutput.previewRoute(ctx, deviceId)
 
+  /** Stops playback and cancels a running self-test (also unblocks its wait, download and gap). */
   fun stop() {
     selfTestCancel = true
+    selfTestLatch?.countDown()
+    if (selfTestRunning) models.cancel()
     engines.values.forEach { try { it.stop() } catch (_: Throwable) {} }
     SpeechOutput.endLabAny(ctx)
   }

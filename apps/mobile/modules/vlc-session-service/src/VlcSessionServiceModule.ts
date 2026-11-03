@@ -6,6 +6,9 @@ import type {
   LogSummary,
   ModelCatalogEntry,
   ModelStatus,
+  InstalledModelSet,
+  DeleteModelResult,
+  DeleteUnusedResult,
   PriorityName,
   RouteState,
   SessionOptions,
@@ -16,6 +19,7 @@ import type {
   TtsLabEngineInfo,
   TtsLabPrepareResult,
   TtsLabRoutePreview,
+  MusicVolume,
   TtsLabSpeakOptions,
   TtsLabVoice,
   VlcSessionServiceModuleEvents,
@@ -53,13 +57,23 @@ declare class VlcSessionServiceNative extends NativeModule<VlcSessionServiceModu
   /** Returns a request id; results arrive as ttsLabEvent. voice: engine specific voice id or null. */
   ttsLabSpeak(engine: TtsLabEngineId, text: string, locale: string, voice: string | null, options: TtsLabSpeakOptions): string;
   /** Starts the sequential all-engines self-test; returns false if one is already running. Results arrive as ttsLabSelfTest events. */
-  ttsLabRunAll(koText: string, enText: string): boolean;
-  ttsLabPreviewRoute(output: SpeechOutputMode): Promise<TtsLabRoutePreview>;
+  ttsLabRunAll(koText: string, enText: string, outputDeviceId: number | null, onlyEngine: TtsLabEngineId | null): boolean;
+  /** outputDeviceId: AudioDeviceInfo id from the preview's outputs list, or null for the system route. */
+  ttsLabPreviewRoute(outputDeviceId: number | null): Promise<TtsLabRoutePreview>;
+  /** STREAM_MUSIC volume (what the hardware keys change while the app is in the foreground). */
+  ttsLabGetVolume(): MusicVolume;
+  ttsLabSetVolume(percent: number): MusicVolume;
   ttsLabStop(): void;
   ttsLabSetMlKitPlayback(enabled: boolean, sampleRate: number): void;
 
   getModelStatus(): Promise<ModelStatus[]>;
   downloadModels(setIds: string[]): Promise<ModelStatus[]>;
+  /** Every directory under the model root (including strays and partial downloads) with its size. */
+  listInstalledModels(): Promise<InstalledModelSet[]>;
+  /** Releases engines using the set, then deletes its directory. */
+  deleteModelSet(setId: string): Promise<DeleteModelResult>;
+  /** Deletes every installed set except the ones in keep. */
+  deleteUnusedModels(keep: string[]): Promise<DeleteUnusedResult>;
   cancelModelDownload(): void;
   getModelCatalog(): ModelCatalogEntry[];
 
