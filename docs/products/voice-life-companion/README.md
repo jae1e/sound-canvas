@@ -22,6 +22,17 @@ The three modes are:
 
 The assistant previously recommended completing vocal practice first and adding the other modes later. The user explicitly superseded that recommendation: **implement all three together**. Shared infrastructure can be built first, but the first product must contain functional experiences in all three modes. A vocal-only release with placeholder walking/activity screens does not meet the request.
 
+## Mode Names (Decided by user, 2026-11-03)
+
+| Mode | English name | Korean name | Notes |
+| --- | --- | --- | --- |
+| A: GPS walking, navigation, travel | **Travel Guide** | **여행 가이드** | "For the start". Covers nearby Q&A ("what's around?") and where to go. |
+| B: Activity companion | **Work Partner** | **작업 파트너** | "For the start". The intended feel is a copilot, like Jarvis in Iron Man. The user considers "Copilot" the best name; it is not used because Microsoft uses Copilot as a product brand. This is not a routine tracker. |
+| C: Vocal and voice practice | **Voice Coach** | **보이스 코치** | Analyzes tone, pitch, and speech. |
+| Shared | Journal | 기록 | All modes write here. |
+
+Rejected by the user: Explore/둘러보기, Sidekick/함께하기, Routine Partner/루틴 파트너 (the user said mode B "is not just about routine"), Task Partner (lacks the vibe), Walk Guide/산책 가이드.
+
 ## 1. User Decisions and Product Principles
 
 | ID | Decision | Status |
@@ -120,6 +131,17 @@ Cooking and workout sessions share a progress engine: named activities, steps, t
 - Ask a short clarification when the intended task is ambiguous.
 - Cancel or replace obsolete reminders after a change.
 - Save plans as reusable templates and preserve session-specific changes separately.
+
+### Copilot Scope (User direction, 2026-11-03)
+
+The user describes Work Partner as a copilot rather than a timer or routine tool. Its scope includes:
+
+- **Task management:** plans, steps, checklists, parallel tasks and timers, status ("where am I?").
+- **Q&A during the task:** context-aware answers while the user's hands are busy.
+- **Active nudges:** proactive check-ins, reminders, and suggestions, bounded so they do not become noise.
+- **More of the same kind** ("you get what I mean"): capture of notes and decisions, recaps, and resuming after interruptions.
+
+Candidate activities beyond cooking (the user rarely cooks) and workouts: focus work sessions, chores, DIY/assembly/repair, stretching and physio routines, and hands-busy professional checklists (inspection, maintenance, 3D scanning sessions). These are assistant suggestions, not yet user-selected.
 
 ### Cooking Example
 
