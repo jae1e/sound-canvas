@@ -34,6 +34,10 @@ declare class VlcSessionServiceNative extends NativeModule<VlcSessionServiceModu
   startSession(options: SessionOptions): Promise<{ state: SessionStateName }>;
   stopSession(): Promise<{ state: SessionStateName }>;
   getSessionState(): SessionStateName;
+  /** Mode the running session was started for, or null when no session runs. */
+  getSessionMode(): 'work' | 'travel' | 'coach' | null;
+  /** Pauses (true) or resumes (false) the session's platform STT for an external recorder. Logs stt_paused_for_take / stt_resumed. */
+  holdStt(hold: boolean): void;
   setBargeIn(enabled: boolean): Promise<void>;
 
   /** Synchronous (no queue hop). Returns the utterance id, or null if skipped. */

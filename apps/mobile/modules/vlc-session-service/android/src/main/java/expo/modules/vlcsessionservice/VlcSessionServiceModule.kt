@@ -86,6 +86,7 @@ class VlcSessionServiceModule : Module() {
         locationEnabled = options["locationEnabled"] as? Boolean ?: true,
         sttEngine = (options["sttEngine"] as? String)?.takeIf { it == "sherpa" } ?: "platform",
         sttAutoFallback = options["sttAutoFallback"] as? Boolean ?: true,
+        mode = (options["mode"] as? String)?.takeIf { it == "travel" || it == "coach" } ?: "work",
       )
       SessionRuntime.prepareStart(cfg)
       try {
@@ -104,6 +105,13 @@ class VlcSessionServiceModule : Module() {
     }
 
     Function("getSessionState") { SessionRuntime.state }
+    /** Mode the running session was started for ("work", "travel", "coach"), or null when no session runs. */
+    Function("getSessionMode") { if (SessionRuntime.service != null) SessionRuntime.config.mode else null }
+    /**
+     * Holds (true) or releases (false) the session's platform STT so another recorder (Voice Coach takes and live pitch)
+     * can own the microphone. Logs stt_paused_for_take / stt_resumed. No-op without a session.
+     */
+    Function("holdStt") { hold: Boolean -> SessionRuntime.service?.holdStt(hold); Unit }
 
     AsyncFunction("setBargeIn") { enabled: Boolean ->
       SessionRuntime.service?.setBargeIn(enabled)

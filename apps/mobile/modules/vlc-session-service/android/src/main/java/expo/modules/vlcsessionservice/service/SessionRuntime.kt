@@ -15,6 +15,8 @@ data class SessionConfig(
   val sttEngine: String = "platform",
   /** With platform STT: switch to sherpa automatically when recognition stops working (for example in the background). */
   val sttAutoFallback: Boolean = true,
+  /** Product mode that owns the session: "work", "travel" or "coach". Informational (notification text, log). */
+  val mode: String = "work",
 )
 
 /**

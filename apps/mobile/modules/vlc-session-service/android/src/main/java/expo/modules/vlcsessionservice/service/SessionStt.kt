@@ -53,8 +53,10 @@ class SessionStt(
   // Half-duplex.
   private var ttsActive = false
   private var paused = false
+  /** True while another recorder (Voice Coach take or live pitch) owns the microphone. */
+  private var externalHold = false
   private val resumeTask = Runnable {
-    if (!ttsActive && paused) {
+    if (!ttsActive && !externalHold && paused) {
       paused = false
       lastActivityRt = SystemClock.elapsedRealtime()
       log.log("stt_resumed", emptyMap())
@@ -135,8 +137,29 @@ class SessionStt(
           log.log("stt_paused_for_tts", mapOf("state" to state))
           engine?.pause()
         }
-      } else if (paused) {
+      } else if (paused && !externalHold) {
         main.postDelayed(resumeTask, ECHO_TAIL_MS)
+      }
+    }
+  }
+
+  /** Pause for / resume after an external recorder. Logs stt_paused_for_take and stt_resumed. */
+  fun holdForExternalRecorder(hold: Boolean) {
+    main.post {
+      if (!active) return@post
+      externalHold = hold
+      main.removeCallbacks(resumeTask)
+      if (hold) {
+        if (!paused) {
+          paused = true
+          log.log("stt_paused_for_take", mapOf("state" to state))
+          engine?.pause()
+        }
+      } else if (paused && !ttsActive) {
+        paused = false
+        lastActivityRt = SystemClock.elapsedRealtime()
+        log.log("stt_resumed", mapOf("after" to "take"))
+        engine?.resume()
       }
     }
   }

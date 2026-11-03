@@ -208,6 +208,11 @@ class SessionService : Service() {
     )
   }
 
+  /** Pauses or resumes the platform STT for an external recorder. Sherpa capture (fallback) is not affected. */
+  fun holdStt(hold: Boolean) {
+    sessionStt?.holdForExternalRecorder(hold)
+  }
+
   fun setBargeIn(enabled: Boolean) {
     bargeIn = enabled
     log.log("barge_in_setting", mapOf("enabled" to enabled))
@@ -299,7 +304,11 @@ class SessionService : Service() {
     return NotificationCompat.Builder(this, CHANNEL_ID)
       .setSmallIcon(android.R.drawable.ic_btn_speak_now)
       .setContentTitle("Voice session running")
-      .setContentText("Listening, location and cues are active")
+      .setContentText(when (SessionRuntime.config.mode) {
+        "travel" -> "Travel Guide: listening and location are active"
+        "coach" -> "Voice Coach: listening is active"
+        else -> "Listening, location and cues are active"
+      })
       .setOngoing(true)
       .setOnlyAlertOnce(true)
       .setCategory(NotificationCompat.CATEGORY_SERVICE)

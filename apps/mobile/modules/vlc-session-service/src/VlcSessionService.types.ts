@@ -15,6 +15,8 @@ export type SessionOptions = {
   sttEngine?: 'platform' | 'sherpa';
   /** Platform STT only: fall back to sherpa automatically when recognition stops working. Default true. */
   sttAutoFallback?: boolean;
+  /** Product mode that owns the session: "work" (default), "travel" or "coach". Shown in the notification and the log. */
+  mode?: 'work' | 'travel' | 'coach';
 };
 
 export type AudioDevice = {
