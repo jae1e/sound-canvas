@@ -25,7 +25,7 @@ Evidence labels for facts: **[V]** vendor documentation or pricing page, **[VC]*
 | T07 | iPhone support comes later, not in the first build. Keep the architecture portable to iOS. |
 | T08 | Use Expo (React Native, TypeScript), because it is the better fit once later iPhone support is considered. The user previously found downloading builds from Cloudflare convenient. |
 
-| T09 | Development phone: Samsung Galaxy S25, model SM-S931N (Korean domestic variant). Android/One UI version not yet recorded. |
+| T09 | Development phone: Samsung Galaxy S25, model SM-S931N (Korean domestic variant), **Android 17 (API 37)**, build CP2A.260605.016.S931NKSSDDZJ2 (read via adb on 2026-11-03). The research above covered Android 14–16 behavior; re-check Android 17 background, audio, and foreground-service changes during the spike. |
 | T10 | Earbuds: a QCY model the user owns (exact model not recorded), and Galaxy Buds that the user plans to buy (model not chosen). |
 | T11 | Primary walking area: South Korea. |
 | T12 | The user can create the needed accounts: Expo, Kakao Developers, cloud LLM providers, and Cloudflare. |
@@ -307,7 +307,6 @@ On-device navigation engine (Proposed): fused location at ~1 Hz during a walk; g
 
 ## 11. Open Items for the User
 
-1. Android and One UI version on the S25 (Settings → About phone → Software information).
-2. Exact QCY model, and which Galaxy Buds model is purchased.
-3. Whether use abroad is planned (it would affect the OSM routing work).
-4. Account creation as each becomes necessary: Expo (EAS) and Kakao Developers first, then the cloud LLM providers for the bake-off, then Cloudflare. An Apple Developer Program membership is needed only when iPhone work starts.
+1. Exact QCY model, and which Galaxy Buds model is purchased.
+2. Whether use abroad is planned (it would affect the OSM routing work).
+3. Account creation as each becomes necessary: Expo (EAS) and Kakao Developers first, then the cloud LLM providers for the bake-off, then Cloudflare. An Apple Developer Program membership is needed only when iPhone work starts.
