@@ -1,19 +1,30 @@
-import { ScrollView, Text } from 'react-native';
+import { View } from 'react-native';
 
-import { Card } from '../../src/components/ui';
-import { useTranslation } from '../../src/i18n';
-import { shared } from '../../src/theme';
+import { useEffectiveLang } from '../../src/session/language';
+import { ModeSessionBar } from '../../src/session/ModeSessionBar';
+import { useModeSession } from '../../src/session/instance';
+import { speakThroughSession } from '../../src/session/speech';
+import { TravelGuideScreen } from '../../src/travel';
+import { savePlaceFromResult, travelController } from '../../src/travel/service';
 
-// Placeholder for milestone M3. The Travel Guide agent replaces this file and adds src/travel/**.
-export default function TravelPlaceholder() {
-  const { t } = useTranslation();
+/**
+ * Travel Guide. Spoken output goes through the running native session (Supertonic or platform TTS, user output routing);
+ * without a session the text is only shown. While the session runs, GPS fixes come from the service events (wired in
+ * `src/session/wire.ts`), so the screen does not feed them a second time.
+ */
+export default function TravelRoute() {
+  const lang = useEffectiveLang();
+  const sessionRunning = useModeSession((s) => s.mode === 'travel' && s.status === 'running');
   return (
-    <ScrollView style={shared.screen} contentContainerStyle={shared.content}>
-      <Card>
-        <Text style={shared.h1}>{t('placeholder.travel.title')}</Text>
-        <Text style={shared.body}>{t('placeholder.travel.body')}</Text>
-        <Text style={shared.muted}>{t('placeholder.badge')} (M3)</Text>
-      </Card>
-    </ScrollView>
+    <View style={{ flex: 1 }}>
+      <ModeSessionBar mode="travel" />
+      <TravelGuideScreen
+        controller={travelController}
+        lang={lang}
+        onSpeak={(text, l) => void speakThroughSession(text, l)}
+        feedLocation={!sessionRunning}
+        onSavePlace={savePlaceFromResult}
+      />
+    </View>
   );
 }

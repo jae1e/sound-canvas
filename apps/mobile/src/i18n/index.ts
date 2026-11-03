@@ -4,13 +4,13 @@ import { initReactI18next } from 'react-i18next';
 import enCommon from './locales/en/common';
 import enHome from './locales/en/home';
 import enJournal from './locales/en/journal';
-import enPlaceholder from './locales/en/placeholder';
+import enSession from './locales/en/session';
 import enSettings from './locales/en/settings';
 import enWork from './locales/en/work';
 import koCommon from './locales/ko/common';
 import koHome from './locales/ko/home';
 import koJournal from './locales/ko/journal';
-import koPlaceholder from './locales/ko/placeholder';
+import koSession from './locales/ko/session';
 import koSettings from './locales/ko/settings';
 import koWork from './locales/ko/work';
 
@@ -32,7 +32,7 @@ export const resources = {
       ['settings', enSettings],
       ['journal', enJournal],
       ['work', enWork],
-      ['placeholder', enPlaceholder],
+      ['session', enSession],
     ]),
   },
   ko: {
@@ -42,7 +42,7 @@ export const resources = {
       ['settings', koSettings],
       ['journal', koJournal],
       ['work', koWork],
-      ['placeholder', koPlaceholder],
+      ['session', koSession],
     ]),
   },
 } as const;

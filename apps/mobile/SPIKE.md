@@ -1,5 +1,7 @@
 # Week-1 feasibility spike: screen-locked voice pipeline (Android)
 
+On-device test checklist for the three product modes: [TESTING.md](TESTING.md).
+
 Purpose: prove the combined foreground service, VAD + on-device STT, TTS cues, native due-event timer, fused location and audio routing work with the **screen locked** on a Galaxy S25 (SM-S931N). Pass criteria come from `docs/products/voice-life-companion/technical-decisions.md` section 10 item 1. This is a spike: the UI is a diagnostic screen, not a product screen.
 
 Status when this was written (2026-11-03): the debug and release builds compile (`tsc --noEmit` also passes); nothing has been run on a device yet. Every runtime behaviour below is untested until the walk test.

@@ -1,18 +1,38 @@
-import { Pressable, StyleSheet, Text } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { colors, shared, space } from '../theme';
 
 /** A large tappable card for one app mode. */
-export function ModeCard({ title, description, onPress, testID }: { title: string; description: string; onPress: () => void; testID?: string }) {
+export function ModeCard({
+  title,
+  description,
+  onPress,
+  testID,
+  activeLabel,
+}: {
+  title: string;
+  description: string;
+  onPress: () => void;
+  testID?: string;
+  /** Set while this mode owns the voice session (or has an unfinished session): shows a badge and a filled border. */
+  activeLabel?: string | null;
+}) {
   return (
     <Pressable
       onPress={onPress}
       testID={testID}
       accessibilityRole="button"
-      accessibilityLabel={`${title}. ${description}`}
-      style={({ pressed }) => [styles.card, pressed && { opacity: 0.8 }]}
+      accessibilityLabel={`${title}${activeLabel ? `, ${activeLabel}` : ''}. ${description}`}
+      style={({ pressed }) => [styles.card, activeLabel ? styles.cardActive : null, pressed && { opacity: 0.8 }]}
     >
-      <Text style={styles.title}>{title}</Text>
+      <View style={shared.row}>
+        <Text style={[styles.title, { flex: 1 }]}>{title}</Text>
+        {activeLabel ? (
+          <View style={styles.badge} testID={testID ? `${testID}-active` : undefined}>
+            <Text style={styles.badgeText}>{activeLabel}</Text>
+          </View>
+        ) : null}
+      </View>
       <Text style={shared.muted}>{description}</Text>
     </Pressable>
   );
@@ -28,5 +48,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: space.lg,
     gap: space.xs,
   },
+  cardActive: { backgroundColor: colors.okBg, borderColor: colors.okText },
+  badge: { backgroundColor: colors.okText, borderRadius: 10, paddingHorizontal: 10, paddingVertical: 2 },
+  badgeText: { color: colors.onPrimary, fontSize: 13, fontWeight: '700' },
   title: { fontSize: 22, fontWeight: '700', color: colors.primary },
 });

@@ -152,9 +152,9 @@ The LLM must never invent nudges about safety or health. Nudge copy for the freq
 | Milestone | Content | Needs from the user |
 | --- | --- | --- |
 | M0 (in progress) | Spike gate: screen-locked cues and STT, 30-minute walk, route/mic stability | Run the tests on the phone and share the log |
-| M1 | App shell, persistence, Journal, settings, and Work Partner first version on the existing engine and voice loop | Install and try it |
-| M2 | Voice Coach: native pitch and speech analysis, takes, review screen | Try a practice session |
-| M3 | Travel Guide: Worker with Kakao Local and walking route, nearby Q&A, navigation | A Kakao Developers REST API key (and later a TMAP key). Deploy the Worker to the user's Cloudflare account |
+| M1 (built, device test pending) | App shell, persistence, Journal, settings, and Work Partner first version on the existing engine and voice loop | Install and try it |
+| M2 (built, device test pending) | Voice Coach: native pitch and speech analysis, takes, review screen | Try a practice session |
+| M3 (built, Worker not deployed, device test pending) | Travel Guide: Worker with Kakao Local and walking route, nearby Q&A, navigation | A Kakao Developers REST API key (and later a TMAP key). Deploy the Worker to the user's Cloudflare account |
 | M4 | LLM tier (§5.5 alignment and confirmation, Q&A) after the bake-off | LLM provider API keys stored as Worker secrets |
 | M5 | Dogfooding: the user uses all three modes for 1–2 weeks, then we tune them | Daily use and feedback |
 
@@ -166,5 +166,24 @@ Built and verified by unit tests and a release build; **not yet run on a device*
 
 - Engine (`packages/session-engine`): plan steps with estimates, next/back/skip, `what's left?` / `where was I?` answers, notes linked to the current step, quiet for N minutes, step-overrun check-in, focus break (default off, 50 min), skipped-step question (once per step), cue planner for the native scheduler, zod session schema, four example templates.
 - App (`apps/mobile`): expo-router shell, Home, Settings (+ Diagnostics = the spike screen), Journal (list, search, edit, delete, Markdown/JSON export), Work Partner screen and controller, SQLite persistence (state saved after every applied action and restored at start), `askLlm()` stub in `src/llm/` (M4).
-- Travel Guide and Voice Coach are placeholder routes; M2 and M3 replace `app/voice-coach/index.tsx` / `app/travel/index.tsx` and add `src/voice-coach/**` / `src/travel/**`.
+- Travel Guide and Voice Coach were placeholder routes in M1; they are now real screens (see M2, M3 and integration below).
+
+### M2 status (2026-11-03)
+
+Built, merged and unit-tested (`packages/voice-analysis`, 29 tests); **not yet run on a device**. Native module `apps/mobile/modules/vlc-voice-coach` (own `AudioRecord`, f0 tracker, WAV takes in `filesDir/vlc-takes/`, offline analysis, playback) and `src/voice-coach/` (`VoiceCoachScreen`, ko/en command parser). Speech-mode feedback uses audio-energy rate and pauses; transcript/filler analysis is not fed yet because session STT is paused during takes.
+
+### M3 status (2026-11-03)
+
+Built, merged and unit-tested (`packages/travel` 33 tests, `services/worker` 15 tests); **not yet run on a device**, and the Worker is **not deployed** (the app runs in automatic mock mode until `expo.extra.travel {baseUrl, token}` is set in `app.json`). `src/travel/` holds `TravelGuideScreen` and `TravelController`.
+
+### Integration status (2026-11-03)
+
+Wired and covered by unit tests with fakes; **not yet run on a device**. Details and the device checklist: [apps/mobile/TESTING.md](../../../apps/mobile/TESTING.md).
+
+- Both screens are the real routes. Spoken output (`onSpeak`, `onFeedback`) goes through the running native session TTS (Supertonic or platform fallback, user output routing); without a session nothing is spoken.
+- Starting a mode starts the native session with `mode` (`work`, `travel`, `coach`); only one mode owns it at a time (Home shows the active mode and a resume card; the other modes show how to get back).
+- Each STT final goes to the mode first (`TravelController.handleUtterance`, or the Voice Coach commands: start take, stop, play it back, same block again, take note), then to the shared session-engine parser (timers, notes).
+- Voice Coach takes, live pitch and playback pause session STT (`holdStt`; logs `stt_paused_for_take`, `stt_resumed`).
+- Location events from the service feed `TravelController.setFix` even with the screen off. Notes are saved with the location; the walk log (`routes`) and a generated summary are saved at the end.
+- SQLite migration `0001` adds `takes.block_id`, `places.external_id`, `routes.kind`, `plan_templates.kind` (Voice Coach blocks).
 

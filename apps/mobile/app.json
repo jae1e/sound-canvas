@@ -40,6 +40,13 @@
       ],
       "expo-router",
       "expo-sqlite",
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "Voice Life Companion uses your location for walking guidance and to save where you wrote a note.",
+          "isAndroidBackgroundLocationEnabled": false
+        }
+      ],
       "expo-localization"
     ]
   }
