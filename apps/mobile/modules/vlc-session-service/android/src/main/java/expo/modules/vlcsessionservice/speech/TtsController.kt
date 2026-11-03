@@ -40,6 +40,9 @@ class TtsController(
   private var focusRequest: AudioFocusRequest? = null
   private val queuedBeforeReady = ArrayList<() -> Unit>()
 
+  /** Called with true when the first utterance is queued and false when the last one finished (half-duplex STT pause/resume). */
+  @Volatile var onActiveChanged: ((Boolean) -> Unit)? = null
+
   /** True while an utterance is queued/playing or finished within [graceMs] (echo tail). */
   fun isActive(graceMs: Long = 0): Boolean =
     activeCount.get() > 0 || (graceMs > 0 && SystemClock.elapsedRealtime() - lastActivityRt.get() < graceMs)
@@ -88,7 +91,7 @@ class TtsController(
     val id = "u${seq.incrementAndGet()}"
     val requestedRt = SystemClock.elapsedRealtime()
     pending[id] = Pending(text, cueId, source, requestedRt)
-    activeCount.incrementAndGet()
+    if (activeCount.incrementAndGet() == 1) onActiveChanged?.invoke(true)
     val action = {
       val t = tts
       if (t == null) {
@@ -167,6 +170,7 @@ class TtsController(
     lastActivityRt.set(SystemClock.elapsedRealtime())
     if (activeCount.decrementAndGet() <= 0) {
       activeCount.set(0)
+      onActiveChanged?.invoke(false)
       abandonFocus()
       // Forced-speaker mode holds MODE_IN_COMMUNICATION only while speaking; release it between cues.
       SpeechOutput.onSpeechIdle(context)

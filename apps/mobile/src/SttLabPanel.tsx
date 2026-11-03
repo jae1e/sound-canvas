@@ -9,11 +9,12 @@ import VlcSessionService, {
   type SttLangMode,
   type SttMicMode,
   type SttSupport,
+  type SttTiming,
 } from '../modules/vlc-session-service';
-import { summarizeParse } from './sttParse';
+import { analyzeFinal, type LabParse } from './sttParse';
 import { Btn, Row, Section, styles } from './ui';
 
-type HistoryRow = SttFinalEvent & { parse: string };
+type HistoryRow = SttFinalEvent & { parse: LabParse; alternatives: string[] };
 
 const ACTIVE_STATES = new Set(['starting', 'loading', 'listening', 'processing', 'speech_timeout', 'segmented_session_end']);
 const BY_LABEL: Record<string, string> = {
@@ -27,6 +28,17 @@ const BY_LABEL: Record<string, string> = {
 const mb = (n: number) => (n / 1e6).toFixed(1);
 const time = (ms: number) => new Date(ms).toLocaleTimeString();
 const ms = (n: number | null | undefined) => (n == null ? '-' : `${Math.round(n)} ms`);
+const timingLine = (t: SttTiming | undefined): string =>
+  t
+    ? `ready ${ms(t.readyMs)} | begin->1st partial ${ms(t.beginToFirstPartialMs)} | end->final ${ms(t.endToFinalMs)}${t.speechEndRt == null ? ' (no end event)' : ''} | last partial->final ${ms(t.lastPartialToFinalMs)} | ${t.partials} partials${t.lateEvents ? ` | ${t.lateEvents} late event(s) ignored` : ''}`
+    : 'no timing';
+/** Raw timestamps relative to listenStartRt (ms), "-" when the event did not happen. */
+const timingTimes = (t: SttTiming | undefined): string => {
+  if (!t || t.listenStartRt == null) return '';
+  const base = t.listenStartRt;
+  const r = (v: number | null) => (v == null ? '-' : String(v - base));
+  return `rt+ listen 0, ready ${r(t.readyRt)}, begin ${r(t.speechBeginRt)}, 1st partial ${r(t.firstPartialRt)}, last partial ${r(t.lastPartialRt)}, end ${r(t.speechEndRt)}, final ${r(t.finalRt)}`;
+};
 const dev = (d: unknown): string => {
   const x = d as { typeName?: string; productName?: string | null } | null | undefined;
   return x?.typeName ? `${x.typeName}${x.productName ? `(${x.productName})` : ''}` : 'none';
@@ -103,7 +115,10 @@ export function SttLabPanel({ note, sessionRunning }: { note: (m: string) => voi
       VlcSessionService.addListener('sttPartial', (e) => setLive({ text: e.text, final: false })),
       VlcSessionService.addListener('sttFinal', (e) => {
         setLive({ text: e.text, final: true });
-        const row: HistoryRow = { ...e, parse: summarizeParse(e.text, e.lang) };
+        const alternatives = Array.isArray(e.details?.alternatives) ? (e.details.alternatives as string[]) : [];
+        const parse = analyzeFinal(e.text, alternatives, e.lang);
+        setLive({ text: parse.chosen, final: true });
+        const row: HistoryRow = { ...e, parse, alternatives };
         setHistory((h) => [row, ...h].slice(0, 100));
       }),
       VlcSessionService.addListener('sttError', (e) => {
@@ -178,7 +193,7 @@ export function SttLabPanel({ note, sessionRunning }: { note: (m: string) => voi
     history
       .map(
         (h) =>
-          `${time(h.finalAtEpochMs)} ${h.engine}/${h.path} [${h.lang} by ${h.detectedBy}] "${h.text}" end->final ${ms(h.endToFinalMs)}, first partial ${ms(h.firstPartialMs)} => ${h.parse}`,
+          `${time(h.finalAtEpochMs)} ${h.engine}/${h.path} [${h.lang} by ${h.detectedBy}] "${h.parse.chosen}"${h.parse.differs ? ` (top: "${h.text}", alternatives: ${JSON.stringify(h.alternatives)})` : ''} ${timingLine(h.timing)} => ${h.parse.summary}`,
       )
       .join('\n');
 
@@ -303,11 +318,16 @@ export function SttLabPanel({ note, sessionRunning }: { note: (m: string) => voi
             {h.confidence != null ? ` | conf ${h.confidence.toFixed(2)}` : ''}
             {h.requestedLang === 'auto' && h.nextLang ? ` | next try: ${h.nextLang}` : ''}
           </Text>
-          <Text style={styles.transcriptText}>{h.text}</Text>
-          <Text style={styles.small}>
-            speech end to final {ms(h.endToFinalMs)} | first partial {ms(h.firstPartialMs)} | {h.partials} partials
-          </Text>
-          <Text style={[styles.small, stt.parse]}>parse: {h.parse}</Text>
+          <Text style={styles.transcriptText}>{h.parse.chosen}</Text>
+          {h.parse.differs && (
+            <Text style={[styles.small, stt.alt]}>
+              alternative chosen ({h.parse.reason}); top was "{h.text}"
+            </Text>
+          )}
+          {h.alternatives.length > 0 && <Text style={styles.small}>n-best: {[h.text, ...h.alternatives].join(' | ')}</Text>}
+          <Text style={styles.small}>{timingLine(h.timing)}</Text>
+          <Text style={styles.small}>{timingTimes(h.timing)}</Text>
+          <Text style={[styles.small, stt.parse]}>parse: {h.parse.summary}</Text>
         </View>
       ))}
     </Section>
@@ -325,4 +345,5 @@ const stt = StyleSheet.create({
   warnText: { color: '#a83a0c', fontWeight: '700', fontSize: 13 },
   entry: { borderTopWidth: StyleSheet.hairlineWidth, borderColor: '#ccc', paddingTop: 4, gap: 1 },
   parse: { color: '#1d5b1d', fontWeight: '700' },
+  alt: { color: '#a83a0c', fontWeight: '700' },
 });

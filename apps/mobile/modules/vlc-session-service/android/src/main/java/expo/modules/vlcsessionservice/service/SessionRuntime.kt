@@ -11,6 +11,10 @@ data class SessionConfig(
   /** Start without STT when models are missing (lets you test service/GPS/TTS/cues first). */
   val allowMissingModels: Boolean = true,
   val locationEnabled: Boolean = true,
+  /** "platform" (on-device SpeechRecognizer, default) or "sherpa" (own AudioRecord + SpeechPipeline). */
+  val sttEngine: String = "platform",
+  /** With platform STT: switch to sherpa automatically when recognition stops working (for example in the background). */
+  val sttAutoFallback: Boolean = true,
 )
 
 /**

@@ -1,4 +1,4 @@
-import { parseUtterance, type Intent } from '@vlc/session-engine';
+import { chooseHypothesis, parseUtterance, type Intent } from '@vlc/session-engine';
 
 type Lang = 'ko' | 'en';
 
@@ -39,13 +39,30 @@ function describeIntent(i: Intent): string {
   }
 }
 
-/** Runs the Tier 0 parser (no task/timer context) and summarizes intent kind/type plus confidence in one line. */
-export function summarizeParse(text: string, lang: Lang): string {
+export interface LabParse {
+  /** Hypothesis chosen from the n-best list (equals the top one when nothing better was found). */
+  chosen: string;
+  /** True when the chosen hypothesis is not the recognizer's top one. */
+  differs: boolean;
+  /** Why it was chosen: known_label | parsed | top. */
+  reason: string;
+  /** One-line parser summary of the chosen hypothesis. */
+  summary: string;
+}
+
+/**
+ * Picks the best hypothesis of top + alternatives (no task/timer context in the lab) and runs the Tier 0 parser on it.
+ * Summarizes intent kind/type plus confidence in one line.
+ */
+export function analyzeFinal(text: string, alternatives: string[], lang: Lang): LabParse {
+  const none = { taskLabels: [], timerLabels: [] };
   try {
-    const r = parseUtterance(text, lang, { taskLabels: [], timerLabels: [] });
+    const list = [text, ...alternatives.filter((a) => a !== text)];
+    const pick = chooseHypothesis(list, lang, none) ?? { text, index: 0, reason: 'top' as const };
+    const r = parseUtterance(pick.text, lang, none);
     const body = r.intents.length > 0 ? r.intents.map(describeIntent).join(' + ') : 'no intent (would escalate to LLM)';
-    return `${body} [${r.confidence}]`;
+    return { chosen: pick.text, differs: pick.text !== text, reason: pick.reason, summary: `${body} [${r.confidence}]` };
   } catch (e) {
-    return `parser error: ${e}`;
+    return { chosen: text, differs: false, reason: 'top', summary: `parser error: ${e}` };
   }
 }

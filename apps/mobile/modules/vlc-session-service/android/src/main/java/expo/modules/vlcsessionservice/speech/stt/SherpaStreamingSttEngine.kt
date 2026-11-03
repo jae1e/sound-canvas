@@ -106,6 +106,7 @@ class SherpaStreamingSttEngine(
     cb.onState("listening", mapOf("loadMs" to loadMs, "langs" to langs, "vad" to (vad != null), "dual" to (hyps.size > 1)))
 
     val u = Utterance()
+    u.startRt = SystemClock.elapsedRealtime()
     var vadSpeaking = false
     var lastPartialRt = 0L
     var lastPartialShown = ""
@@ -115,7 +116,7 @@ class SherpaStreamingSttEngine(
       for (h in hyps) {
         h.recognizer.reset(h.stream)
       }
-      u.reset()
+      u.reset(SystemClock.elapsedRealtime())
       lastPartialShown = ""
     }
 
@@ -137,7 +138,11 @@ class SherpaStreamingSttEngine(
           vad.acceptWaveform(frame)
           while (!vad.empty()) vad.pop() // only the speech/non-speech state is used
           val sp = vad.isSpeechDetected()
-          if (sp && !vadSpeaking) { u.vadStartRt = nowRt - VAD_MIN_SPEECH_MS; u.vadFlips++ }
+          if (sp && !vadSpeaking) {
+            if (u.vadStartRt == null) u.vadStartRt = nowRt - VAD_MIN_SPEECH_MS // first speech of the utterance
+            u.vadEndRt = null // speech resumed: an earlier pause is not the end
+            u.vadFlips++
+          }
           if (!sp && vadSpeaking) u.vadEndRt = nowRt - VAD_MIN_SILENCE_MS
           vadSpeaking = sp
         }
@@ -156,6 +161,7 @@ class SherpaStreamingSttEngine(
             lastPartialShown = best
             if (u.firstTextRt == null) u.firstTextRt = nowRt
             u.lastTextChangeRt = nowRt
+            u.partials++
             cb.onPartial(best)
           }
         }
@@ -227,6 +233,11 @@ class SherpaStreamingSttEngine(
         speechStartRt = start,
         speechEndRt = end,
         details = diag + mapOf("decision" to decisionDetail, "hypotheses" to hypotheses.map { it.toMap() }, "finalRt" to finalRt),
+        timing = UtteranceTiming().also {
+          it.listenStartRt = u.startRt; it.readyRt = u.startRt
+          it.speechBeginRt = start; it.speechEndRt = u.vadEndRt
+          it.firstPartialRt = u.firstTextRt; it.lastPartialRt = u.lastTextChangeRt; it.partials = u.partials
+        }.snapshot(finalRt),
       ),
     )
   }
@@ -242,10 +253,13 @@ class SherpaStreamingSttEngine(
     var vadEndRt: Long? = null
     var firstTextRt: Long? = null
     var lastTextChangeRt: Long? = null
+    var partials = 0
+    /** Listening (re)started: engine start or the previous final. */
+    var startRt: Long? = null
 
-    fun reset() {
+    fun reset(nowRt: Long) {
       fedFrames = 0; fedSamples = 0; sumSq = 0.0; peak = 0f; decodes = 0; vadFlips = 0
-      vadStartRt = null; vadEndRt = null; firstTextRt = null; lastTextChangeRt = null
+      vadStartRt = null; vadEndRt = null; firstTextRt = null; lastTextChangeRt = null; partials = 0; startRt = nowRt
     }
   }
 

@@ -15,7 +15,65 @@ data class SttFinal(
   val speechStartRt: Long? = null,
   val speechEndRt: Long? = null,
   val details: Map<String, Any?> = emptyMap(),
+  /** Per-utterance timestamps and derived latencies, see [UtteranceTiming.snapshot]. Empty when the engine has none. */
+  val timing: Map<String, Any?> = emptyMap(),
 )
+
+/**
+ * Timestamps of ONE utterance, all `SystemClock.elapsedRealtime()`; each engine owns an instance and calls [reset] when a
+ * new utterance (listen request) starts, so nothing leaks from the previous one. Not thread-safe: use from one thread.
+ *
+ *  - listenStartRt: the engine asked the recognizer to listen (platform: startListening; sherpa: previous final / start)
+ *  - readyRt: the recognizer is ready for speech (platform: onReadyForSpeech; sherpa: same as listenStart)
+ *  - speechBeginRt: speech started (platform: onBeginningOfSpeech; sherpa: VAD estimate)
+ *  - firstPartialRt / lastPartialRt: first / last partial with new text
+ *  - speechEndRt: end of speech (platform: onEndOfSpeech; sherpa: VAD estimate). Often missing, and the platform service
+ *    frequently reports it together with the final, so [endToFinalMs] is then ~0: use [lastPartialToFinalMs] too.
+ *  - finalRt: the final result was received
+ * Derived values are null when an input is missing or the difference would be negative (out-of-order callbacks).
+ */
+class UtteranceTiming {
+  var listenStartRt: Long? = null
+  var readyRt: Long? = null
+  var speechBeginRt: Long? = null
+  var firstPartialRt: Long? = null
+  var lastPartialRt: Long? = null
+  var speechEndRt: Long? = null
+  var partials = 0
+  /** Callbacks that arrived out of order and were ignored (for example onEndOfSpeech after the final). */
+  var lateEvents = 0
+
+  fun reset(nowRt: Long?, ready: Boolean = false) {
+    listenStartRt = nowRt
+    readyRt = if (ready) nowRt else null
+    speechBeginRt = null
+    firstPartialRt = null
+    lastPartialRt = null
+    speechEndRt = null
+    partials = 0
+    lateEvents = 0
+  }
+
+  fun onPartial(nowRt: Long) {
+    if (firstPartialRt == null) firstPartialRt = nowRt
+    lastPartialRt = nowRt
+    partials++
+  }
+
+  private fun diff(from: Long?, to: Long?): Long? = if (from != null && to != null && to >= from) to - from else null
+
+  fun snapshot(finalRt: Long): Map<String, Any?> = mapOf(
+    "listenStartRt" to listenStartRt, "readyRt" to readyRt, "speechBeginRt" to speechBeginRt,
+    "firstPartialRt" to firstPartialRt, "lastPartialRt" to lastPartialRt, "speechEndRt" to speechEndRt, "finalRt" to finalRt,
+    "readyMs" to diff(listenStartRt, readyRt),
+    "beginToFirstPartialMs" to diff(speechBeginRt, firstPartialRt),
+    "endToFinalMs" to diff(speechEndRt, finalRt),
+    "lastPartialToFinalMs" to diff(lastPartialRt, finalRt),
+    "beginToFinalMs" to diff(speechBeginRt, finalRt),
+    "partials" to partials,
+    "lateEvents" to lateEvents,
+  )
+}
 
 /** Callbacks may arrive on any thread (platform engine: main thread; sherpa engine: its decode thread). */
 interface SttCallbacks {

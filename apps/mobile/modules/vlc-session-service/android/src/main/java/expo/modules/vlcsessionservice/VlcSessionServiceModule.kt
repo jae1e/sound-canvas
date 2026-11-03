@@ -37,7 +37,7 @@ class VlcSessionServiceModule : Module() {
     Name("VlcSessionService")
 
     Events(
-      "sessionState", "sessionError", "pipelineState", "audioLevel",
+      "sessionState", "sessionError", "pipelineState", "sessionSttEngine", "audioLevel",
       "speechStart", "partialTranscript", "finalTranscript", "echoSuppressed",
       "ttsStart", "ttsDone",
       "cueDue", "cueAudible",
@@ -70,6 +70,7 @@ class VlcSessionServiceModule : Module() {
     AsyncFunction("startSession") { options: Map<String, Any?> ->
       val ctx = context
       if (SessionRuntime.service != null) throw CodedException("ALREADY_RUNNING", "A session is already running", null)
+      if (sttOrNull?.isRunning == true) throw CodedException("STT_LAB_RUNNING", "Stop the STT lab first: only one recorder may hold the microphone", null)
       val activity = appContext.currentActivity
       if (activity == null || !(activityVisible || activity.hasWindowFocus())) {
         throw CodedException("NOT_VISIBLE", "The session must be started while the app is visible (Android 14+ restriction)", null)
@@ -82,6 +83,8 @@ class VlcSessionServiceModule : Module() {
         language = options["language"] as? String ?: "ko",
         allowMissingModels = options["allowMissingModels"] as? Boolean ?: true,
         locationEnabled = options["locationEnabled"] as? Boolean ?: true,
+        sttEngine = (options["sttEngine"] as? String)?.takeIf { it == "sherpa" } ?: "platform",
+        sttAutoFallback = options["sttAutoFallback"] as? Boolean ?: true,
       )
       SessionRuntime.prepareStart(cfg)
       try {

@@ -86,6 +86,10 @@ const CHECK_WORDS = set(
 const TIMER_WORDS = set(
   'set start a an the me timer for please can you could new create make begin go up on of my run i want need to another lets give us it ill also countdown ok okay now',
 );
+/** Words that make a leftover phrase a sentence rather than a timer label ("give it 5 minutes"). */
+const ELLIPTICAL_STOP = set(
+  'i me my we us you it that this them they he she is are was be to of in on at after by from give giving let lets please set start run make add can could would will should do does did have has take takes need wait waiting more extra another longer again later left remaining ago what how when why which who and or but not no yes for',
+);
 const TIMER_DENY = set('cancel stop pause resume delete clear kill remove off restart continue unpause');
 const CTL_WORDS = set('the my a this that timer please can you could for on turn off it again now let lets go up back shut start');
 
@@ -198,6 +202,19 @@ export function parseEn(raw: string, ctx: ParseContext): Intent[] {
       const action: Action = { type: 'start_timer', label, durationMs: dur.ms };
       if (mention?.source === 'task') action.task = { label: mention.label };
       return act(action);
+    }
+
+    // Elliptical timers: "pasta 3 minutes", "3 minutes pasta", "pasta for 3 minutes", bare "3 minutes".
+    if (!rTokens.includes('timer') && (prep === undefined || prep === 'for')) {
+      const lead = rTokens.length > 1 && ['a', 'an', 'the', 'my'].includes(rTokens[0]!) ? rTokens.slice(1) : rTokens;
+      const bare = lead.length === 0;
+      const plain = lead.length <= 2 && lead.every((t) => !ELLIPTICAL_STOP.has(t) && !TIMER_DENY.has(t));
+      if (!(prep === 'for' && bare && !mention) && (mention ? rTokens.length === 0 : plain)) {
+        const label = mention?.label ?? (bare ? 'timer' : lead.join(' '));
+        const action: Action = { type: 'start_timer', label, durationMs: dur.ms };
+        if (mention?.source === 'task') action.task = { label: mention.label };
+        return act(action);
+      }
     }
 
     // Check-ins: "check on the pasta in 2 minutes", "remind me in 10 minutes".

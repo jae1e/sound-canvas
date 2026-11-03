@@ -55,6 +55,9 @@ function navigation(c: string): Intent | null {
 
 // ------------------------------------------------------------------ rules
 
+/** Leftovers next to a bare duration that are verbs, particles or time words rather than a label. */
+const ELLIPTICAL_STOP = /(?:요|다|어|아|줘|까|나|네|죠|지|야|전|후|뒤|간|동안|마다|정도|만|더|씩|남|걸|뒤에|후에)$|^(?:이|그|저|좀|다시|아직|이제)/;
+
 const EXTEND_TAIL = rx(`^(?:아직(?:도|은)?(?:이?야|이에요|이요|요|(?:안|덜)(?:됐|되었)(?:어요?|습니다)?)?|아니)?(?:만|정도|씩)?(?:더|연장|추가|늘려|더늘려|더필요|더있어야(?:해|돼|되나|합니다)?|더해)${REQ}$`);
 
 const CHECK_IN_TAIL = rx(
@@ -175,6 +178,16 @@ export function parseKo(raw: string, ctx: ParseContext): Intent[] {
   // Check-in: "3분 뒤에 버섯 확인해줘".
   if (oneDuration !== undefined) {
     if (CHECK_IN_TAIL.test(r)) return act({ type: 'schedule_check_in', task: ref, inMs: oneDuration });
+
+    // Elliptical timers: "파스타 3분", "3분 파스타", bare "3분", "3분 맞춰줘".
+    const bare = r === '' || TIMER_POST.test(r);
+    const noun = !mention && /^[가-힣a-z0-9]{1,8}$/.test(r) && !ELLIPTICAL_STOP.test(r);
+    if (bare || noun) {
+      const label = mention?.label ?? (bare ? '타이머' : r);
+      const action: Action = { type: 'start_timer', label, durationMs: oneDuration };
+      if (mention?.source === 'task') action.task = { label: mention.label };
+      return act(action);
+    }
     return [];
   }
 

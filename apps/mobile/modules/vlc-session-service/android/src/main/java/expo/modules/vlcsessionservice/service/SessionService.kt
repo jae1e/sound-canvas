@@ -6,8 +6,10 @@ import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.app.Service
+import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
 import android.content.pm.PackageManager
 import android.content.pm.ServiceInfo
 import android.os.Build
@@ -42,6 +44,8 @@ class SessionService : Service() {
   var routing: AudioRouting? = null
     private set
   private var capture: AudioCapture? = null
+  private var sessionStt: SessionStt? = null
+  private var screenReceiver: BroadcastReceiver? = null
   var tts: TtsController? = null
     private set
   var cues: CueScheduler? = null
@@ -114,14 +118,26 @@ class SessionService : Service() {
       tts = t
       t.setCommunicationUsage(r.inCommunicationMode())
       t.init(cfg.language)
+      t.onActiveChanged = { speaking -> sessionStt?.onTtsActive(speaking) }
 
       cues = CueScheduler(this, log, emit) { text, cueId -> speak(text, "cue", cueId, "native_fallback") }
 
       val models = ModelManager(this)
-      val factory = { buildPipeline(models, cfg) }
-      val c = AudioCapture(log, r, emit, factory)
-      capture = c
-      c.start()
+      if (cfg.sttEngine == "platform") {
+        // Exactly one recorder: the system recognizer records for us, so AudioCapture stays closed unless we fall back.
+        val s = SessionStt(
+          this, log, emit, cfg.language,
+          canFallback = { cfg.sttAutoFallback && sherpaReady(models, cfg) },
+          startFallback = { reason -> startSherpaCapture(reason) },
+        )
+        sessionStt = s
+        registerScreenReceiver()
+        emit("pipelineState", mapOf("sttEnabled" to true, "loadMs" to 0, "engine" to "platform"))
+        s.start()
+        if (bargeIn) log.log("barge_in_ignored", mapOf("reason" to "platform STT is half-duplex"))
+      } else {
+        startSherpaCapture("configured")
+      }
 
       if (hasLocation) {
         location = LocationTracker(this, log, emit).also { it.start() }
@@ -136,6 +152,37 @@ class SessionService : Service() {
       log.log("error", mapOf("where" to "service_start", "message" to e.toString()))
       fail("SERVICE_START_FAILED", e.toString())
     }
+  }
+
+  private fun sherpaReady(models: ModelManager, cfg: SessionConfig): Boolean {
+    val set = ModelCatalog.find(if (cfg.language.startsWith("en")) "en" else "ko") ?: return false
+    return models.isReady(ModelCatalog.vad) && models.isReady(set)
+  }
+
+  /** Starts the old sherpa pipeline on our own AudioRecord. Main thread when called as a fallback. */
+  private fun startSherpaCapture(reason: String) {
+    val r = routing ?: return
+    if (capture != null) return
+    val cfg = SessionRuntime.config
+    val models = ModelManager(this)
+    log.log("stt_engine_sherpa_start", mapOf("reason" to reason))
+    val c = AudioCapture(log, r, { e, p -> SessionRuntime.emit(e, p) }, { buildPipeline(models, cfg) })
+    capture = c
+    c.start()
+  }
+
+  private fun registerScreenReceiver() {
+    val rx = object : BroadcastReceiver() {
+      override fun onReceive(context: Context?, intent: Intent?) {
+        when (intent?.action) {
+          Intent.ACTION_SCREEN_OFF -> sessionStt?.onScreen(false)
+          Intent.ACTION_SCREEN_ON -> sessionStt?.onScreen(true)
+        }
+      }
+    }
+    screenReceiver = rx
+    val filter = IntentFilter().apply { addAction(Intent.ACTION_SCREEN_OFF); addAction(Intent.ACTION_SCREEN_ON) }
+    ContextCompat.registerReceiver(this, rx, filter, ContextCompat.RECEIVER_NOT_EXPORTED)
   }
 
   private fun buildPipeline(models: ModelManager, cfg: SessionConfig): SpeechPipeline? {
@@ -198,6 +245,8 @@ class SessionService : Service() {
     log.log("service_stop", mapOf("reason" to reason, "uptimeMs" to SystemClock.elapsedRealtime() - startedRt))
     safe("battery") { battery?.stop(); battery = null }
     safe("location") { location?.stop(); location = null }
+    safe("screen_receiver") { screenReceiver?.let { unregisterReceiver(it) }; screenReceiver = null }
+    safe("stt_session") { sessionStt?.release(); sessionStt = null }
     safe("capture") { capture?.stop(); capture = null }
     safe("cues") { cues?.shutdown(); cues = null }
     safe("tts") { tts?.shutdown(); tts = null }

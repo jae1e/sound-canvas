@@ -16,6 +16,7 @@ import {
 import { Btn, Row, Section, styles } from './ui';
 import { SttLabPanel } from './SttLabPanel';
 import { TtsLabPanel } from './TtsLabPanel';
+import { VoiceLoop } from './voiceLoop';
 import VlcSessionService, {
   type AudioDevice,
   type CapabilityReport,
@@ -28,7 +29,16 @@ import VlcSessionService, {
   type SessionStateName,
 } from '../modules/vlc-session-service';
 
-type TranscriptRow = { key: string; text: string; latency: number; trailing: number; duringTts: boolean };
+type TranscriptRow = {
+  key: string;
+  text: string;
+  latency: number;
+  trailing: number;
+  duringTts: boolean;
+  engine: string;
+  /** Result of the voice turn (chosen hypothesis, outcome, spoken reply). */
+  turn: string;
+};
 type CueStat = { id: string; driftMs: number; deliveryMs: number; audibleMs?: number; source?: string };
 
 const PERMISSIONS: Permission[] = [
@@ -45,6 +55,8 @@ const fmt = (n: number | null | undefined, digits = 0) => (n == null || Number.i
 export default function SpikeScreen() {
   const [language, setLanguage] = useState<'ko' | 'en'>('ko');
   const [bargeIn, setBargeIn] = useState(false);
+  const [sttEngine, setSttEngine] = useState<'platform' | 'sherpa'>('platform');
+  const [activeStt, setActiveStt] = useState<string>('-');
   const [perms, setPerms] = useState<Record<string, string>>({});
   const [models, setModels] = useState<ModelStatus[]>([]);
   const [installed, setInstalled] = useState<InstalledModelSet[]>([]);
@@ -68,6 +80,8 @@ export default function SpikeScreen() {
   const [forceSpeaker, setForceSpeaker] = useState(false);
   const [ttsInput, setTtsInput] = useState('안녕하세요, 음성 테스트입니다.');
 
+  const loopRef = useRef<VoiceLoop | null>(null);
+  const turnRef = useRef('');
   const cueCounter = useRef(0);
   const cueSecondsRef = useRef(60);
   const cueEnabledRef = useRef(false);
@@ -104,7 +118,28 @@ export default function SpikeScreen() {
       VlcSessionService.addListener('sessionState', (e) => {
         setSession(e.state);
         note(`session ${e.state}${e.detail ? ` (${e.detail})` : ''}`);
+        if (e.state === 'running' && !loopRef.current) {
+          const loop = new VoiceLoop(languageRef.current, {
+            speak: (text) => {
+              try {
+                VlcSessionService.speak(text, 'high', null);
+              } catch (err) {
+                note(`speak failed: ${err}`);
+              }
+            },
+            onTurn: ({ heard, lang, result }) => {
+              const picked = result.chosen && result.chosen.index > 0 ? ` (chose alternative #${result.chosen.index}: "${result.chosen.text}")` : '';
+              note(`heard [${lang}] "${heard}"${picked} -> ${result.outcome}${result.reply ? ` "${result.reply}"` : ''}`);
+              turnRef.current = `${result.outcome}${picked}${result.reply ? ` -> "${result.reply}"` : ''}`;
+            },
+            onDue: (text) => note(`due: "${text}"`),
+          });
+          loop.start();
+          loopRef.current = loop;
+        }
         if (e.state !== 'running') {
+          loopRef.current?.stop();
+          loopRef.current = null;
           cueEnabledRef.current = false;
           setCueEnabled(false);
         }
@@ -112,7 +147,12 @@ export default function SpikeScreen() {
       VlcSessionService.addListener('sessionError', (e) => note(`ERROR ${e.code}: ${e.message}`)),
       VlcSessionService.addListener('pipelineState', (e) => {
         setSttEnabled(e.sttEnabled);
-        note(`pipeline stt=${e.sttEnabled} load=${e.loadMs}ms`);
+        if (e.engine) setActiveStt(e.engine);
+        note(`pipeline stt=${e.sttEnabled} engine=${e.engine ?? 'sherpa'} load=${e.loadMs}ms`);
+      }),
+      VlcSessionService.addListener('sessionSttEngine', (e) => {
+        setActiveStt(`${e.engine} (fallback: ${e.reason})`);
+        note(`STT fell back to ${e.engine}: ${e.reason}`);
       }),
       VlcSessionService.addListener('audioLevel', (e) => setLevel(e.rms)),
       VlcSessionService.addListener('speechStart', (e) => {
@@ -121,9 +161,15 @@ export default function SpikeScreen() {
       VlcSessionService.addListener('partialTranscript', (e) => setPartial(e.text)),
       VlcSessionService.addListener('finalTranscript', (e: FinalTranscriptEvent) => {
         setPartial('');
+        turnRef.current = '';
+        // Same path for both engines: chooseHypothesis -> parseUtterance -> apply -> spoken acknowledgement.
+        loopRef.current?.onFinal(e.text, e.alternatives, e.lang);
         setRows((prev) =>
           [
-            { key: `${e.seq}-${e.finalEpochMs}`, text: e.text, latency: e.endpointLatencyMs, trailing: e.trailingSilenceMs, duringTts: e.duringTts },
+            {
+              key: `${e.seq}-${e.finalEpochMs}`, text: e.text, latency: e.endpointLatencyMs, trailing: e.trailingSilenceMs,
+              duringTts: e.duringTts, engine: e.engine ?? 'sherpa', turn: turnRef.current,
+            },
             ...prev,
           ].slice(0, 50),
         );
@@ -210,7 +256,8 @@ export default function SpikeScreen() {
       setRows([]);
       setCueStats([]);
       setGps({ count: 0, accuracy: NaN, maxGap: 0, lastGap: 0 });
-      await VlcSessionService.startSession({ language, bargeIn, allowMissingModels: true });
+      setActiveStt(sttEngine);
+      await VlcSessionService.startSession({ language, bargeIn, allowMissingModels: true, sttEngine });
       refreshRoute().catch(() => {});
     } catch (e) {
       note(`start failed: ${e}`);
@@ -372,11 +419,16 @@ export default function SpikeScreen() {
             <Switch value={bargeIn} onValueChange={(v) => { setBargeIn(v); if (running) VlcSessionService.setBargeIn(v); }} />
           </Row>
           <Row>
+            <Text>Session STT</Text>
+            <Btn label="Platform (on-device)" active={sttEngine === 'platform'} onPress={() => setSttEngine('platform')} disabled={running} testID="session-stt-platform" />
+            <Btn label="Sherpa" active={sttEngine === 'sherpa'} onPress={() => setSttEngine('sherpa')} disabled={running} testID="session-stt-sherpa" />
+          </Row>
+          <Row>
             <Btn label="Start session" onPress={start} disabled={running || session === 'starting'} />
             <Btn label="Stop session" onPress={stop} disabled={!running} />
           </Row>
           <Text style={styles.mono}>
-            state: {session}   stt: {sttEnabled == null ? '-' : String(sttEnabled)}   mic rms: {level.toFixed(4)}
+            state: {session}   stt: {sttEnabled == null ? '-' : String(sttEnabled)} ({activeStt})   mic rms: {level.toFixed(4)}
           </Text>
           <Text style={styles.small}>Start while this screen is visible, then lock the phone.</Text>
         </Section>
@@ -411,8 +463,9 @@ export default function SpikeScreen() {
             <View key={r.key} style={styles.transcript}>
               <Text style={styles.transcriptText}>{r.text}</Text>
               <Text style={styles.small}>
-                final {r.latency} ms after VAD end (+{r.trailing} ms trailing silence){r.duringTts ? '  [barge-in]' : ''}
+                {r.engine}: final {r.latency} ms after end (+{r.trailing} ms trailing silence){r.duringTts ? '  [barge-in]' : ''}
               </Text>
+              {!!r.turn && <Text style={styles.small}>turn: {r.turn}</Text>}
             </View>
           ))}
         </Section>

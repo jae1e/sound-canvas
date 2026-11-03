@@ -62,8 +62,8 @@ class PlatformSttEngine(
     private set
 
   // Per-utterance state (main thread only).
-  private var speechStartRt: Long? = null
-  private var speechEndRt: Long? = null
+  private val timing = UtteranceTiming()
+  private var paused = false
   private var lastPartial = ""
   private var detected: Pair<String, Int>? = null // BCP-47 tag, confidence level
   private var switchResult: Int? = null
@@ -94,6 +94,26 @@ class PlatformSttEngine(
       try { recognizer?.stopListening() } catch (_: Exception) { }
       // Give the recognizer a moment to deliver a pending final, then tear down.
       main.postDelayed({ destroyRecognizer(); callbacks?.onState("stopped") }, STOP_GRACE_MS)
+    }
+  }
+
+  /** Stops listening without ending the engine (half-duplex while our own TTS speaks). [resume] starts listening again. */
+  fun pause() {
+    onMain {
+      if (!running || paused) return@onMain
+      paused = true
+      main.removeCallbacksAndMessages(null)
+      try { recognizer?.cancel() } catch (_: Exception) { }
+      callbacks?.onState("paused")
+    }
+  }
+
+  fun resume() {
+    onMain {
+      if (!running || !paused) return@onMain
+      paused = false
+      restartAttempts = 0
+      scheduleRestart(RESTART_DELAY_MS)
     }
   }
 
@@ -167,8 +187,7 @@ class PlatformSttEngine(
 
   private fun listen() {
     val r = recognizer ?: return
-    speechStartRt = null
-    speechEndRt = null
+    timing.reset(SystemClock.elapsedRealtime())
     lastPartial = ""
     detected = null
     switchResult = null
@@ -196,9 +215,9 @@ class PlatformSttEngine(
   }
 
   private fun scheduleRestart(delayMs: Long, recreate: Boolean = false) {
-    if (!running) return
+    if (!running || paused) return
     main.postDelayed({
-      if (!running) return@postDelayed
+      if (!running || paused) return@postDelayed
       if (recreate && !createRecognizer()) return@postDelayed
       listen()
     }, delayMs)
@@ -228,14 +247,16 @@ class PlatformSttEngine(
       "platformDetectionConfidenceLevel" to det?.second,
       "languageSwitchResult" to (switchResult ?: if (Build.VERSION.SDK_INT >= 34) results.getInt(SpeechRecognizer.LANGUAGE_SWITCH_RESULT, -1).takeIf { it >= 0 } else null),
     )
+    val finalRt = SystemClock.elapsedRealtime()
+    val snapshot = timing.snapshot(finalRt)
     callbacks?.onFinal(
       SttFinal(
         text = text, confidence = conf, detectedLang = lang, detectedBy = if (lang != null) SttLang.BY_PLATFORM else null,
-        speechStartRt = speechStartRt, speechEndRt = speechEndRt, details = details,
+        speechStartRt = timing.speechBeginRt, speechEndRt = timing.speechEndRt, details = details, timing = snapshot,
       ),
     )
-    speechStartRt = null
-    speechEndRt = null
+    // Next utterance of a segmented session (or of the restart loop, which calls listen() and resets again).
+    timing.reset(finalRt, ready = true)
     lastPartial = ""
     detected = null
   }
@@ -243,11 +264,12 @@ class PlatformSttEngine(
   private val listener = object : RecognitionListener {
     override fun onReadyForSpeech(params: Bundle?) {
       restartAttempts = 0
+      timing.readyRt = SystemClock.elapsedRealtime()
       callbacks?.onState("listening", mapOf("path" to path, "requestedLocale" to activeLocale))
     }
 
     override fun onBeginningOfSpeech() {
-      speechStartRt = SystemClock.elapsedRealtime()
+      timing.speechBeginRt = SystemClock.elapsedRealtime()
     }
 
     override fun onRmsChanged(rmsdB: Float) {
@@ -260,7 +282,9 @@ class PlatformSttEngine(
     override fun onBufferReceived(buffer: ByteArray?) {}
 
     override fun onEndOfSpeech() {
-      speechEndRt = SystemClock.elapsedRealtime()
+      // After the final of a segment this would belong to no utterance (speech has not begun): ignore and count it.
+      if (timing.speechBeginRt == null && timing.firstPartialRt == null) timing.lateEvents++
+      else timing.speechEndRt = SystemClock.elapsedRealtime()
       callbacks?.onState("processing")
     }
 
@@ -270,6 +294,7 @@ class PlatformSttEngine(
         .ifEmpty { b.getString("android.speech.extra.UNSTABLE_TEXT")?.trim().orEmpty() }
       if (text.isNotEmpty() && text != lastPartial) {
         lastPartial = text
+        timing.onPartial(SystemClock.elapsedRealtime())
         callbacks?.onPartial(text)
       }
     }

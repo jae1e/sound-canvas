@@ -11,6 +11,10 @@ export type SessionOptions = {
   allowMissingModels?: boolean;
   /** Default true. */
   locationEnabled?: boolean;
+  /** Session STT: "platform" (on-device SpeechRecognizer, default) or "sherpa" (own AudioRecord, dev/fallback). */
+  sttEngine?: 'platform' | 'sherpa';
+  /** Platform STT only: fall back to sherpa automatically when recognition stops working. Default true. */
+  sttAutoFallback?: boolean;
 };
 
 export type AudioDevice = {
@@ -36,7 +40,9 @@ export type PriorityName = 'normal' | 'high' | 'cue';
 
 export type SessionStateEvent = { state: SessionStateName; detail: string | null };
 export type SessionErrorEvent = { code: string; message: string };
-export type PipelineStateEvent = { sttEnabled: boolean; loadMs: number };
+export type PipelineStateEvent = { sttEnabled: boolean; loadMs: number; engine?: 'platform' | 'sherpa' };
+/** The session switched STT engine (platform -> sherpa) because recognition stopped working; `reason` is also logged as stt_fallback. */
+export type SessionSttEngineEvent = { engine: 'sherpa'; reason: string };
 export type AudioLevelEvent = { rms: number; peak: number };
 export type SpeechStartEvent = { seq: number; atEpochMs: number; duringTts: boolean; suppressed: boolean };
 export type PartialTranscriptEvent = { seq: number; text: string; atEpochMs: number };
@@ -53,6 +59,13 @@ export type FinalTranscriptEvent = {
   trailingSilenceMs: number;
   duringTts: boolean;
   forcedEnd: boolean;
+  /** Platform STT only. */
+  engine?: 'platform' | 'sherpa';
+  /** Platform STT only: language decided by detection / script / prior. */
+  lang?: SttLang;
+  /** Platform STT only: n-best list, top hypothesis first (includes `text`). */
+  alternatives?: string[];
+  timing?: SttTiming;
 };
 export type EchoSuppressedEvent = { seq: number; text: string };
 export type TtsStartEvent = { utteranceId: string; text: string; cueId: string | null; speakToStartMs: number; routeLabel?: string };
@@ -243,6 +256,7 @@ export type VlcSessionServiceModuleEvents = {
   sessionState: (e: SessionStateEvent) => void;
   sessionError: (e: SessionErrorEvent) => void;
   pipelineState: (e: PipelineStateEvent) => void;
+  sessionSttEngine: (e: SessionSttEngineEvent) => void;
   audioLevel: (e: AudioLevelEvent) => void;
   speechStart: (e: SpeechStartEvent) => void;
   partialTranscript: (e: PartialTranscriptEvent) => void;
@@ -383,10 +397,11 @@ export type SttFinalEvent = {
   path: string;
   requestedLang: SttLangMode;
   mic: SttMicMode;
-  /** Speech end (recognizer's or VAD's estimate) -> final, ms. */
+  /** onEndOfSpeech (platform) / VAD end (sherpa) -> final, ms; null without an end event. Often ~0 on the platform recognizer. */
   endToFinalMs: number | null;
-  /** Speech start (estimate) -> first partial, ms. */
+  /** Speech begin -> first partial, ms (same as timing.beginToFirstPartialMs). */
   firstPartialMs: number | null;
+  timing: SttTiming;
   partials: number;
   platformDetectionFired: boolean | null;
   segmentedSeen: boolean | null;
@@ -395,6 +410,27 @@ export type SttFinalEvent = {
   nextReason: string | null;
   finalAtEpochMs: number;
   details: Record<string, unknown>;
+};
+/**
+ * Per-utterance timestamps (SystemClock.elapsedRealtime, ms) and derived latencies. Reset per utterance; a derived value is
+ * null when an input is missing or the difference would be negative.
+ */
+export type SttTiming = {
+  listenStartRt: number | null;
+  readyRt: number | null;
+  speechBeginRt: number | null;
+  firstPartialRt: number | null;
+  lastPartialRt: number | null;
+  speechEndRt: number | null;
+  finalRt: number;
+  readyMs: number | null;
+  beginToFirstPartialMs: number | null;
+  endToFinalMs: number | null;
+  lastPartialToFinalMs: number | null;
+  beginToFinalMs: number | null;
+  partials: number;
+  /** Callbacks ignored because they arrived out of order (for example onEndOfSpeech after the final). */
+  lateEvents: number;
 };
 export type SttErrorEvent = { code: string; message: string; recoverable: boolean; atEpochMs: number };
 export type SttLevelEvent = { level: number };

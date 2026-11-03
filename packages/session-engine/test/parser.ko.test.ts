@@ -110,7 +110,16 @@ const cases: Case[] = [
   ['녹음 끝', { kind: 'recording', command: 'stop' }, none],
   ['다시 들려줘', { kind: 'recording', command: 'play' }, none],
   ['방금 거 틀어줘', { kind: 'recording', command: 'play' }, none],
+  // elliptical timers
+  ['파스타 3분', act({ type: 'start_timer', label: '파스타', durationMs: 180_000, task: { label: '파스타' } })],
+  ['3분 파스타', act({ type: 'start_timer', label: '파스타', durationMs: 180_000, task: { label: '파스타' } })],
+  ['파스타 3분', act({ type: 'start_timer', label: '파스타', durationMs: 180_000 }), none],
+  ['리조또 5분 타이머', act({ type: 'start_timer', label: '리조또', durationMs: 300_000 }), none],
+  ['3분', act({ type: 'start_timer', label: '타이머', durationMs: 180_000 }), none],
+  ['3분 맞춰줘', act({ type: 'start_timer', label: '타이머', durationMs: 180_000 }), none],
   // negatives: must not guess
+  ['3분 남았어', null],
+  ['5분 걸려요', null],
   ['오늘 날씨 어때', null],
   ['몇 분 더', null],
   ['조금 더', null],

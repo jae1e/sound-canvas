@@ -46,8 +46,6 @@ class SttLab(
 
   // Per-utterance measurements (guarded by lock).
   private var utteranceBaseRt = 0L
-  private var firstPartialRt: Long? = null
-  private var partialCount = 0
   private var lastPartialLogRt = 0L
   private var lastPartialText = ""
   private var detectionEvents = 0
@@ -303,8 +301,6 @@ class SttLab(
 
   private fun resetUtterance(nowRt: Long) {
     utteranceBaseRt = nowRt
-    firstPartialRt = null
-    partialCount = 0
     lastPartialText = ""
   }
 
@@ -317,7 +313,6 @@ class SttLab(
       val e = engine
       log.log("stt_state", mapOf("state" to state, "engine" to e?.id, "path" to path(), "detail" to detail))
       emit("sttState", mapOf("state" to state, "detail" to detail, "engine" to e?.id, "path" to path()))
-      if (state == "listening") synchronized(lock) { if (partialCount == 0) utteranceBaseRt = SystemClock.elapsedRealtime() }
       if (state == "starting" && e is PlatformSttEngine && detail.containsKey("requestedLocale")) {
         log.log(
           "stt_lang_detect",
@@ -333,8 +328,6 @@ class SttLab(
       val now = SystemClock.elapsedRealtime()
       val s: Int
       synchronized(lock) {
-        if (firstPartialRt == null) firstPartialRt = now
-        partialCount++
         lastPartialText = text
         s = seq + 1
         if (now - lastPartialLogRt >= PARTIAL_LOG_INTERVAL_MS) {
@@ -410,13 +403,16 @@ class SttLab(
           (e as? PlatformSttEngine)?.hintLocale(SttLang.localeOf(policy.next()))
         }
         seq++
-        val endToFinal = result.speechEndRt?.let { finalRt - it }
-        val firstPartialMs = firstPartialRt?.let { fp -> (result.speechStartRt ?: utteranceBaseRt).let { fp - it } }
+        // All latency numbers come from the engine's per-utterance timing (reset per utterance, negatives -> null).
+        val timing = result.timing
+        val endToFinal = timing["endToFinalMs"]
+        val firstPartialMs = timing["beginToFirstPartialMs"]
         val pe = e as? PlatformSttEngine
         out = mapOf(
           "seq" to seq, "text" to text, "lang" to lang, "detectedBy" to by, "confidence" to result.confidence,
           "engine" to (e?.id ?: c.engine), "path" to (pe?.path ?: "sherpa_onnx"), "requestedLang" to c.lang, "mic" to c.mic,
-          "endToFinalMs" to endToFinal, "firstPartialMs" to firstPartialMs, "partials" to partialCount,
+          "endToFinalMs" to endToFinal, "firstPartialMs" to firstPartialMs, "partials" to (timing["partials"] ?: 0),
+          "timing" to timing,
           "platformDetectionFired" to (pe?.languageDetectionFired), "segmentedSeen" to (pe?.segmentedSeen),
           "priorBefore" to priorBefore, "nextLang" to (if (c.lang == "auto") policy.next() else null), "nextReason" to nextReason,
           "finalAtEpochMs" to System.currentTimeMillis(), "details" to result.details,
