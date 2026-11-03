@@ -1,1 +1,18 @@
-export default {} as Record<string, string>;
+export default {
+  title: '보이스 라이프 컴패니언',
+  'resume.title': '작업 파트너 이어가기',
+  'resume.step': '{{index}}/{{total}} 단계: {{label}}',
+  'resume.noStep': '세션 진행 중',
+  'resume.timers': '타이머 {{count}}개 실행 중',
+  'resume.paused': '일시정지',
+  'resume.listening': '듣는 중',
+  'resume.notListening': '듣지 않는 중',
+  'mode.travel.desc': '음성 길 안내와 주변 정보를 들으며 걸어요.',
+  'mode.work.desc': '손을 쓰지 않고 단계, 타이머, 확인 알림을 받아요.',
+  'mode.coach.desc': '안내에 따라 목소리를 연습해요.',
+  'audio.title': '오디오',
+  'audio.input': '마이크',
+  'audio.output': '음성 출력',
+  'audio.phoneMic': '휴대폰 마이크',
+  'audio.unknown': '확인 중...',
+} as Record<string, string>;

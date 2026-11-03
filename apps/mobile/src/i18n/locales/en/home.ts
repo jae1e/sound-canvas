@@ -1,1 +1,18 @@
-export default {} as Record<string, string>;
+export default {
+  title: 'Voice Life Companion',
+  'resume.title': 'Resume Work Partner',
+  'resume.step': 'Step {{index}}/{{total}}: {{label}}',
+  'resume.noStep': 'Session in progress',
+  'resume.timers': '{{count}} timers running',
+  'resume.paused': 'Paused',
+  'resume.listening': 'Listening',
+  'resume.notListening': 'Not listening',
+  'mode.travel.desc': 'Walk with voice navigation and nearby tips.',
+  'mode.work.desc': 'Hands-free steps, timers and check-ins while you work.',
+  'mode.coach.desc': 'Practice your voice with guided exercises.',
+  'audio.title': 'Audio',
+  'audio.input': 'Microphone',
+  'audio.output': 'Voice output',
+  'audio.phoneMic': 'Phone microphone',
+  'audio.unknown': 'Checking...',
+} as Record<string, string>;
