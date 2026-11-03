@@ -1,0 +1,39 @@
+import type { Lang } from '@vlc/travel';
+
+const S = {
+  title: { ko: '여행 가이드', en: 'Travel Guide' },
+  position: { ko: '현재 위치', en: 'Current position' },
+  accuracy: { ko: '정확도', en: 'Accuracy' },
+  noFix: { ko: 'GPS 신호를 기다리는 중...', en: 'Waiting for GPS...' },
+  weakGps: { ko: 'GPS 정확도가 낮아요', en: 'GPS accuracy is low' },
+  permDenied: { ko: '위치 권한이 필요해요', en: 'Location permission is needed' },
+  sourceNative: { ko: '세션 위치', en: 'session location' },
+  sourceExpo: { ko: '화면 위치 (앱이 보일 때만)', en: 'screen location (foreground only)' },
+  mockMode: { ko: '모의 데이터 모드 (Worker 설정 없음)', en: 'Mock data mode (no Worker configured)' },
+  searchPlaceholder: { ko: '장소 검색 (예: 조용한 카페)', en: 'Search places (e.g. quiet cafe)' },
+  search: { ko: '검색', en: 'Search' },
+  whereAmI: { ko: '지금 어디?', en: 'Where am I?' },
+  results: { ko: '검색 결과', en: 'Results' },
+  noResults: { ko: '결과가 없어요', en: 'No results' },
+  routeTo: { ko: '경로 보기', en: 'Preview route' },
+  routePreview: { ko: '경로 미리보기', en: 'Route preview' },
+  start: { ko: '안내 시작', en: 'Start' },
+  stop: { ko: '안내 종료', en: 'Stop' },
+  reroute: { ko: '다시 안내', en: 'Reroute' },
+  remaining: { ko: '남은 거리', en: 'Remaining' },
+  eta: { ko: '예상 시간', en: 'ETA' },
+  nextTurn: { ko: '다음 안내', en: 'Next' },
+  status_on_route: { ko: '경로 위', en: 'On route' },
+  status_off_route: { ko: '경로 이탈', en: 'Off route' },
+  status_arrived: { ko: '도착', en: 'Arrived' },
+  status_uncertain: { ko: '위치 불확실', en: 'Uncertain' },
+  err_network: { ko: '네트워크 오류가 발생했어요', en: 'Network error' },
+  err_no_position: { ko: '아직 위치를 모르겠어요', en: 'No position yet' },
+  err_no_route: { ko: '경로를 찾지 못했어요', en: 'Could not get a route' },
+  lastSpoken: { ko: '마지막 음성 안내', en: 'Last spoken' },
+  simulate: { ko: '현재 위치를 목적지에 가깝게 이동(테스트)', en: 'Step along route (test)' },
+  chip_all: { ko: '전체', en: 'All' },
+} as const;
+
+export type StringKey = keyof typeof S;
+export const t = (key: StringKey, lang: Lang): string => S[key][lang];
