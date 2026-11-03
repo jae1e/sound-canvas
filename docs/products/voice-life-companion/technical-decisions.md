@@ -206,6 +206,28 @@ Avoid providers that bill idle socket time (AssemblyAI streaming bills socket du
 | Optional cloud voice | Azure Neural $15/1M chars (~$0.02 per session of 1,500 chars) [V] as the cheapest natural Korean option; ElevenLabs Flash $40/1M (~75 ms claimed) [V/VC] if latency matters more |
 | Not adopted | Supertonic 3: Korean-capable and in sherpa-onnx, but the repository was archived 2026-09-09 and Supertone dissolved [V]; OpenRAIL-M restrictions. Kokoro has no Korean [V]. MeloTTS-Korean has no mobile port found |
 
+### 4.5 Model selection constraints and current picks (Decided by user, 2026-11-03)
+
+User constraints:
+- Korean and English may use separate engines.
+- Prefer recent, well-evaluated models that are small: about **100 MB or less per downloaded model**.
+- **Every shipped or downloaded model must allow commercial use.** Check the license file, and also the training-data terms where the data is known.
+- The user picks TTS voices by listening (PC samples first, then the phone A/B panel).
+
+| Area | Current pick | Size | License status | Notes |
+| --- | --- | --- | --- | --- |
+| Korean STT | **Platform on-device recognition**: ML Kit GenAI Speech Recognition (basic mode, ko-KR beta on the S25) and Android `SpeechRecognizer` on-device | 0 MB in the app (system-managed models) | Google terms; commercial use permitted [V: platform API] | Accepted by the user for trial. ML Kit GenAI is alpha. |
+| Korean STT (dev reference only) | `kangkyu/icefall-asr-ko-streaming-zipformer-174m` int8 | ~162 MB | Weights Apache-2.0 [MC], but trained on KsponSpeech + AIHub data, whose terms may be non-commercial [U] | **Do not ship** until the data terms are cleared in writing. Kept in the spike only to compare accuracy and latency. |
+| Korean STT (rejected) | Moonshine tiny-ko / base-ko | ~34 MB | Moonshine Community License, **non-commercial** per the repository LICENSE [LF] | Third-party "MIT" labels contradict the LICENSE file |
+| Korean STT (to evaluate) | Qwen3-ASR-0.6B int8 (sherpa-onnx package) | Unverified, likely > 100 MB | Apache-2.0 [MC] | Size and Korean CER to measure |
+| English STT | Moonshine v2 streaming tiny (`UsefulSensors/moonshine-streaming-tiny`) | ~34–44M params | MIT [LF] | Open ASR average WER 12.0 [MC]. Compare against platform on-device recognition |
+| Korean TTS | Supertonic 3 (int8) | ~102 MB | OpenRAIL-M weights [LF]: commercial use allowed with use restrictions | Restrictions must be passed through in the terms of service. They include no medical advice and disclosure of machine-generated output. Upstream archived. Alternative: MOSS-TTS-Nano (Apache-2.0, redistribution caveat in its README) and ML Kit GenAI TTS |
+| English TTS | Kitten TTS nano 0.8 | ~50 MB | Apache-2.0 [MC] | Quality reference: Kokoro int8 (~215 MB, Apache-2.0) |
+
+sherpa-onnx itself is Apache-2.0. The shipped `sherpa-onnx-2.0.1.aar` was inspected on 2026-11-03. Its native libraries state that espeak-ng (GPL-3.0) is no longer used from v2.0.0, so English TTS phonemization relies on lexicon files. Words missing from the lexicon (names, Korean words in English sentences) need a pronunciation test. The license of each lexicon file must also be recorded.
+
+iPhone (later): Korean STT uses Apple's on-device `SpeechAnalyzer` / `SpeechTranscriber` (iOS 26+). Its models are system-managed, and ko_KR is reported in `supportedLocales` [3P: developer guides; confirm at runtime]. Fallback is `DictationTranscriber` or `SFSpeechRecognizer` with on-device recognition. This mirrors the Android platform-STT approach behind the same STT interface.
+
 ## 5. Intent Understanding and LLM
 
 ### 5.1 Tiered routing (Proposed)
