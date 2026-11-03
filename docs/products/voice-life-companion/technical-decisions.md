@@ -290,6 +290,21 @@ gpt-realtime-mini (~$0.11 per 30-minute session if used only during turns; more 
 
 Daily personal use should stay well under a few dollars per month with on-device primaries [Est].
 
+### 5.5 Hypothesis alignment and confirmation (Proposed by the user, 2026-11-03)
+
+The first device STT test showed recognition is accurate but word choice can be off. "리조또 5분 타이머" was returned as "리조트 5분 타이머", with the correct form as the second alternative. The user proposed an LLM step that aligns the recognized words with what was meant, and asks the user to confirm when it is unclear.
+
+Flow, cheapest path first:
+1. Deterministic: run `chooseHypothesis(n-best, lang, context)` with the session's task and timer labels and a small domain lexicon, then `parseUtterance`. If one hypothesis is a high-confidence action and the hypotheses agree on its arguments, apply it immediately with no LLM call.
+2. LLM alignment, only when step 1 is ambiguous, low confidence or out of grammar. Send the n-best list, the detected language, session context and the last few turns. The model returns a validated action (same zod/action schema as the engine) plus `confidence` and `needsConfirmation`, with a short `confirmQuestion` in the user's language. The engine still validates every action, so the LLM never mutates state directly.
+3. Confirmation policy:
+   - Confirm explicitly when the hypotheses disagree on a label or number, when confidence is low, or for hard-to-undo actions (cancel timer, end session, delete).
+   - Otherwise use implicit confirmation in the acknowledgement ("리조또 5분 타이머 시작할게요"), and let corrections apply cheaply ("아니, 리조또" or "아니 3분").
+   - A confirmation is a bounded pending question with one timeout and a default of "do nothing".
+4. Learning: per-user aliases, such as remembering that "리조트" means 리조또 in cooking mode, are stored locally and fed into step 1.
+
+Latency target: step 1 runs in under 50 ms on device. Step 2 uses the fastest model from the §5.2 bake-off through the Worker proxy, with a short spoken filler or earcon if it exceeds ~700 ms. Models are scored on Korean/English n-best alignment accuracy and confirmation precision.
+
 ## 6. Walking Navigation
 
 | Concern | Proposal |
