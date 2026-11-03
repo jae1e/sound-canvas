@@ -102,6 +102,31 @@ describe('README cooking dialogue (English)', () => {
   });
 });
 
+describe('Superseded milestones and redundant acknowledgements (English)', () => {
+  it('announces only the expiry after a clock jump, and does not narrate in_progress', () => {
+    const c = companion('en');
+    c.addTask('pasta');
+    c.addTask('mushrooms');
+    c.say('Set a timer for 8 minutes for the pasta');
+    c.say('Check on the mushrooms in 3 minutes');
+    c.advanceTo(3 * MIN);
+    c.advanceTo(5 * MIN);
+    expect(c.say('not yet, two more minutes')).toBe("I'll check the mushrooms in 2 minutes.");
+    const spoken = c.advanceTo(8 * MIN);
+    expect(spoken.filter((s) => /pasta/i.test(s))).toEqual(['The pasta timer is up. Check it and let me know.']);
+  });
+});
+
+describe('Korean polite not-yet', () => {
+  it('extends with 아직이요 2분만 더', () => {
+    const c = companion('ko');
+    c.addTask('버섯');
+    c.say('3분 뒤에 버섯 확인해줘');
+    c.advanceTo(3 * MIN);
+    expect(c.say('아직이요 2분만 더')).toBe('버섯 확인을 2분 뒤로 잡았어요.');
+  });
+});
+
 describe('Korean cooking dialogue', () => {
   it('handles extension and completion in Korean', () => {
     const c = companion('ko');

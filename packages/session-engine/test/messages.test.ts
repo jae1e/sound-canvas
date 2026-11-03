@@ -163,6 +163,22 @@ describe('describeChanges', () => {
   });
 });
 
+describe('describeChanges: redundant in_progress', () => {
+  const status: Change = { kind: 'task_status', taskId: 't1', label: '버섯', status: 'in_progress' };
+  it('is silent next to a rescheduled check-in', () => {
+    const changes: Change[] = [status, { kind: 'check_in_scheduled', checkInId: 'c1', taskId: 't1', label: '버섯', inMs: 120_000 }];
+    expect(describeChanges(changes, 'ko')).toBe('버섯 확인을 2분 뒤로 잡았어요.');
+    expect(describeChanges(changes, 'en')).toBe("I'll check the 버섯 in 2 minutes.");
+  });
+  it('is silent next to an extended timer', () => {
+    const changes: Change[] = [status, { kind: 'timer_extended', timerId: 'x', label: '버섯', remainingMs: 120_000 }];
+    expect(describeChanges(changes, 'en')).toBe('Extended the 버섯 timer. 2 minutes left.');
+  });
+  it('is still narrated on its own', () => {
+    expect(describeChanges([status], 'en')).toBe('Marked the 버섯 in progress.');
+  });
+});
+
 describe('describeDue', () => {
   const base: DueEvent = { key: 'k', kind: 'timer_milestone', dueAt: 0, stale: false, label: '파스타' };
   const cases: Array<[string, DueEvent, string, string]> = [
@@ -170,13 +186,31 @@ describe('describeDue', () => {
       'elapsed milestone',
       { ...base, label: '타이머', milestone: { kind: 'elapsed', offsetMs: 180_000 } },
       '3분 지났어요.',
-      '3 minutes elapsed.',
+      '3 minutes have passed.',
+    ],
+    [
+      'elapsed milestone with label',
+      { ...base, milestone: { kind: 'elapsed', offsetMs: 180_000 } },
+      '파스타 3분 지났어요.',
+      '3 minutes have passed on the 파스타.',
+    ],
+    [
+      'remaining milestone, default label',
+      { ...base, label: 'timer', milestone: { kind: 'remaining', offsetMs: 60_000 } },
+      '1분 남았어요.',
+      '1 minute left.',
+    ],
+    [
+      'singular elapsed milestone',
+      { ...base, milestone: { kind: 'elapsed', offsetMs: 60_000 } },
+      '파스타 1분 지났어요.',
+      '1 minute has passed on the 파스타.',
     ],
     [
       'remaining milestone with label',
       { ...base, milestone: { kind: 'remaining', offsetMs: 60_000 } },
       '파스타 1분 남았어요.',
-      '파스타: 1 minute left.',
+      '1 minute left on the 파스타.',
     ],
     [
       'stale milestone is silent',

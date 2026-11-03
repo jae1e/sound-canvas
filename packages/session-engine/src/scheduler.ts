@@ -85,12 +85,28 @@ function pendingEvents(session: Session): Omit<DueEvent, 'stale'>[] {
   return out;
 }
 
-/** Events due at `now`, oldest first. Old events are flagged `stale`, never dropped. */
+/**
+ * Events due at `now`, oldest first. Old events are flagged `stale`, never dropped.
+ *
+ * Superseded events are also flagged `stale`: when several events of the same
+ * timer (milestones and/or its expiry) are due together, only the latest one in
+ * timer time (greatest elapsed offset; the expiry is always latest) stays fresh.
+ * The earlier ones remain in the list so the coordinator can still mark them
+ * handled (`handle_due`) and they become `expired`, but they are not announced.
+ */
 export function dueEvents(session: Session, now: number, opts: { staleAfterMs?: number } = {}): DueEvent[] {
   const staleAfter = opts.staleAfterMs ?? DEFAULT_STALE_AFTER_MS;
-  return pendingEvents(session)
-    .filter((e) => e.dueAt <= now)
-    .map((e) => ({ ...e, stale: now - e.dueAt > staleAfter }))
+  const due = pendingEvents(session).filter((e) => e.dueAt <= now);
+  const latest = new Map<string, number>();
+  for (const e of due) {
+    if (!e.timerId) continue;
+    latest.set(e.timerId, Math.max(latest.get(e.timerId) ?? -Infinity, e.elapsedMs ?? -Infinity));
+  }
+  return due
+    .map((e) => ({
+      ...e,
+      stale: now - e.dueAt > staleAfter || (e.timerId !== undefined && (e.elapsedMs ?? -Infinity) < latest.get(e.timerId)!),
+    }))
     .sort((a, b) => a.dueAt - b.dueAt);
 }
 

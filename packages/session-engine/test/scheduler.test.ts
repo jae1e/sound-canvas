@@ -82,7 +82,31 @@ describe('scheduler', () => {
       ['timer_expired', true],
     ]);
     expect(dueEvents(h.session, T0 + 3 * MIN + 30_000)[1]!.stale).toBe(false);
-    expect(dueEvents(h.session, T0 + 10 * MIN, { staleAfterMs: 20 * MIN }).every((e) => !e.stale)).toBe(true);
+    // With a generous window only supersession remains: the milestone yields to the expiry.
+    expect(dueEvents(h.session, T0 + 10 * MIN, { staleAfterMs: 20 * MIN }).map((e) => e.stale)).toEqual([true, false]);
+  });
+
+  it('only the latest due event of a timer stays fresh (superseded milestones are stale)', () => {
+    const h = harness();
+    h.do({ type: 'start_timer', label: 'pasta', durationMs: 8 * MIN, milestones: [{ kind: 'remaining', offsetMs: MIN }, { kind: 'elapsed', offsetMs: 3 * MIN }] });
+    // Clock jumped straight to expiry: the milestones are superseded by the expiry.
+    const ev = dueEvents(h.session, T0 + 8 * MIN);
+    expect(ev.filter((e) => !e.stale).map((e) => e.kind)).toEqual(['timer_expired']);
+    expect(ev.filter((e) => e.stale).every((e) => e.kind === 'timer_milestone')).toBe(true);
+    // Two milestones due together, expiry not yet: the later one wins.
+    const fresh = dueEvents(h.session, T0 + 7 * MIN + 10_000).filter((e) => !e.stale);
+    expect(fresh).toHaveLength(1);
+    expect(fresh[0]!.milestone).toEqual({ kind: 'remaining', offsetMs: MIN });
+    // Superseded events can still be marked handled.
+    const stale = ev.find((e) => e.stale)!;
+    h.do({ type: 'handle_due', key: stale.key, outcome: 'delivered' });
+  });
+
+  it('events of different timers do not supersede each other', () => {
+    const h = harness();
+    h.do({ type: 'start_timer', label: 'a', durationMs: 2 * MIN });
+    h.do({ type: 'start_timer', label: 'b', durationMs: 2 * MIN });
+    expect(dueEvents(h.session, T0 + 2 * MIN).filter((e) => e.kind === 'timer_expired' && !e.stale)).toHaveLength(2);
   });
 
   it('paused timers produce no events and wake times track the resumed deadline', () => {

@@ -122,6 +122,17 @@ export function describeChanges(changes: Change[], lang: Lang): string {
     }
   }
 
+  // An extension already implies the task is back in progress; do not narrate that status change.
+  for (const ch of changes) {
+    if (ch.kind !== 'task_status' || ch.status !== 'in_progress') continue;
+    const extended = changes.some(
+      (c) =>
+        (c.kind === 'check_in_scheduled' && c.taskId === ch.taskId) ||
+        (c.kind === 'timer_extended' && c.label === ch.label),
+    );
+    if (extended) merged.add(ch);
+  }
+
   for (const ch of changes) {
     if (merged.has(ch)) continue;
     const s = describeOne(ch, lang);
@@ -219,10 +230,12 @@ export function describeDue(event: DueEvent, lang: Lang): string {
       if (event.stale || !event.milestone) return '';
       const ms = event.milestone.offsetMs;
       const dur = formatDuration(ms, lang);
+      const on = named ? ` on the ${label}` : '';
       if (event.milestone.kind === 'elapsed') {
-        return ko ? `${named ? `${label} ` : ''}${dur} 지났어요.` : `${named ? `${label}: ` : ''}${dur} elapsed.`;
+        if (ko) return `${named ? `${label} ` : ''}${dur} 지났어요.`;
+        return `${dur} ${/^1 \w+$/.test(dur) ? 'has' : 'have'} passed${on}.`;
       }
-      return ko ? `${named ? `${label} ` : ''}${dur} 남았어요.` : `${named ? `${label}: ` : ''}${dur} left.`;
+      return ko ? `${named ? `${label} ` : ''}${dur} 남았어요.` : `${dur} left${on}.`;
     }
     case 'timer_expired':
       if (event.stale) {

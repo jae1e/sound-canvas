@@ -23,6 +23,9 @@ const cases: Case[] = [
   ['물끓이기 완료했어', act({ type: 'report_task', task: { label: '물 끓이기' }, report: 'done' })],
   // not yet
   ['아직', act({ type: 'report_task', task: imp, report: 'not_yet' }), none],
+  ['아직이요', act({ type: 'report_task', task: imp, report: 'not_yet' }), none],
+  ['아직이에요', act({ type: 'report_task', task: imp, report: 'not_yet' }), none],
+  ['아직 안 됐어요', act({ type: 'report_task', task: imp, report: 'not_yet' }), none],
   ['아직이야', act({ type: 'report_task', task: imp, report: 'not_yet' }), none],
   ['덜 됐어', act({ type: 'report_task', task: imp, report: 'not_yet' }), none],
   ['아직 안 됐어', act({ type: 'report_task', task: imp, report: 'not_yet' }), none],
@@ -30,6 +33,10 @@ const cases: Case[] = [
   // extend
   ['2분 더', act({ type: 'extend_task', task: imp, byMs: 120_000 }), none],
   ['이 분만 더', act({ type: 'extend_task', task: imp, byMs: 120_000 }), none],
+  ['아직이요 2분만 더', act({ type: 'extend_task', task: imp, byMs: 120_000 }), none],
+  ['아직이에요, 2분 더 주세요', act({ type: 'extend_task', task: imp, byMs: 120_000 }), none],
+  ['아직 안 됐어요 3분만 더', act({ type: 'extend_task', task: imp, byMs: 180_000 }), none],
+  ['아직요 1분 더', act({ type: 'extend_task', task: imp, byMs: 60_000 }), none],
   ['아직, 2분 더', act({ type: 'extend_task', task: imp, byMs: 120_000 }), none],
   ['30초 연장해줘', act({ type: 'extend_task', task: imp, byMs: 30_000 }), none],
   ['삼십 초만 더 해줘', act({ type: 'extend_task', task: imp, byMs: 30_000 }), none],
