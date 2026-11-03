@@ -168,6 +168,9 @@ importers:
 
   apps/mobile:
     dependencies:
+      '@vlc/session-engine':
+        specifier: workspace:*
+        version: link:../../packages/session-engine
       expo:
         specifier: ~58.0.22
         version: 58.0.22(@babel/core@7.29.7(supports-color@8.1.1))(react-native@0.88.1(@babel/core@7.29.7(supports-color@8.1.1))(@types/react@19.3.0)(react@19.3.0)(supports-color@8.1.1))(react@19.3.0)(supports-color@8.1.1)(typescript@6.0.3)

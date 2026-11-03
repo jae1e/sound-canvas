@@ -157,6 +157,7 @@ class SessionService : Service() {
       stopTts = { tts?.stop("barge_in") },
       log = log,
       emit = { e, p -> SessionRuntime.emit(e, p) },
+      lang = setId,
     )
   }
 

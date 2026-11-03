@@ -10,6 +10,7 @@ import com.k2fsa.sherpa.onnx.SileroVadModelConfig
 import com.k2fsa.sherpa.onnx.Vad
 import com.k2fsa.sherpa.onnx.VadModelConfig
 import expo.modules.vlcsessionservice.log.DiagLog
+import expo.modules.vlcsessionservice.speech.stt.SherpaStreamingSttEngine
 import java.io.File
 
 /**
@@ -31,6 +32,8 @@ class SpeechPipeline(
   private val stopTts: () -> Unit,
   private val log: DiagLog,
   private val emit: (String, Map<String, Any?>) -> Unit,
+  /** Model language ("ko" / "en"): used only to rebuild display text from the token list. */
+  private val lang: String = "ko",
 ) {
   data class Files(val vad: File, val encoder: File, val decoder: File, val joiner: File, val tokens: File)
 
@@ -47,6 +50,11 @@ class SpeechPipeline(
   private var lastPartial = ""
   private var lastPartialRt = 0L
   private var seq = 0
+  // Diagnostics for the audio actually handed to the recognizer in the current utterance (explains final_empty).
+  private var fedFrames = 0L
+  private var fedSumSq = 0.0
+  private var fedPeak = 0f
+  private var decodeSteps = 0L
 
   private val preroll = ArrayDeque<FloatArray>()
 
@@ -111,7 +119,7 @@ class SpeechPipeline(
 
     if (ttsActive(0)) ttsSeen = true
     if (!suppressed) {
-      stream?.acceptWaveform(frame, 16_000)
+      feed(stream, frame)
       decodeReady()
       maybePartial(nowRt)
     }
@@ -140,7 +148,8 @@ class SpeechPipeline(
     if (!suppressed) {
       val s = recognizer.createStream("")
       stream = s
-      for (f in preroll) s.acceptWaveform(f, 16_000)
+      fedFrames = 0; fedSumSq = 0.0; fedPeak = 0f; decodeSteps = 0
+      for (f in preroll) feed(s, f)
       decodeReady()
     }
     preroll.clear()
@@ -148,13 +157,22 @@ class SpeechPipeline(
 
   private fun decodeReady() {
     val s = stream ?: return
-    while (recognizer.isReady(s)) recognizer.decode(s)
+    while (recognizer.isReady(s)) { recognizer.decode(s); decodeSteps++ }
+  }
+
+  private fun feed(s: OnlineStream?, frame: FloatArray) {
+    if (s == null) return
+    s.acceptWaveform(frame, 16_000)
+    var ss = 0.0
+    for (x in frame) { ss += x * x; val a = kotlin.math.abs(x); if (a > fedPeak) fedPeak = a }
+    fedSumSq += ss
+    fedFrames++
   }
 
   private fun maybePartial(nowRt: Long) {
     val s = stream ?: return
     if (nowRt - lastPartialRt < PARTIAL_MIN_INTERVAL_MS) return
-    val text = clean(recognizer.getResult(s).text)
+    val text = SherpaStreamingSttEngine.textOf(recognizer.getResult(s), lang)
     lastPartialRt = nowRt
     if (text.isNotEmpty() && text != lastPartial) {
       lastPartial = text
@@ -169,12 +187,15 @@ class SpeechPipeline(
     stream = null
     val suppressNow = suppressed || (ttsSeen && !bargeIn())
     var text = ""
+    var rawTokens = 0
     if (s != null) {
       try {
         s.acceptWaveform(FloatArray(TAIL_PAD_SAMPLES), 16_000) // flush the encoder's right context
         s.inputFinished()
         decodeReady2(s)
-        text = clean(recognizer.getResult(s).text)
+        val res = recognizer.getResult(s)
+        text = SherpaStreamingSttEngine.textOf(res, lang)
+        rawTokens = res.tokens.size
       } finally {
         s.release()
       }
@@ -189,7 +210,14 @@ class SpeechPipeline(
       return
     }
     if (text.isEmpty()) {
-      log.log("final_empty", mapOf("seq" to seq, "durationMs" to (endEpoch - utteranceStartEpoch), "endpointLatencyMs" to latency))
+      log.log(
+        "final_empty",
+        mapOf(
+          "seq" to seq, "durationMs" to (endEpoch - utteranceStartEpoch), "endpointLatencyMs" to latency,
+          "fedFrames" to fedFrames, "fedRms" to if (fedFrames > 0) Math.sqrt(fedSumSq / (fedFrames * 512)) else 0.0,
+          "fedPeak" to fedPeak, "decodeSteps" to decodeSteps, "tokens" to rawTokens, "lastPartial" to lastPartial,
+        ),
+      )
       return
     }
     val payload = mapOf(
@@ -209,10 +237,8 @@ class SpeechPipeline(
   }
 
   private fun decodeReady2(s: OnlineStream) {
-    while (recognizer.isReady(s)) recognizer.decode(s)
+    while (recognizer.isReady(s)) { recognizer.decode(s); decodeSteps++ }
   }
-
-  private fun clean(raw: String) = raw.replace('▁', ' ').trim()
 
   fun release() {
     stream?.release()
@@ -223,8 +249,8 @@ class SpeechPipeline(
 
   companion object {
     const val MIN_SILENCE_S = 0.5f
-    private const val PREROLL_FRAMES = 20 // 640 ms
-    private const val TAIL_PAD_SAMPLES = 4800 // 0.3 s
+    private const val PREROLL_FRAMES = 48 // 1.5 s: the VAD needs ~0.7 s to confirm speech (min speech 0.25 s + window), 640 ms clipped word onsets
+    private const val TAIL_PAD_SAMPLES = 10_240 // 0.64 s = chunk 16 * 0.04 s (model card); 0.3 s left the last chunk incomplete
     private const val PARTIAL_MIN_INTERVAL_MS = 150L
     private const val MAX_UTTERANCE_MS = 30_000L
     private const val ECHO_GRACE_MS = 600L

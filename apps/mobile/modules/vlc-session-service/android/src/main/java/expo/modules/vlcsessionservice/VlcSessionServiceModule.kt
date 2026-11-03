@@ -22,6 +22,7 @@ import expo.modules.vlcsessionservice.service.SessionService
 import expo.modules.vlcsessionservice.speech.ModelCatalog
 import expo.modules.vlcsessionservice.speech.ModelManager
 import expo.modules.vlcsessionservice.speech.TtsLab
+import expo.modules.vlcsessionservice.speech.stt.SttLab
 import java.util.concurrent.Executors
 
 /** JS-facing surface. All real work lives in [SessionService] and the audio/speech/location/log packages. */
@@ -43,6 +44,7 @@ class VlcSessionServiceModule : Module() {
       "location", "locationGap",
       "routeChanged", "modelDownloadProgress",
       "speechOutputRoute", "ttsLabEvent", "ttsLabProgress", "ttsLabPrepared", "ttsLabSelfTest", "ttsLabSelfTestDone",
+      "sttState", "sttPartial", "sttFinal", "sttError", "sttLevel", "sttLangDetect", "sttMicRoute", "sttSupport", "sttDownload",
     )
 
     OnCreate {
@@ -53,6 +55,7 @@ class VlcSessionServiceModule : Module() {
       SessionRuntime.sink = null
       SpeechOutput.stopMonitoring()
       labOrNull?.release()
+      sttOrNull?.release()
     }
     OnActivityEntersForeground {
       activityVisible = true
@@ -159,6 +162,18 @@ class VlcSessionServiceModule : Module() {
     Function("ttsLabStop") { labOrNull?.stop(); Unit }
     Function("ttsLabSetMlKitPlayback") { enabled: Boolean, sampleRate: Int -> lab.setMlKitOwnPlayback(enabled, sampleRate); Unit }
 
+    // ---- STT lab (platform recognizer + sherpa, ko/en, auto language) ------------------------------------
+    AsyncFunction("sttSupport") { promise: Promise -> stt.support { promise.resolve(it) } }
+    AsyncFunction("sttTriggerDownload") { locale: String, promise: Promise -> stt.triggerDownload(locale) { promise.resolve(it) } }
+    AsyncFunction("sttStart") { options: Map<String, Any?>, promise: Promise ->
+      io.execute {
+        runCatching { stt.start(options) }
+          .fold({ promise.resolve(mapOf("requested" to true)) }, { promise.reject(CodedException("STT_START", it.chainText(), it)) })
+      }
+    }
+    Function("sttStop") { sttOrNull?.stop(); Unit }
+    Function("sttIsRunning") { sttOrNull?.isRunning ?: false }
+
     // ---- models ------------------------------------------------------------------------------
     AsyncFunction("getModelStatus") { models.status() }
     AsyncFunction("downloadModels") { setIds: List<String>, promise: Promise ->
@@ -219,6 +234,13 @@ class VlcSessionServiceModule : Module() {
         SpeechOutput.startMonitoring(context)
         labInstance = it
       }
+    }
+
+  private var sttInstance: SttLab? = null
+  private val sttOrNull: SttLab? get() = sttInstance
+  private val stt: SttLab
+    get() = sttInstance ?: synchronized(this) {
+      sttInstance ?: SttLab(context, io) { e, p -> sendEvent(e, p) }.also { sttInstance = it }
     }
 
   /** Routing helper that also works when no session is running (for the route picker). */

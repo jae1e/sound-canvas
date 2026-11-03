@@ -225,6 +225,15 @@ export type TtsLabProgressEvent = {
 };
 
 export type VlcSessionServiceModuleEvents = {
+  sttState: (e: SttStateEvent) => void;
+  sttPartial: (e: SttPartialEvent) => void;
+  sttFinal: (e: SttFinalEvent) => void;
+  sttError: (e: SttErrorEvent) => void;
+  sttLevel: (e: SttLevelEvent) => void;
+  sttLangDetect: (e: SttLangDetectEvent) => void;
+  sttMicRoute: (e: SttMicRouteEvent) => void;
+  sttSupport: (e: SttSupport) => void;
+  sttDownload: (e: SttDownloadEvent) => void;
   speechOutputRoute: (e: SpeechOutputRoute) => void;
   ttsLabEvent: (e: TtsLabEvent) => void;
   ttsLabPrepared: (e: TtsLabPreparedEvent) => void;
@@ -338,3 +347,84 @@ export type LogSummary = {
   recorderRestarts: number;
   errors: number;
 };
+
+// ---- STT lab ----------------------------------------------------------------------------------
+
+export type SttEngineId = 'platform' | 'sherpa';
+export type SttLangMode = 'auto' | 'ko' | 'en';
+export type SttMicMode = 'phone' | 'bluetooth';
+export type SttLang = 'ko' | 'en';
+
+export type SttStartOptions = {
+  engine: SttEngineId;
+  lang: SttLangMode;
+  mic: SttMicMode;
+  /** Platform engine only: request EXTRA_SEGMENTED_SESSION on API 33+ (otherwise a restart loop is used). Default true. */
+  segmented?: boolean;
+};
+
+/** idle -> starting -> loading (sherpa) -> listening -> processing -> ... -> stopped | error */
+export type SttStateEvent = {
+  state: string;
+  detail: Record<string, unknown>;
+  engine: SttEngineId | null;
+  /** Platform engine: "on_device" or "system_prefer_offline". */
+  path: string | null;
+};
+export type SttPartialEvent = { seq: number; text: string; atEpochMs: number };
+export type SttFinalEvent = {
+  seq: number;
+  text: string;
+  lang: SttLang;
+  /** platform_detection | dual_decode | script | requested | prior_retry */
+  detectedBy: string;
+  confidence: number | null;
+  engine: SttEngineId;
+  path: string;
+  requestedLang: SttLangMode;
+  mic: SttMicMode;
+  /** Speech end (recognizer's or VAD's estimate) -> final, ms. */
+  endToFinalMs: number | null;
+  /** Speech start (estimate) -> first partial, ms. */
+  firstPartialMs: number | null;
+  partials: number;
+  platformDetectionFired: boolean | null;
+  segmentedSeen: boolean | null;
+  priorBefore: SttLang;
+  nextLang: SttLang | null;
+  nextReason: string | null;
+  finalAtEpochMs: number;
+  details: Record<string, unknown>;
+};
+export type SttErrorEvent = { code: string; message: string; recoverable: boolean; atEpochMs: number };
+export type SttLevelEvent = { level: number };
+export type SttLangDetectEvent = { source: string; atEpochMs: number } & Record<string, unknown>;
+export type SttMicRouteEvent = { kind: string; atEpochMs: number } & Record<string, unknown>;
+export type SttDownloadEvent = { locale: string; event: string; percent?: number };
+
+export type SttSupport = {
+  sdk: number;
+  recognitionAvailable: boolean;
+  onDeviceAvailable: boolean;
+  recognizerPath: 'on_device' | 'system_prefer_offline';
+  defaultService: string | null;
+  languageDetectionApi: boolean;
+  segmentedSessionApi: boolean;
+  supportCheck?: string;
+  installedOnDevice?: string[];
+  supportedOnDevice?: string[];
+  pendingOnDevice?: string[];
+  onlineLanguages?: string[];
+  koInstalled?: boolean;
+  enInstalled?: boolean;
+  koSupported?: boolean;
+  enSupported?: boolean;
+  sherpaKoReady: boolean;
+  sherpaEnReady: boolean;
+  sherpaVadReady: boolean;
+  bluetoothInput: AudioDevice | null;
+  bluetoothCommunicationDevice: AudioDevice | null;
+  sessionRunning: boolean;
+};
+
+export type SttDownloadResult = { ok: boolean; locale: string; outcome?: string; error?: string; reason?: string };

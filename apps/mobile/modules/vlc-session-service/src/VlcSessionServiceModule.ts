@@ -15,6 +15,9 @@ import type {
   SessionStateName,
   SpeechOutputMode,
   SpeechOutputRoute,
+  SttDownloadResult,
+  SttStartOptions,
+  SttSupport,
   TtsLabEngineId,
   TtsLabEngineInfo,
   TtsLabPrepareResult,
@@ -65,6 +68,15 @@ declare class VlcSessionServiceNative extends NativeModule<VlcSessionServiceModu
   ttsLabSetVolume(percent: number): MusicVolume;
   ttsLabStop(): void;
   ttsLabSetMlKitPlayback(enabled: boolean, sampleRate: number): void;
+
+  /** Platform recognizer availability, installed on-device languages, sherpa model readiness, Bluetooth mic availability. */
+  sttSupport(): Promise<SttSupport>;
+  /** Asks the recognition service to download the on-device model for a BCP-47 tag such as "ko-KR" (API 33+). */
+  sttTriggerDownload(locale: string): Promise<SttDownloadResult>;
+  /** Resolves once the start sequence ran; progress and failures arrive as stt* events. Plays no audio. */
+  sttStart(options: SttStartOptions): Promise<{ requested: boolean }>;
+  sttStop(): void;
+  sttIsRunning(): boolean;
 
   getModelStatus(): Promise<ModelStatus[]>;
   downloadModels(setIds: string[]): Promise<ModelStatus[]>;

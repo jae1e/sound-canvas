@@ -103,6 +103,22 @@ Code layout: `speech/engine/SpeechEngine.kt` (interface: `supports(locale)`, `pr
 
 Build notes: ML Kit GenAI and its kotlin-stdlib 2.4.0 are newer than Expo SDK 58's Kotlin 2.2 compiler, so the module compiles with `-Xskip-metadata-version-check` (runtime uses stdlib 2.4.0). R8 keep rules for sherpa-onnx JNI and ML Kit are in `consumer-rules.pro`; commons-compress (tar.bz2) is a new dependency.
 
+## STT lab (speech to text with live text)
+
+Added 2026-11-03; nothing here has run on a device yet. UI: the first section of the spike screen. Code: `speech/stt/` in the module, `src/SttLabPanel.tsx`, `src/sttParse.ts`. The lab plays no audio (the platform recognizer may play its own start/stop earcons; the system volume is never touched) and refuses to start while a session owns the microphone. The session pipeline itself still uses `SpeechPipeline`, not these engines.
+
+- `SttEngine` interface (`id`, `locale`, `supportsStreaming`, `start/stop/release`, callbacks `onPartial/onFinal/onError/onState`). Korean and English are separate engines/models behind it.
+- `PlatformSttEngine`: `SpeechRecognizer.createOnDeviceSpeechRecognizer` when `isOnDeviceRecognitionAvailable` (API 33+), else `createSpeechRecognizer` + `EXTRA_PREFER_OFFLINE` (the used path is shown as "recognizer path"). Partial results on. Continuous listening through `EXTRA_SEGMENTED_SESSION` (API 33+, switchable in the UI because recognizers may ignore it) or a restart loop with exponential backoff. All calls on the main thread. `PlatformSttSupport` reports `checkRecognitionSupport` and triggers `triggerModelDownload` (ko-KR / en-US buttons).
+- `SherpaStreamingSttEngine`: the zipformer sets `ko` / `en` (+ optional `vad`), fed continuously by `SttMicCapture`; sherpa endpoint rules (0.8 s trailing silence) end utterances; partials come from `getResult`.
+- Language auto-detection layers (all logged as `stt_lang_detect`): (1) platform detection extras + `onLanguageDetection` (API 34+, only if the recognizer implements it), (2) dual decoding with both sherpa models, winner by mean token log-probability (Hangul ratio and length are the tie-break), (3) `LangPolicy` for platform finals: an empty/low-confidence/NO_MATCH result flips the locale of the next utterance, the last detected language is the prior.
+- Mic: Phone (default) or Bluetooth headset via `setCommunicationDevice` (released with `MODE_NORMAL` on stop). Sherpa captures with its own AudioRecord (routed to the BT input); the platform recognizer picks its own input, so the UI shows the best-effort observed route from the system recording configurations.
+- Log events: `stt_start`, `stt_state`, `stt_partial` (throttled 500 ms), `stt_final`, `stt_error`, `stt_lang_detect`, `stt_support`, `stt_mic_route`, plus `stt_sherpa_empty_segment` (diagnostics when sherpa decodes nothing).
+- Sherpa `ko` is marked "dev reference - not shippable (training-data license unclear)".
+
+### Why the session pipeline logged `final_empty`
+
+Not reproduced offline: the same model files, config, VAD gating, pre-roll and tail padding decode TTS-generated Korean and English test sentences correctly with the sherpa-onnx Python bindings, so the root cause is something only the device has (real microphone signal, AEC/NS output, or the VAD triggering on non-speech). Defects that were found and fixed in `SpeechPipeline`: the pre-roll (640 ms) was shorter than the VAD's confirmation delay (about 0.7 s in an offline replay), so word onsets were clipped; the tail padding (0.3 s) was shorter than the model card's 0.64 s; the Korean result text has no spaces (spaces exist only as tokens), which breaks the downstream parser; and `final_empty` carried no evidence. It now logs fed frames, rms, peak, decode steps and token count. The STT lab's sherpa engine removes the VAD gate entirely (continuous feed + endpoint rules).
+
 ## Build and install
 
 Toolchain: `source scripts/android-env.sh` (repo root) for JDK 17 and the Android SDK.

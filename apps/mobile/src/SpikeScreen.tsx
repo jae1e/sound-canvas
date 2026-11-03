@@ -14,6 +14,7 @@ import {
 } from 'react-native';
 
 import { Btn, Row, Section, styles } from './ui';
+import { SttLabPanel } from './SttLabPanel';
 import { TtsLabPanel } from './TtsLabPanel';
 import VlcSessionService, {
   type AudioDevice,
@@ -264,6 +265,8 @@ export default function SpikeScreen() {
       <StatusBar style="dark" />
       <ScrollView contentContainerStyle={styles.content}>
         <Text style={styles.title}>VLC voice pipeline spike</Text>
+
+        <SttLabPanel note={note} sessionRunning={running} />
 
         <Section title="Speech output (where TTS is heard)">
           <View style={[styles.banner, speechRoute && !speechRoute.ok && styles.bannerWarn]}>
