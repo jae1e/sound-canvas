@@ -36,6 +36,8 @@ function describeIntent(i: Intent): string {
       return `recording:${i.command}`;
     case 'navigation':
       return `navigation:${i.query}`;
+    case 'plan':
+      return `plan ${i.steps.length} steps`;
   }
 }
 

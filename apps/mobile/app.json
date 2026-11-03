@@ -37,7 +37,10 @@
             "minSdkVersion": 31
           }
         }
-      ]
+      ],
+      "expo-router",
+      "expo-sqlite",
+      "expo-localization"
     ]
   }
 }
