@@ -192,6 +192,35 @@ describe('voice loop', () => {
   });
 });
 
+describe('ending by voice', () => {
+  it('needs a second request within the window, and the first one changes nothing', () => {
+    const { c, clock, native, db } = started();
+    native.spoken.length = 0;
+    c.onFinal('end session', undefined, 'en');
+    expect(c.state().session?.status).toBe('active');
+    expect(native.spoken.map((s) => s.text)).toEqual(['End the session? Say it again to confirm.']);
+    clock.now += 5000;
+    c.onFinal('end session', undefined, 'en');
+    expect(c.state().session?.status).toBe('ended');
+    expect([...db.journal.values()].some((e) => e.source === 'generated_summary')).toBe(true);
+  });
+
+  it('a stale first request does not count', () => {
+    const { c, clock } = started();
+    c.onFinal('end session', undefined, 'en');
+    clock.now += 60_000;
+    c.onFinal('end session', undefined, 'en');
+    expect(c.state().session?.status).toBe('active');
+  });
+
+  it('Korean confirmation prompt', () => {
+    const { c, native } = started({}, 'ko');
+    native.spoken.length = 0;
+    c.onFinal('세션 종료', undefined, 'ko');
+    expect(native.spoken[0]?.text).toBe('세션을 끝낼까요? 끝내려면 한 번 더 말씀해 주세요.');
+  });
+});
+
 describe('undo and correct', () => {
   it('undo restores the previous engine state and re-persists it', () => {
     const { c, db } = started();

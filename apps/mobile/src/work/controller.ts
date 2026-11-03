@@ -102,6 +102,7 @@ interface Snapshot {
 const MAX_UNDO = 20;
 const MAX_TURNS = 40;
 const DUE_TOLERANCE_MS = 400;
+const END_CONFIRM_MS = 20_000;
 
 export interface PlanStepInput {
   label: string;
@@ -128,6 +129,8 @@ export class WorkController {
   private version = 0;
   private turnSeq = 0;
   private ticker: ReturnType<typeof setInterval> | null = null;
+  /** When the user first asked to end by voice; a second request within the window confirms it. */
+  private endRequestedAt: number | null = null;
   private listeners = new Set<(s: ControllerState) => void>();
   private summaryListeners = new Set<(s: WorkSummary) => void>();
 
@@ -232,12 +235,29 @@ export class WorkController {
     if (!s || s.status === 'ended') return;
     const r = this.commit({ type: 'end_session' }, 'ui', { undoable: false });
     if (r.ok) {
-      this.writeSummary();
+      this.onEnded();
       this.say(r.said, 'high');
     }
+  }
+
+  /** Common wrap-up once the engine session is ended, by button or by (confirmed) voice command. */
+  private onEnded(): void {
+    this.writeSummary();
     this.stopTicker();
     this.armed.clear();
+    this.undo = [];
+    this.endRequestedAt = null;
     this.emit();
+  }
+
+  /** Throws away a session that has not begun (no summary is written). */
+  discard(): void {
+    const s = this.session;
+    if (!s) return;
+    if (s.status === 'ready' || s.status === 'draft') this.commit({ type: 'end_session' }, 'ui', { undoable: false });
+    this.stopTicker();
+    this.armed.clear();
+    this.dismiss();
   }
 
   /** Clears an ended session from the screen so a new one can start. */
@@ -344,7 +364,16 @@ export class WorkController {
     const result = handleUtterance(s, hyps, lang, { now, newId: this.env.newId });
     const heard = result.chosen?.text ?? hyps[0] ?? '';
     let reply = result.reply;
-    let outcome: TurnRow['outcome'] = kind === 'correction' ? 'correction' : result.outcome;
+
+    // Ending is hard to undo and "종료"/"end" is easy to misrecognise: ask for it twice by voice.
+    if (result.outcome === 'applied' && result.session.status === 'ended') {
+      const confirmed = this.endRequestedAt !== null && now - this.endRequestedAt <= END_CONFIRM_MS;
+      if (!confirmed) {
+        this.endRequestedAt = now;
+        const ask = s.lang === 'ko' ? '세션을 끝낼까요? 끝내려면 한 번 더 말씀해 주세요.' : 'End the session? Say it again to confirm.';
+        return this.finishTurn(hyps, lang, kind, { ...result, session: s, outcome: 'rejected', reply: ask }, heard, ask, now);
+      }
+    }
 
     switch (result.outcome) {
       case 'applied':
@@ -358,6 +387,7 @@ export class WorkController {
           heard,
           revision: result.session.revision,
         });
+        if (result.session.status === 'ended') this.onEnded();
         break;
       case 'unsupported_intent':
         if (result.intent?.kind === 'journal') {
@@ -388,12 +418,24 @@ export class WorkController {
         break;
     }
 
+    return this.finishTurn(hyps, lang, kind, result, heard, reply, now);
+  }
+
+  private finishTurn(
+    _hyps: string[],
+    lang: Lang,
+    kind: 'turn' | 'correction',
+    result: TurnResult,
+    heard: string,
+    reply: string | null,
+    now: number,
+  ): TurnResult {
     const row: TurnRow = {
       id: ++this.turnSeq,
       at: now,
       heard,
       lang,
-      outcome,
+      outcome: kind === 'correction' ? 'correction' : result.outcome,
       reply,
       chosenIndex: result.chosen?.index ?? 0,
     };
