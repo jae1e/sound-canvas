@@ -1,0 +1,3 @@
+KAKAO_REST_KEY=replace-with-kakao-rest-api-key
+TMAP_APP_KEY=replace-with-sk-open-api-tmap-app-key
+TOKEN_SIGNING_SECRET=replace-with-long-random-string
