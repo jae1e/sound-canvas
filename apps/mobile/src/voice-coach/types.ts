@@ -1,4 +1,4 @@
-import type { Lang, TakeMode, TakeSummary } from '@vlc/voice-analysis';
+import type { Lang, NoteStyle, TakeMode, TakeSummary } from '@vlc/voice-analysis';
 
 export interface PracticeBlock {
   id: string;
@@ -25,6 +25,9 @@ export interface VoiceCoachScreenProps {
   words?: { text: string; start: number; end: number }[];
   /** Language of the speech for the speaking-rate unit and the filler list. Defaults to `lang`. */
   speechLang?: Lang;
+  /** Initial note-name style (scientific B2, solfège 시₂, letter B). Defaults to scientific. */
+  initialNoteStyle?: NoteStyle;
+  onNoteStyleChange?: (style: NoteStyle) => void;
   initialBlocks?: PracticeBlock[];
   onBlocksChange?: (blocks: PracticeBlock[]) => void;
   /** Notes keyed by take id; the screen keeps its own copy when this is omitted. */

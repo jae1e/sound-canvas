@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 import { View } from 'react-native';
 import Svg, { Line, Polyline, Rect, Text as SvgText } from 'react-native-svg';
-import { hzToMidi, isVoiced, noteName, type Frame, type TargetSpec } from '@vlc/voice-analysis';
+import { hzToMidi, isVoiced, formatNote, type Frame, type Lang, type NoteStyle, type TargetSpec } from '@vlc/voice-analysis';
 
 export interface ContourSeries {
   frames: Frame[];
@@ -17,10 +17,13 @@ interface Props {
   targetT0?: number;
   width: number;
   height: number;
+  /** Axis label style; defaults to scientific (C4). */
+  noteStyle?: NoteStyle;
+  lang?: Lang;
 }
 
 /** Pitch contour(s) over time on a semitone axis, with the target as a +-25 cent band. */
-export function ContourChart({ series, span, target, targetT0 = 0, width, height }: Props) {
+export function ContourChart({ series, span, target, targetT0 = 0, width, height, noteStyle = 'scientific', lang = 'en' }: Props) {
   const m = useMemo(() => {
     const all = series.flatMap((s) => s.frames);
     const t0 = span?.[0] ?? (all.length ? Math.min(...all.map((f) => f.t)) : 0);
@@ -67,7 +70,7 @@ export function ContourChart({ series, span, target, targetT0 = 0, width, height
         ))}
         {grid.map((n) => (
           <SvgText key={`l${n}`} x={3} y={y(n) - 2} fill="#6b7782" fontSize={10}>
-            {noteName(n)}
+            {formatNote(n, noteStyle, lang)}
           </SvgText>
         ))}
         {targetRects.map((r, i) => (

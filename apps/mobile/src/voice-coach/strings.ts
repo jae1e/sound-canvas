@@ -59,6 +59,22 @@ const ko = {
   source: '입력',
   seconds: '초',
   durationShort: '길이',
+  noteStyle: '음 이름 표기',
+  styleScientific: 'C4 (국제식)',
+  styleSolfege: '도레미₄',
+  styleLetter: '알파벳만',
+  helpToggle: '?',
+  helpTitle: '음 이름이 뭐예요?',
+  helpLines: [
+    'C4 = 가온 도 (피아노 한가운데 도, 261.6 Hz)입니다. C는 도, D는 레, E는 미, F는 파, G는 솔, A는 라, B는 시예요.',
+    '숫자는 옥타브(높낮이 층)예요. 숫자는 도(C)에서 바뀝니다. 그래서 B2(시)는 C3(도) 바로 아래 음이에요.',
+    'B2는 약 123 Hz로, 보통 남성이 말할 때의 목소리 높이 정도예요.',
+    '# 은 반음 위(올림), b 은 반음 아래(내림)예요. 예: 도# = C#.',
+    '바늘이 가운데면 정확, 한쪽으로 치우치면 약간 낮음/높음이에요(±10센트 안은 정확, ±25센트 안은 약간).',
+  ],
+  keyboard: '건반',
+  keyboardLegend: '파랑=지금 음, 초록=목표, 띠=오늘 측정한 음역',
+  centsUnit: '센트',
 };
 
 const en: typeof ko = {
@@ -120,12 +136,36 @@ const en: typeof ko = {
   source: 'Input',
   seconds: 's',
   durationShort: 'Length',
+  noteStyle: 'Note names',
+  styleScientific: 'C4 (scientific)',
+  styleSolfege: 'Do-Re-Mi₄',
+  styleLetter: 'Letter only',
+  helpToggle: '?',
+  helpTitle: 'What do the note names mean?',
+  helpLines: [
+    'C4 = middle C (the C in the middle of a piano, 261.6 Hz; 가온 도 in Korean). C is Do, D is Re, E is Mi, F is Fa, G is Sol, A is La, B is Ti.',
+    'The number is the octave (a pitch "floor"). The number changes at C, so B2 (Ti) is the note just below C3 (Do).',
+    'B2 is about 123 Hz, a typical male speaking pitch.',
+    '# means a half step up (sharp), b a half step down (flat). Example: Do# = C#.',
+    'A centred needle means on pitch; off to one side is a bit flat or sharp (within 10 cents counts as on pitch, within 25 as a bit).',
+  ],
+  keyboard: 'Keyboard',
+  keyboardLegend: 'blue = now, green = target, bar = your measured range',
+  centsUnit: 'cents',
 };
 
 export type StringKey = keyof typeof ko;
-const dict: Record<Lang, Record<StringKey, string>> = { ko, en };
+const dict: Record<Lang, Record<StringKey, string | string[]>> = { ko, en };
 
 export function makeT(lang: Lang) {
-  return (key: StringKey): string => dict[lang][key];
+  const t = (key: StringKey): string => {
+    const v = dict[lang][key];
+    return Array.isArray(v) ? v.join('\n') : v;
+  };
+  t.lines = (key: StringKey): string[] => {
+    const v = dict[lang][key];
+    return Array.isArray(v) ? v : [v];
+  };
+  return t;
 }
 export type T = ReturnType<typeof makeT>;

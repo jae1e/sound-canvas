@@ -1,5 +1,5 @@
 import { analyzeFrames, silenceThresholdDb, type TakeMetrics } from './analysis';
-import { noteName } from './notes';
+import { formatNote, rangeText, type NoteStyle } from './naming';
 import { countFillers, rateFromEnergy, rateFromWords, type FillerCount, type SpeakingRate } from './speech';
 import type { Frame, Lang, TakeMode, TargetSpec, TimedWord } from './types';
 
@@ -13,6 +13,8 @@ export interface TakeInput {
   words?: TimedWord[];
   /** Language of the transcript and of the speaking-rate unit. */
   speechLang?: Lang;
+  /** How notes are written in the feedback. Default 'scientific'. */
+  noteStyle?: NoteStyle;
 }
 
 export interface SpeechMetrics {
@@ -33,8 +35,10 @@ export interface TakeSummary {
 const f0 = (n: number) => Math.round(n).toString();
 const f1 = (n: number) => (Math.round(n * 10) / 10).toString();
 
-function targetLabel(t: TargetSpec): { single: string | null } {
-  return { single: t.notes.length === 1 ? noteName(t.notes[0]!.midi) : null };
+function targetLabel(t: TargetSpec, style: NoteStyle): Record<Lang, string> | null {
+  if (t.notes.length !== 1) return null;
+  const midi = t.notes[0]!.midi;
+  return { ko: formatNote(midi, style, 'ko'), en: formatNote(midi, style, 'en') };
 }
 
 /**
@@ -64,10 +68,10 @@ export function summarizeTake(input: TakeInput, previous?: TakeMetrics | null): 
 function practiceLines(input: TakeInput, m: TakeMetrics, prev: TakeMetrics | null, push: (ko: string, en: string) => void): void {
   const sd = m.stability.sdCents;
   if (input.target && m.target) {
-    const { single } = targetLabel(input.target);
+    const single = targetLabel(input.target, input.noteStyle ?? 'scientific');
     const p25 = f0(m.target.within25Pct);
     if (single) {
-      push(`목표 음 ${single}: 시간의 ${p25}% 동안 ±25센트 이내로 유지했어요.`, `Your ${single} held within ±25 cents for ${p25}% of the time.`);
+      push(`목표 음 ${single.ko}: 시간의 ${p25}% 동안 ±25센트 이내로 유지했어요.`, `Your ${single.en} held within ±25 cents for ${p25}% of the time.`);
     } else {
       push(`목표 음 순서에서 ±25센트 이내가 ${p25}%, ±50센트 이내가 ${f0(m.target.within50Pct)}%였어요.`, `You were within ±25 cents of the target sequence for ${p25}% of the time, and within ±50 cents for ${f0(m.target.within50Pct)}%.`);
     }
@@ -79,7 +83,8 @@ function practiceLines(input: TakeInput, m: TakeMetrics, prev: TakeMetrics | nul
     push(`길게 낸 음의 음정 흔들림은 평균 ${f0(sd)}센트였어요.`, `Held notes varied by about ${f0(sd)} cents (SD) on average.`);
   }
   if (m.range) {
-    push(`안정적으로 낸 음역은 ${m.range.low}부터 ${m.range.high}까지예요.`, `Your stable range was ${m.range.low} to ${m.range.high}.`);
+    const st = input.noteStyle ?? 'scientific';
+    push(`안정적으로 낸 음역은 ${rangeText(m.range.lowMidi, m.range.highMidi, st, 'ko')}예요.`, `Your stable range was ${rangeText(m.range.lowMidi, m.range.highMidi, st, 'en')}.`);
   }
   if (prev) {
     if (m.target && prev.target && Math.abs(m.target.within25Pct - prev.target.within25Pct) >= 5) {

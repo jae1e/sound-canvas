@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ScrollView, Text } from 'react-native';
-import { parseTarget, type TakeSummary } from '@vlc/voice-analysis';
+import { parseTarget, type NoteStyle, type TakeSummary } from '@vlc/voice-analysis';
 import VlcVoiceCoach, { type TakeInfo } from '../../modules/vlc-voice-coach';
 import { captureGate } from './gate';
 import { contourToFrames, summarize, type SummaryContext } from './analysis';
@@ -41,18 +41,30 @@ export function VoiceCoachScreen(props: VoiceCoachScreenProps) {
   const [runner, setRunner] = useState<Runner | null>(null);
   const [feedback, setFeedback] = useState<{ takeId: string; text: string } | null>(null);
   const [busy, setBusy] = useState(false);
+  const [noteStyle, setNoteStyleState] = useState<NoteStyle>(props.initialNoteStyle ?? 'scientific');
 
   const block = blocks.find((b) => b.id === selectedId) ?? blocks[0]!;
   const target = useMemo(() => (block.target.trim() ? parseTarget(block.target) : null), [block.target]);
 
   // Latest props/state for async flows.
-  const latest = useRef({ props, takes, block, target, lang });
-  latest.current = { props, takes, block, target, lang };
+  const latest = useRef({ props, takes, block, target, lang, noteStyle });
+  latest.current = { props, takes, block, target, lang, noteStyle };
   const cancel = useRef(false);
   const recording = useRef(false);
   recording.current = live.state.recording;
   const lastTake = useRef<string | null>(null);
   const running = useRef(false);
+
+  const setNoteStyle = useCallback((st: NoteStyle) => {
+    setNoteStyleState(st);
+    latest.current.props.onNoteStyleChange?.(st);
+  }, []);
+
+  // Measured range across all analysed takes, for the keyboard strip.
+  const range = useMemo(() => {
+    const rs = takes.flatMap((x) => (x.summary?.metrics.range ? [x.summary.metrics.range] : []));
+    return rs.length ? { lowMidi: Math.min(...rs.map((r) => r.lowMidi)), highMidi: Math.max(...rs.map((r) => r.highMidi)) } : null;
+  }, [takes]);
 
   const setBlocks = useCallback((next: PracticeBlock[]) => {
     setBlocksState(next);
@@ -112,6 +124,7 @@ export function VoiceCoachScreen(props: VoiceCoachScreenProps) {
           transcript: blk.mode === 'speech' ? cur.props.transcript : undefined,
           words: blk.mode === 'speech' ? cur.props.words : undefined,
           speechLang: cur.props.speechLang ?? cur.lang,
+          noteStyle: cur.noteStyle,
         };
         const { frames, summary } = await analyze(info, ctx, prev);
         const entry: TakeEntry = { id: info.id, durationS: info.durationS, createdAtMs: info.createdAtMs, frames, summary };
@@ -165,7 +178,7 @@ export function VoiceCoachScreen(props: VoiceCoachScreenProps) {
     const entry = takes.find((x) => x.id === id);
     if (entry && !entry.frames) {
       try {
-        const ctx: SummaryContext = { mode: block.mode, target, speechLang: props.speechLang ?? lang };
+        const ctx: SummaryContext = { mode: block.mode, target, speechLang: props.speechLang ?? lang, noteStyle };
         const { frames, summary } = await analyze(entry, ctx, null);
         setTakes((old) => old.map((x) => (x.id === id ? { ...x, frames, summary } : x)));
       } catch {
@@ -229,7 +242,7 @@ export function VoiceCoachScreen(props: VoiceCoachScreenProps) {
       <Text style={{ fontSize: 22, fontWeight: '800', marginBottom: 8, color: '#14202a' }}>{t('title')}</Text>
       {err ? <Text style={{ color: '#c0392b', marginBottom: 8 }}>{err === 'PERMISSION_RECORD_AUDIO' ? t('micDenied') : `${t('error')}: ${err}`}</Text> : null}
 
-      <SetupPanel blocks={blocks} onChange={setBlocks} selectedId={block.id} onSelect={setSelectedId} t={t} locked={locked} />
+      <SetupPanel blocks={blocks} onChange={setBlocks} selectedId={block.id} onSelect={setSelectedId} t={t} locked={locked} noteStyle={noteStyle} onNoteStyle={setNoteStyle} />
 
       <Card>
         <Row>
@@ -253,7 +266,7 @@ export function VoiceCoachScreen(props: VoiceCoachScreenProps) {
         ) : null}
       </Card>
 
-      {live.state.monitoring || live.state.recording ? <LiveView live={live.state} target={target} t={t} /> : null}
+      {live.state.monitoring || live.state.recording ? <LiveView live={live.state} target={target} t={t} lang={lang} noteStyle={noteStyle} range={range} /> : null}
 
       {busy ? <Text style={s.muted}>{t('analyzing')}</Text> : null}
       {feedback && !live.state.recording ? (
@@ -276,6 +289,7 @@ export function VoiceCoachScreen(props: VoiceCoachScreenProps) {
         onToggleCompare={(id) => void toggleCompare(id)}
         t={t}
         lang={lang}
+        noteStyle={noteStyle}
         busy={locked || busy}
       />
     </ScrollView>

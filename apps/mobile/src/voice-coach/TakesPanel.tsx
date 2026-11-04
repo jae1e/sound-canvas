@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Text, TextInput, View } from 'react-native';
-import { noteName, type Frame, type TakeSummary } from '@vlc/voice-analysis';
+import { rangeText, type Frame, type NoteStyle, type TakeSummary } from '@vlc/voice-analysis';
 import { ContourChart } from './ContourChart';
 import type { T } from './strings';
 import { Button, Card, colors, Row, s } from './ui';
@@ -25,6 +25,7 @@ interface Props {
   onToggleCompare: (id: string) => void;
   t: T;
   lang: 'ko' | 'en';
+  noteStyle: NoteStyle;
   busy: boolean;
 }
 
@@ -82,11 +83,13 @@ export function TakesPanel(p: Props) {
                 span={[0, Math.max(a.durationS, b.durationS)]}
                 width={w}
                 height={170}
+                noteStyle={p.noteStyle}
+                lang={p.lang}
               />
             ) : (
               <Text style={s.muted}>{t('analyzing')}</Text>
             )}
-            <MetricsTable a={a} b={b} t={t} />
+            <MetricsTable a={a} b={b} t={t} lang={p.lang} noteStyle={p.noteStyle} />
             <Text style={s.muted}>{t('heuristicNote')}</Text>
           </View>
         )}
@@ -95,11 +98,11 @@ export function TakesPanel(p: Props) {
   );
 }
 
-function MetricsTable({ a, b, t }: { a: TakeEntry; b: TakeEntry; t: T }) {
+function MetricsTable({ a, b, t, lang, noteStyle }: { a: TakeEntry; b: TakeEntry; t: T; lang: 'ko' | 'en'; noteStyle: NoteStyle }) {
   const ma = a.summary?.metrics;
   const mb = b.summary?.metrics;
   if (!ma || !mb) return null;
-  const range = (m: typeof ma) => (m.range ? `${noteName(m.range.lowMidi)}–${noteName(m.range.highMidi)}` : '–');
+  const range = (m: typeof ma) => (m.range ? rangeText(m.range.lowMidi, m.range.highMidi, noteStyle, lang) : '–');
   const rows: [string, string, string][] = [
     [t('mStability'), fmt(ma.stability.sdCents, 1), fmt(mb.stability.sdCents, 1)],
     [t('mWithin25'), fmt(ma.target?.within25Pct), fmt(mb.target?.within25Pct)],

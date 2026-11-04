@@ -5,3 +5,4 @@ export * from './yin';
 export * from './analysis';
 export * from './speech';
 export * from './summarize';
+export * from './naming';
