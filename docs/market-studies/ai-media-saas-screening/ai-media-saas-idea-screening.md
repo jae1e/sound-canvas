@@ -86,6 +86,39 @@ For idea 1, the Korean-only reach fails: Korea's roughly 35K registered creators
 
 **Watch list.** Restoration (idea 4) has the best before/after virality; test it as a concierge service at $15–25 per video with 20 customers before any pipeline, after checking SeedVR2's weight licence and GPU cost. Wedding rescue (idea 5) is the natural paid beachhead for idea 1 at $50/month, not a standalone path.
 
+### Addendum (2026-11-04): the camera holder's voice
+
+The user asked: what if the product rescues the camera holder? The camera holder is off-screen, so a face click cannot select them. SAM Audio offers other ways to point at a sound:
+- text prompts;
+- **span prompts**, where the user marks a time segment in which the target sound occurs;
+- combinations of these. Meta claims mixed prompts work better than single ones [vendor claim] ([arXiv 2512.18099](https://arxiv.org/html/2512.18099v1), [Meta](https://ai.meta.com/samaudio/), [SiliconANGLE](https://siliconangle.com/2025/12/16/meta-platforms-transforms-audio-editing-prompt-based-sound-separation/)).
+
+Coverage reports that SAM Audio does **not** accept an audio example as a prompt, so "this is my voice" enrolment is not available [secondary report].
+
+The camera holder gives the product two directions. Both are hypotheses.
+- **Keep the camera holder.** Clean narration over crowds and other voices, for vloggers, tour guides, walking tours and street interviewers who hold the camera. Plain noise is already handled by commodity speech enhancement. The new value is voice-against-voice.
+- **Remove the camera holder.** The holder's chatter over a child's recital or sports game, or the holder singing along at a concert. Every phone video has a camera holder, so this widens the audience the most. Demand evidence so far is anecdotal:
+  - an Adobe community question asking how to "remove my voice and keep background noise" ([Adobe community](https://community.adobe.com/questions-544/i-want-remove-my-voice-and-keep-background-noise-161838));
+  - a 2017 patent on automatic self-utterance removal ([Justia](https://patents.justia.com/patent/20170178661)).
+
+  It also looks like an episodic, memory-driven purchase, closer to restoration than to a workflow tool.
+
+What competes with it:
+- iPhone 16 Audio Mix "In-Frame" already turns down off-screen voices, including the camera holder's, but only on spatial-audio clips shot on those phones.
+- Samsung Audio Eraser separates by sound type. It cannot separate a fan singing along from the performer.
+
+The technical risk is the hardest case in separation: voice against voice, and worst of all singing against singing. Two things may help:
+- span prompts, which work if there are moments where only the target speaks;
+- the near-field cue: the holder is closest to the mic, so loudest and least reverberant. This is a heuristic or fine-tuning signal the team could add [hypothesis].
+
+Add four camera-holder cases to the Recommendation A bake-off:
+1. narration in a crowd (keep);
+2. a parent talking over a recital (remove);
+3. singing along at a concert (remove);
+4. a POV interview with the holder asking questions (split into two tracks).
+
+If either direction works, idea 1 becomes "any voice, keep or remove, chosen by face, by moment or by description". That raises its audience score. Pricing should assume one-off, per-video buyers in the "remove" case.
+
 ## Evidence is thin where it matters most, so do a manual community pass first
 
 The demand evidence rests on vendor pages, review sites and press because Reddit and Korean communities (Clien, DC Inside, Naver Cafe) returned almost nothing in this research. No Google Trends or search-volume data was pulled, Samsung's Korean market share and Kmong/Soomgo pricing for editing and audio cleanup were not found, and the BlurMe-versus-YouTube-blur premise could not be verified (BlurMe lists a free tier and paid plans from about $7/month per GetApp) ([GetApp](https://www.getapp.com/all-software/a/blurme-ai-face-blur/)). Several figures conflict: Descript, Vrew and CapCut pricing differs between secondary sources, OpusClip and ElevenLabs ARR claims vary widely, and the CapCut paywall details are unresolved. The model-licence picture has unread primaries: sam-audio's own LICENSE, Nemotron's model card, OpenMDW-1.1, SeedVR2 weights, LatentSync weights. The scores in the first table are judgement, and the platform coverage grid has many unverified cells. No tool was tested hands-on, so every quality claim here is untested.
