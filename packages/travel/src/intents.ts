@@ -1,11 +1,14 @@
 import { findCategory } from "./categories";
-import type { Lang } from "./types";
+import type { LandmarkTopic } from "./narration";
+import type { Lang, Landmark } from "./types";
 
 /** Which place the user means when asking for navigation. */
 export type PlaceRef =
   | { kind: "ordinal"; index: number } // 0-based index into the last spoken list
   | { kind: "last_mentioned" }
-  | { kind: "nearest"; category?: string };
+  | { kind: "nearest"; category?: string }
+  /** A name or noun in the utterance ("that palace", "경복궁"); `text` is the normalized utterance. */
+  | { kind: "keyword"; text: string };
 
 export type TravelIntent =
   | { type: "nearby"; lang: Lang; category?: string; query?: string; radiusM?: number }
@@ -13,7 +16,11 @@ export type TravelIntent =
   | { type: "how_far"; lang: Lang }
   | { type: "next_turn"; lang: Lang }
   | { type: "navigate_to"; lang: Lang; ref: PlaceRef }
-  | { type: "stop_navigation"; lang: Lang };
+  | { type: "stop_navigation"; lang: Lang }
+  | { type: "landmarks_nearby"; lang: Lang; radiusM?: number }
+  | { type: "landmark_info"; lang: Lang; ref: PlaceRef }
+  | { type: "landmark_followup"; lang: Lang; topic: LandmarkTopic; ref?: PlaceRef }
+  | { type: "stop_narration"; lang: Lang };
 
 const WALK_M_PER_MIN = 80;
 
@@ -74,6 +81,8 @@ export function parseTravelIntent(raw: string): TravelIntent | null {
   const cat = findCategory(s);
 
   if (STOP.test(s)) return { type: "stop_navigation", lang };
+  const lm = parseLandmarkIntent(s, lang, cat !== undefined);
+  if (lm) return lm;
   if (HOW_FAR.test(s) && !cat) return { type: "how_far", lang };
 
   if (GO.test(s)) {
@@ -111,11 +120,111 @@ export function parseTravelIntent(raw: string): TravelIntent | null {
   return null;
 }
 
+// ---------- landmarks ----------
+
+const STOP_NARRATION =
+  /^(멈춰|멈춰줘|멈춰봐|그만|그만해|그만해줘|그만 말해|스톱|정지|중지|됐어|충분해|조용히|stop|stop it|stop talking|stop reading|pause|enough|that'?s enough|be quiet|never ?mind)$/;
+const LM_THEME =
+  /역사|유적|유물|고궁|궁궐|문화재|사적지?|랜드마크|\bhistor(y|ic|ical)\b|\blandmarks?\b|\bmonuments?\b|\bheritage\b|\bpalaces?\b|\btemples?\b/;
+const LM_ASK = /추천|알려|있어|있나|가볼|구경|볼\s*만|어디|\brecommend|\bany\b|\bwhere\b|\bshow\b|\bwhat\b|\bsee\b|\bvisit\b|\bis there\b|\bare there\b/;
+const LM_INFO =
+  /알려|설명|소개|어떤\s*(곳|데|장소)|무슨\s*곳|뭐\s*하는|이야기|얘기|들려|\btell me (about|more about)\b|\bwhat('?s| is| are) (it|that|this|there|the (first|second|third|last))\b|\babout (it|that|the|this)\b|\bdescribe\b|\bexplain\b|\bwhat kind of place\b|\bwhat about\b/;
+const F_PERIOD =
+  /언제.*(지어|세워|만들|건립|창건|세웠|지은|생겼|만든)|몇\s*년.*(지어|세워|건립|창건)|건립\s*(시기|연도)|\bwhen\b.*\b(built|constructed|founded|established|made|opened)\b|\bwhat year\b|\bhow old\b/;
+const F_HOURS =
+  /몇\s*시.*(까지|부터|열|닫)|운영\s*시간|영업\s*시간|관람\s*시간|개방\s*시간|쉬는\s*날|휴무|\bopening hours\b|\bopen(s|ing)? (hours|times?)\b|\bwhat time\b.*\b(open|close)|\bis it open\b|\bclosed on\b|\bwhen (does|is) (it|that)\b.*\b(open|close)/;
+const F_FEE = /입장료|관람료|입장\s*요금|\badmission\b|\bentrance fee\b|\btickets?\b|\bhow much\b.*\b(cost|entry|admission|ticket)/;
+const F_WHY = /왜.*(유명|중요|특별)|무엇이\s*(특별|유명)|뭐가\s*(특별|유명)|\bwhy\b.*\b(famous|important|special|significant)\b|\bwhat makes\b.*\b(special|famous)\b/;
+const F_MORE =
+  /^(더|계속|좀 더|조금 더|더 알려줘|더 말해줘|더 들려줘|더 얘기해줘|계속해줘|계속 말해줘)$|더\s*(알려|말해|들려|얘기|설명)|계속\s*(해|말|설명|읽)|^(tell me |say |give me )?(a little |a bit )?more( about (it|that|this|there))?$|^(go on|continue|keep going)$/;
+const STRICT_ORDINAL = /번째|\b(first|second|third|last|1st|2nd|3rd) one\b|\bnumber (1|2|3|one|two|three)\b|#\d/;
+
+/** Noun hints for "that palace": the asking word and a pattern for landmark names. */
+const KEYWORD_REFS: Array<{ ask: RegExp; name: RegExp }> = [
+  { ask: /palace|궁궐|고궁|궁(?!금)/, name: /궁|palace/i },
+  { ask: /temple|사찰|절(?![가-힣])/, name: /사$|사\s|절|temple/i },
+  { ask: /\bgate\b|대문|(^|\s)문(\s|$)/, name: /문|gate/i },
+  { ask: /\bbell\b|종각|보신각|(^|\s)종(\s|$)/, name: /각|bell/i },
+  { ask: /stream|creek|하천|개천|(^|\s)천(\s|$)/, name: /천|stream/i },
+];
+
+function landmarkRef(s: string, strict: boolean): PlaceRef | undefined {
+  if (!strict || STRICT_ORDINAL.test(s)) {
+    for (const [index, re] of ORDINALS) if (re.test(s)) return { kind: "ordinal", index };
+    if (LAST.test(s)) return { kind: "ordinal", index: -1 };
+  }
+  if (!strict && THERE.test(s)) return { kind: "last_mentioned" };
+  if (KEYWORD_REFS.some((k) => k.ask.test(s))) return { kind: "keyword", text: s };
+  return undefined;
+}
+
+function parseLandmarkIntent(s: string, lang: Lang, hasCategory: boolean): TravelIntent | null {
+  if (STOP_NARRATION.test(s)) return { type: "stop_narration", lang };
+
+  const followTopic: LandmarkTopic | null = F_PERIOD.test(s)
+    ? "period"
+    : F_HOURS.test(s)
+      ? "hours"
+      : F_FEE.test(s)
+        ? "fee"
+        : F_WHY.test(s)
+          ? "why"
+          : F_MORE.test(s)
+            ? "more"
+            : null;
+  if (followTopic && !NEARBY_TRIGGER.test(s)) {
+    const ref = landmarkRef(s, true);
+    return ref ? { type: "landmark_followup", lang, topic: followTopic, ref } : { type: "landmark_followup", lang, topic: followTopic };
+  }
+
+  if (LM_INFO.test(s) && !NEARBY_TRIGGER.test(s) && !hasCategory && !GO.test(s)) {
+    const ref = landmarkRef(s, false);
+    if (ref) return { type: "landmark_info", lang, ref };
+    // A bare name ("경복궁 알려줘"): the controller matches it against the last list or ignores the utterance.
+    if (!LM_THEME.test(s)) return { type: "landmark_info", lang, ref: { kind: "keyword", text: s } };
+  }
+
+  if (LM_THEME.test(s) && !hasCategory && (NEARBY_TRIGGER.test(s) || LM_ASK.test(s)) && !GO.test(s) && !ORDINALS.some(([, re]) => re.test(s)) && !LAST.test(s) && !/거기|그곳|저기|\bthat one\b/.test(s)) {
+    const radiusM = parseRadius(s);
+    return radiusM ? { type: "landmarks_nearby", lang, radiusM } : { type: "landmarks_nearby", lang };
+  }
+  return null;
+}
+
+/**
+ * Resolve a landmark reference: ordinal, "that one", a name said in the utterance, or a noun like "palace".
+ * Returns undefined when nothing matches.
+ */
+export function resolveLandmarkRef(ref: PlaceRef, list: readonly Landmark[], lastMentioned?: Landmark): Landmark | undefined {
+  if (ref.kind !== "keyword") return resolvePlaceRef(ref, list, lastMentioned);
+  const text = ref.text.toLowerCase();
+  const squashed = text.replace(/\s+/g, "");
+  const byName = list.find((l) => {
+    const n = l.name.toLowerCase().replace(/\s+/g, "");
+    if (n.length >= 2 && squashed.includes(n)) return true;
+    return l.name
+      .toLowerCase()
+      .split(/[\s\-]+/)
+      .some((tok) => tok.length >= 4 && !GENERIC_TOKENS.has(tok) && text.includes(tok));
+  });
+  if (byName) return byName;
+  for (const k of KEYWORD_REFS) {
+    if (!k.ask.test(text)) continue;
+    const found = list.filter((l) => k.name.test(l.name));
+    if (found.length === 1) return found[0];
+    if (found.length > 1) return lastMentioned && found.includes(lastMentioned) ? lastMentioned : found[0];
+  }
+  return undefined;
+}
+
+const GENERIC_TOKENS = new Set(["palace", "temple", "gate", "street", "stream", "tower", "the", "park", "area", "road", "square"]);
+
 /** Resolve a place reference against the last list spoken to the user. */
 export function resolvePlaceRef<T>(ref: PlaceRef, lastList: readonly T[], lastMentioned?: T): T | undefined {
   if (ref.kind === "ordinal") {
     return ref.index < 0 ? lastList[lastList.length - 1] : lastList[ref.index];
   }
+  if (ref.kind === "keyword") return undefined;
   if (ref.kind === "last_mentioned") return lastMentioned ?? (lastList.length === 1 ? lastList[0] : undefined);
   return lastList[0];
 }

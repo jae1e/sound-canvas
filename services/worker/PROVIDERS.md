@@ -33,3 +33,35 @@ Result: **partly**. The path `dapi.kakao.com/v2/routing/walk` from earlier resea
 ## Google
 
 No walking directions in Korea. Not used.
+
+# Landmark discovery providers (added 2026-11-04)
+
+Checked on 2026-11-04. Labels as above: [V] read on an official page during this check, [3P] third-party reference, [U] unverified/recalled. **No API key was available, so no endpoint was called live.** Response field names are [U] until a key is applied for and one response is saved.
+
+## Korea Tourism Organization TourAPI (KorService2, EngService2)
+
+- [V] Korean service: "한국관광공사_국문 관광정보 서비스_GW", data.go.kr id 15101578, base `https://apis.data.go.kr/B551011/KorService2`, REST, JSON or XML, real-time update, registered 2022-06-24, last modified 2026-02-26. https://www.data.go.kr/data/15101578/openapi.do
+- [V] English service: "한국관광공사_영문 관광정보서비스_GW", id 15101753, base `https://apis.data.go.kr/B551011/EngService2`, last modified 2026-02-26. https://www.data.go.kr/data/15101753/openapi.do (Other languages follow the pattern, for example SpnService2 = id 15101811.)
+- [V] Operations on the data.go.kr page (names only): location-based list = `locationBasedList2`, common info = `detailCommon2`, intro info = `detailIntro2`. [3P] TourAPI 4.0 manual Ver 4.3 (2025-05-12) per https://skills.sh/2sem/kto-tourapi-korservice2-skill/kto-tourapi-korservice2.
+- [V] Parameters on the data.go.kr page. Common: `serviceKey`, `MobileOS` (IOS, AND, WIN, ETC), `MobileApp`, optional `numOfRows`, `pageNo`, `_type=json`. `locationBasedList2`: required `mapX` (WGS84 longitude), `mapY` (latitude), `radius` (m, max 20000); optional `arrange`, `contentTypeId`, `modifiedtime`, `lDongRegnCd`, `lDongSignguCd`, `lclsSystm1..3`. `detailCommon2`: required `contentId`. `detailIntro2`: required `contentId`, `contentTypeId`. [3P] `detailCommon2` no longer accepts the legacy flags `defaultYN`, `firstImageYN`, `areacodeYN`, `catcodeYN`, `addrinfoYN`, `mapinfoYN`, `overviewYN`; the Worker does not send them. [3P] Envelope: `response.header.{resultCode,resultMsg}`, `response.body.{numOfRows,pageNo,totalCount,items.item}`; success `resultCode` is "0000" [3P]; `item` can be an object or an array; an empty result has `items: ""` [U, handled].
+- [U] Item fields the Worker reads (TourAPI 4.0 names from memory): list items `contentid`, `contenttypeid`, `title`, `addr1`, `dist` (m, with `arrange=E` meaning distance order), `mapx` (lng), `mapy` (lat), `cat1..cat3`; `detailCommon2` `overview` (may contain `<br />` and entities; the Worker strips HTML); `detailIntro2` type 12: `usetime`, `restdate`, `heritage1..3`, `infocenter`, `expguide`, `spendtime`; type 14: `usetimeculture`, `restdateculture`, `usefee`, `infocenterculture`, `spendtime`. **Verify these and `arrange=E` with a real key** and adjust `src/providers/tourapi.ts` (`INTRO_FIELDS`) and `fromTour` in `src/providers/landmarks.ts`.
+- [U] `contentTypeId`: 12 tourist attraction, 14 cultural facility (also 15 event, 25 travel course, 28 leisure sports, 32 lodging, 38 shopping, 39 restaurant). The pages read here did not list the codes, so this is from memory of the TourAPI 4.0 manual. The Worker queries 12 and 14 and ranks "historic" with a name/category heuristic (`isHistoric`), because the list response has no reliable historic flag.
+- [V] Auth: the `serviceKey` query parameter. Store it as the Worker secret `TOUR_API_KEY`. data.go.kr issues an "Encoding" key (percent-encoded) and a "Decoding" key; the Worker accepts both (a key containing `%` is decoded once, then URL-encoded by `URLSearchParams`).
+- [3P] Key issuance: apply on the data.go.kr listing ("활용신청"); development-stage use is auto-approved, operation-stage use is reviewed. The traffic limit is not shown on the listing pages read here [unverified; a commonly quoted figure is 1,000 calls per day for a development account]. One `/landmarks/nearby` call costs 2 list calls plus up to `limit` overview calls (fewer with the 1 hour cache); one `/landmarks/detail` costs 2 calls.
+- Coverage note [U]: the English service has fewer items and often no `overview`; the Wikipedia fallback covers some of that. Korean and English services use different `contentid` values for the same place, so use an id with the same `lang` it came from.
+
+### License (text) and attribution
+
+- [V] The data.go.kr listing states: 이용허락범위 "제한 없음" (no usage restrictions), cost free. The page mentions 공공누리 only for **photos**: "공공누리 1유형, 3유형 이미지 제공됨" (Type 1 = attribution; Type 3 = attribution plus no derivative works). Photos must not defame or infringe the rights of the subject and must not be used for corporate CI/BI. The listing gives no KOGL type for the text fields (overview, intro), so the "no restrictions" statement is what applies to text. **Images are out of scope and not used.**
+- Attribution policy used here: none is stated as required for text, but every response and screen label carries "출처: 한국관광공사 TourAPI (공공데이터포털)" / "Source: Korea Tourism Organization TourAPI (data.go.kr)", and the spoken answer says it is based on Korea Tourism Organization data. [U] Re-read the data.go.kr usage policy and the TourAPI operation policy before publishing the app; the policy URL guessed in this check returned 404.
+- **Caching decision:** a 1 hour in-memory cache for `/landmarks/detail` description text only (TourAPI and Wikipedia), because "no restrictions" and CC BY-SA allow reuse and it saves the daily quota. Kakao responses and coordinate-keyed lists are not cached. The cache is per isolate and bounded to 200 entries.
+
+## Kakao Local category AT4 (tourist attractions)
+
+- [V] See the Kakao section above: `GET /v2/local/search/category.json` with `category_group_code=AT4`, `x`, `y`, `radius`, `sort=distance` returns `place_name`, `category_name` (for example "여행 > 관광,명소 > 고궁" [U] exact tree text), `x`, `y`, `distance`. Kakao supplements TourAPI: hits within 60 m of, or with a name containing, a TourAPI hit are dropped. Kakao has no description text; the `oneLine` for a Kakao-only hit is its leaf category.
+- Same terms caveat as above: caching and display terms were not on the dev-guide page, so nothing from Kakao is cached.
+
+## Wikipedia REST summary (optional fallback)
+
+- [V] `GET https://{ko|en}.wikipedia.org/api/rest_v1/page/summary/{title}` returned JSON with `type`, `title`, `extract`, `extract_html`, `description`, `coordinates`, `content_urls.desktop.page`, `thumbnail` (checked 2026-11-04 with the title 경복궁). https://ko.wikipedia.org/api/rest_v1/page/summary/경복궁
+- [3P/U] Text is CC BY-SA 4.0 (attribution and share-alike); the summary response has no license field. Used only when TourAPI has no `overview` (or for a Kakao-only place with a name); labeled "Source: Wikipedia (CC BY-SA 4.0)" with `sourceUrl`, and spoken as "based on a Wikipedia summary". The lookup is by exact title, so it misses some names (best effort, returns null). The Worker sends a descriptive `User-Agent` as Wikimedia asks.

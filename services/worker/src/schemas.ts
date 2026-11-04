@@ -57,3 +57,28 @@ export const llmRequest = z
   })
   .strict();
 export type LlmRequest = z.infer<typeof llmRequest>;
+
+const langEnum = z.enum(["ko", "en"]);
+
+/** `POST /landmarks/nearby`. `theme` defaults to historic; `any` returns all tourist attractions. */
+export const landmarksNearbyRequest = z
+  .object({
+    lat: z.number().min(-90).max(90),
+    lng: z.number().min(-180).max(180),
+    radiusM: z.number().int().min(1).max(20000).default(1500),
+    lang: langEnum.default("ko"),
+    limit: z.number().int().min(1).max(10).default(3),
+    theme: z.enum(["historic", "any"]).default("historic"),
+  })
+  .strict();
+export type LandmarksNearbyRequest = z.infer<typeof landmarksNearbyRequest>;
+
+/** `POST /landmarks/detail`. `id` comes from `/landmarks/nearby`; `name` enables the Wikipedia fallback. */
+export const landmarkDetailRequest = z
+  .object({
+    id: z.string().regex(/^(tourapi:\d{1,12}:\d{1,3}|kakao:\d{1,20})$/, "unknown id format"),
+    lang: langEnum.default("ko"),
+    name: z.string().trim().min(1).max(100).optional(),
+  })
+  .strict();
+export type LandmarkDetailRequest = z.infer<typeof landmarkDetailRequest>;

@@ -1,4 +1,4 @@
-import type { LatLng, Place, WalkRoute, WhereAmI } from '@vlc/travel';
+import type { Lang, LatLng, Landmark, LandmarkDetail, Place, WalkRoute, WhereAmI } from '@vlc/travel';
 import { readTravelConfig, type TravelConfig } from './config';
 import { MockTravelClient } from './mock';
 
@@ -11,12 +11,18 @@ export type SearchParams = {
   limit?: number;
 };
 
+export type LandmarkParams = { lat: number; lng: number; radiusM?: number; lang: Lang; limit?: number; theme?: 'historic' | 'any' };
+/** `name` lets the Worker try Wikipedia when the provider has no text. */
+export type LandmarkDetailParams = { id: string; lang: Lang; name?: string };
+
 /** Everything the Travel Guide needs from the network. Swap implementations freely. */
 export interface TravelClient {
   readonly mode: 'worker' | 'mock';
   searchPlaces(p: SearchParams, signal?: AbortSignal): Promise<Place[]>;
   where(p: LatLng, signal?: AbortSignal): Promise<WhereAmI>;
   walkRoute(p: { from: LatLng; to: LatLng; via?: LatLng[] }, signal?: AbortSignal): Promise<WalkRoute>;
+  nearbyLandmarks(p: LandmarkParams, signal?: AbortSignal): Promise<Landmark[]>;
+  landmarkDetail(p: LandmarkDetailParams, signal?: AbortSignal): Promise<LandmarkDetail>;
 }
 
 export class TravelClientError extends Error {
@@ -62,6 +68,14 @@ export class WorkerTravelClient implements TravelClient {
 
   async walkRoute(p: { from: LatLng; to: LatLng; via?: LatLng[] }, signal?: AbortSignal): Promise<WalkRoute> {
     return (await this.post<{ route: WalkRoute }>('/route/walk', p, signal)).route;
+  }
+
+  async nearbyLandmarks(p: LandmarkParams, signal?: AbortSignal): Promise<Landmark[]> {
+    return (await this.post<{ landmarks: Landmark[] }>('/landmarks/nearby', { radiusM: 1500, limit: 3, theme: 'historic', ...p }, signal)).landmarks;
+  }
+
+  async landmarkDetail(p: LandmarkDetailParams, signal?: AbortSignal): Promise<LandmarkDetail> {
+    return (await this.post<{ detail: LandmarkDetail }>('/landmarks/detail', p, signal)).detail;
   }
 }
 

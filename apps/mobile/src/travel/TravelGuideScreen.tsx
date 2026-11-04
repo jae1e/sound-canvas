@@ -4,7 +4,7 @@ import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-
 import { Btn, Row, Section } from '../ui';
 import { RoutePreview } from './RoutePreview';
 import { createTravelClient, type TravelClient } from './client';
-import { TravelController, type SpeakFn } from './controller';
+import { TravelController, landmarkToPlace, type SpeakFn } from './controller';
 import { useGpsFix } from './location';
 import { t, type StringKey } from './strings';
 
@@ -100,6 +100,42 @@ export function TravelGuideScreen({ onSpeak, lang = 'ko', client, controller, fe
           ))}
         </View>
         <Btn label={t('search', lang)} onPress={runSearch} disabled={s.busy} testID="travel-search" />
+      </Section>
+
+      <Section title={t('landmarks', lang)}>
+        <Btn label={t('findLandmarks', lang)} onPress={() => ctl.findLandmarks({}, true)} disabled={s.busy} testID="travel-landmarks" />
+        {s.landmarkSearched && s.landmarks.length === 0 && <Text>{t('noLandmarks', lang)}</Text>}
+        {s.landmarks.map((l, i) => (
+          <View key={l.id} style={[styles.place, s.selectedLandmark?.id === l.id && styles.placeSelected]} accessibilityLabel={`landmark-${i}`}>
+            <Text style={styles.placeName}>
+              {i + 1}. {l.name}
+            </Text>
+            <Text style={styles.dim}>
+              {formatDistance(l.distanceM, lang)} · {l.category}
+            </Text>
+            {l.oneLine ? <Text>{l.oneLine}</Text> : null}
+            <Text style={styles.dim} testID={`landmark-attribution-${i}`}>
+              {l.attribution}
+            </Text>
+            <Row>
+              <Btn label={t('listen', lang)} onPress={() => ctl.describe(l, true)} disabled={s.busy} testID={`landmark-listen-${i}`} />
+              <Btn label={t('goThere', lang)} onPress={() => ctl.preview(landmarkToPlace(l), true)} testID={`landmark-go-${i}`} />
+            </Row>
+          </View>
+        ))}
+        {s.narration && s.selectedLandmark?.id === s.narration.landmarkId && (
+          <Text style={styles.dim} testID="landmark-narration-source">
+            {s.narration.detail.attribution}
+            {s.narration.detail.sourceUrl ? ` · ${s.narration.detail.sourceUrl}` : ''}
+          </Text>
+        )}
+        {s.narrating && (
+          <Row>
+            <Text style={styles.dim}>{t('narrating', lang)}</Text>
+            <Btn label={t('stopNarration', lang)} onPress={() => ctl.stopNarration()} testID="landmark-stop" />
+          </Row>
+        )}
+        {s.landmarks.length > 0 && <Text style={styles.dim}>{t('voiceHint', lang)}</Text>}
       </Section>
 
       {s.error && <Text style={styles.err}>{t(`err_${s.error}` as StringKey, lang)}</Text>}

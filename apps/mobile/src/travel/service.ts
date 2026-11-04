@@ -1,6 +1,7 @@
 import { haversineM, type GpsFix, type Place } from '@vlc/travel';
 import { describeNoteSaved, type Lang, type Session } from '@vlc/session-engine';
 
+import VlcSessionService from '../../modules/vlc-session-service';
 import { getDb } from '../db/client';
 import { createJournalEntry, listJournalEntries } from '../db/repos/journal';
 import { listPlaces, savePlace, saveRoute } from '../db/repos/travel';
@@ -12,7 +13,16 @@ import { TravelController } from './controller';
 import { WalkLog, walkSummaryText } from './walkLog';
 
 /** The app-wide Travel Guide controller. It speaks only through the running native session. */
-export const travelController = new TravelController(createTravelClient(), (text, lang) => void speakThroughSession(text, lang), 'ko');
+export const travelController = new TravelController(createTravelClient(), (text, lang) => void speakThroughSession(text, lang), 'ko', Date.now, {
+  // "멈춰" / "stop" during landmark narration: drop queued chunks and the one being spoken.
+  onStopSpeech: () => {
+    try {
+      VlcSessionService.stopSpeaking();
+    } catch {
+      // No native session: nothing is playing.
+    }
+  },
+});
 
 const NEAR_PLACE_M = 75;
 

@@ -34,7 +34,15 @@ const S = {
   err_no_route: { ko: '경로를 찾지 못했어요', en: 'Could not get a route' },
   lastSpoken: { ko: '마지막 음성 안내', en: 'Last spoken' },
   simulate: { ko: '현재 위치를 목적지에 가깝게 이동(테스트)', en: 'Step along route (test)' },
-  chip_all: { ko: '전체', en: 'All' },
+  landmarks: { ko: '근처 역사 명소', en: 'Historic landmarks nearby' },
+  findLandmarks: { ko: '역사 명소 찾기', en: 'Find historic landmarks' },
+  noLandmarks: { ko: '근처에서 찾지 못했어요', en: 'None found nearby' },
+  listen: { ko: '설명 듣기', en: 'Listen' },
+  goThere: { ko: '길 안내', en: 'Walk there' },
+  stopNarration: { ko: '설명 멈춤', en: 'Stop narration' },
+  narrating: { ko: '설명을 읽는 중...', en: 'Reading the description...' },
+  voiceHint: { ko: '"두 번째 알려줘", "거기로 가자"처럼 말해 보세요', en: 'Try "tell me about the second one" or "take me there"' },
+  chip_all:{ ko: '전체', en: 'All' },
 } as const;
 
 export type StringKey = keyof typeof S;

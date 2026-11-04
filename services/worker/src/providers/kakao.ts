@@ -7,7 +7,7 @@ const BASE = "https://dapi.kakao.com/v2/local";
 /** Used for "what's around" with no query and no category. */
 const DEFAULT_CATEGORIES = ["CE7", "FD6", "CS2", "AT4", "SW8"];
 
-interface KakaoDoc {
+export interface KakaoDoc {
   id: string;
   place_name: string;
   category_name?: string;
@@ -59,7 +59,7 @@ export class KakaoPlaces implements PlacesProvider {
       .slice(0, req.limit);
   }
 
-  private async docs(path: string, params: Record<string, string | number | undefined>): Promise<KakaoDoc[]> {
+  async docs(path: string, params: Record<string, string | number | undefined>): Promise<KakaoDoc[]> {
     const json = (await this.get(path, params)) as { documents?: KakaoDoc[] };
     return Array.isArray(json.documents) ? json.documents : [];
   }
