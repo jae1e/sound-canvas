@@ -1,0 +1,25 @@
+id: US-2.2
+persona: P2
+persona_name: Wedding and event videographer
+title: Keep the room (laughter and applause)
+prompt_types:
+- text
+strategy: sequential
+clips:
+  real:
+  - Event recordings with consent, if available
+  synthetic:
+  - Speech + laughter/applause (Freesound CC0) + DJ music
+baselines:
+- Adobe Enhance Speech
+- DaVinci Resolve Voice Isolation
+- iZotope RX (if available)
+metrics:
+- si_sdri_db
+- Level control accuracy for kept ambience
+- blind_preference
+- usable_without_apology
+pass_bar:
+  blind_preference_min: 0.6
+  usable_without_apology_min: 0.5
+  note: Wins blind preference on at least 60% of clips; at least half of clips are usable without apology.

@@ -1,0 +1,22 @@
+id: US-6.3
+persona: P6
+persona_name: K-pop cover singer, vocal student or teacher
+title: Use the music video (click a face)
+prompt_types:
+- visual
+strategy: sequential
+clips:
+  real:
+  - One music video the team owns
+  synthetic: []
+baselines:
+- LALAL.AI Lead & Back Vocal Splitter
+metrics:
+- si_sdri_db
+- Face click picks the right singer
+- blind_preference
+- usable_without_apology
+pass_bar:
+  blind_preference_min: 0.6
+  usable_without_apology_min: 0.5
+  note: Wins blind preference on at least 60% of clips; at least half of clips are usable without apology.

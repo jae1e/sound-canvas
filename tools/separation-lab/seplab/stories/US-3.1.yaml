@@ -1,0 +1,25 @@
+id: US-3.1
+persona: P3
+persona_name: Interview podcaster or oral-history journalist
+title: Speaker split
+prompt_types:
+- span
+strategy: sequential
+clips:
+  real:
+  - 10-minute cafe conversation
+  synthetic:
+  - Two lav-recorded speakers mixed to one mic with crosstalk; 2 and 3 speakers
+baselines:
+- AudioShake (if trial access allows)
+- Descript
+metrics:
+- si_sdri_db
+- Per-speaker SI-SDRi
+- Real-time factor
+- blind_preference
+- usable_without_apology
+pass_bar:
+  blind_preference_min: 0.6
+  usable_without_apology_min: 0.5
+  note: Wins blind preference on at least 60% of clips; at least half of clips are usable without apology.

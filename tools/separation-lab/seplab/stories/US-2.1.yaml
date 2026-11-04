@@ -1,0 +1,27 @@
+id: US-2.1
+persona: P2
+persona_name: Wedding and event videographer
+title: Rescue the toast
+prompt_types:
+- span
+strategy: sequential
+clips:
+  real:
+  - Event recordings with consent, if available
+  synthetic:
+  - Clean speech convolved with a ballroom RIR + party noise + a song with vocals; 10-20 min speeches
+    for length tests
+baselines:
+- Adobe Enhance Speech
+- DaVinci Resolve Voice Isolation
+- iZotope RX (if available)
+metrics:
+- si_sdri_db
+- Exact output length in samples
+- Chunk seam artifacts
+- blind_preference
+- usable_without_apology
+pass_bar:
+  blind_preference_min: 0.6
+  usable_without_apology_min: 0.5
+  note: Wins blind preference on at least 60% of clips; at least half of clips are usable without apology.

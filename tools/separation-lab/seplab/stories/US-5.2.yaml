@@ -1,0 +1,24 @@
+id: US-5.2
+persona: P5
+persona_name: Parent filming a recital, game or demo
+title: Keep the cheering, drop our conversation
+prompt_types:
+- text
+strategy: sequential
+clips:
+  real:
+  - Game clip with crowd and our talking
+  synthetic:
+  - Crowd noise (Freesound CC0) + close speech
+baselines:
+- Samsung Audio Eraser
+- iPhone Audio Mix (where possible)
+metrics:
+- si_sdri_db
+- Crowd kept vs speech removed
+- blind_preference
+- usable_without_apology
+pass_bar:
+  blind_preference_min: 0.6
+  usable_without_apology_min: 0.5
+  note: Wins blind preference on at least 60% of clips; at least half of clips are usable without apology.

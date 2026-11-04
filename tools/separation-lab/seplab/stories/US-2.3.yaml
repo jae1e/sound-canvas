@@ -1,0 +1,26 @@
+id: US-2.3
+persona: P2
+persona_name: Wedding and event videographer
+title: Batch the reception
+prompt_types:
+- span
+strategy: sequential
+clips:
+  real:
+  - Multi-camera event files, if available
+  synthetic:
+  - Same speaker mixed into 4 synthetic files with different noise
+baselines:
+- Adobe Enhance Speech
+- DaVinci Resolve Voice Isolation
+- iZotope RX (if available)
+metrics:
+- si_sdri_db
+- Cross-file speaker match recall
+- Batch throughput
+- blind_preference
+- usable_without_apology
+pass_bar:
+  blind_preference_min: 0.6
+  usable_without_apology_min: 0.5
+  note: Wins blind preference on at least 60% of clips; at least half of clips are usable without apology.

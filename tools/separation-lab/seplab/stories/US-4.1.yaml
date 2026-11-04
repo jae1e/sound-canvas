@@ -1,0 +1,25 @@
+id: US-4.1
+persona: P4
+persona_name: Freelance VOD highlight editor
+title: Remove the music, keep everything else
+prompt_types:
+- text
+strategy: sequential
+clips:
+  real:
+  - Own stream or gameplay captures with music, 1-3 h
+  synthetic:
+  - Speech + game sound + commercial-free music with vocals; long-file chunking test
+baselines:
+- YouTube Erase Song
+metrics:
+- si_sdri_db
+- Residual music leakage
+- Content ID claim rate (manual, unlisted upload)
+- Chunk seam artifacts
+- blind_preference
+- usable_without_apology
+pass_bar:
+  blind_preference_min: 0.6
+  usable_without_apology_min: 0.5
+  note: Wins blind preference on at least 60% of clips; at least half of clips are usable without apology.

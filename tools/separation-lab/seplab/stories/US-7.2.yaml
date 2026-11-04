@@ -1,0 +1,24 @@
+id: US-7.2
+persona: P7
+persona_name: Hobby guitarist learning songs by ear
+title: Click the player
+prompt_types:
+- visual
+strategy: sequential
+clips:
+  real:
+  - Live videos with a visible guitarist
+  synthetic: []
+baselines:
+- Moises
+- LALAL.AI
+- Suno stem split
+metrics:
+- si_sdri_db
+- Visual prompt vs text prompt
+- blind_preference
+- usable_without_apology
+pass_bar:
+  blind_preference_min: 0.6
+  usable_without_apology_min: 0.5
+  note: Wins blind preference on at least 60% of clips; at least half of clips are usable without apology.

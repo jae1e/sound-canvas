@@ -1,0 +1,24 @@
+id: US-3.3
+persona: P3
+persona_name: Interview podcaster or oral-history journalist
+title: Remove the cafe (music, machine noise)
+prompt_types:
+- text
+strategy: sequential
+clips:
+  real:
+  - Cafe conversation
+  synthetic:
+  - Speaker split mixes + cafe music and espresso machine noise
+baselines:
+- AudioShake (if trial access allows)
+- Descript
+metrics:
+- si_sdri_db
+- Noise reduction on every speaker track
+- blind_preference
+- usable_without_apology
+pass_bar:
+  blind_preference_min: 0.6
+  usable_without_apology_min: 0.5
+  note: Wins blind preference on at least 60% of clips; at least half of clips are usable without apology.

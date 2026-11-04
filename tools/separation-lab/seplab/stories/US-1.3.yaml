@@ -1,0 +1,24 @@
+id: US-1.3
+persona: P1
+persona_name: Street-interview Shorts creator
+title: Remove the shop music, keep some ambience
+prompt_types:
+- text
+strategy: sequential
+clips:
+  real:
+  - Street clips with shop music
+  synthetic:
+  - Speech + music at 0 and -5 dB; ambience stem kept at a level slider setting
+baselines:
+- CapCut noise removal
+- Adobe Enhance Speech
+metrics:
+- si_sdri_db
+- Ambience level accuracy
+- blind_preference
+- usable_without_apology
+pass_bar:
+  blind_preference_min: 0.6
+  usable_without_apology_min: 0.5
+  note: Wins blind preference on at least 60% of clips; at least half of clips are usable without apology.

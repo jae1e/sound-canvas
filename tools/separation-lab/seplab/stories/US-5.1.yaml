@@ -1,0 +1,24 @@
+id: US-5.1
+persona: P5
+persona_name: Parent filming a recital, game or demo
+title: Remove us (voice near the camera, people talking)
+prompt_types:
+- text
+strategy: sequential
+clips:
+  real:
+  - Piano piece with two people talking near the phone
+  synthetic:
+  - Clean performance + close speech recorded near the phone
+baselines:
+- Samsung Audio Eraser
+- iPhone Audio Mix (where possible)
+metrics:
+- si_sdri_db
+- Performance intact (SI-SDRi of the kept track)
+- blind_preference
+- usable_without_apology
+pass_bar:
+  blind_preference_min: 0.6
+  usable_without_apology_min: 0.5
+  note: Wins blind preference on at least 60% of clips; at least half of clips are usable without apology.

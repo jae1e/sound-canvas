@@ -30,3 +30,18 @@ tools/tts-samples/**/*.wav
 # Deep-research working folders (copies live under docs/market-studies)
 /research_notes/
 /reports/
+
+# Separation lab: environment, data, runs, generated media
+tools/separation-lab/.venv/
+tools/separation-lab/data/
+tools/separation-lab/runs/
+tools/separation-lab/**/*.wav
+tools/separation-lab/**/*.mp4
+tools/separation-lab/**/*.m4a
+tools/separation-lab/**/*.flac
+tools/separation-lab/**/*.mp3
+tools/separation-lab/**/*.mkv
+tools/separation-lab/**/*.pt
+tools/separation-lab/**/*.safetensors
+__pycache__/
+.pytest_cache/

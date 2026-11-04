@@ -1,0 +1,25 @@
+id: P5-concert
+persona: P5
+persona_name: Parent filming a recital, game or demo
+title: 'Stretch: concert sing-along (stage sound kept, fans to others)'
+prompt_types:
+- text
+- visual
+strategy: sequential
+clips:
+  real:
+  - Concert clip with audience singing
+  synthetic:
+  - Stage mix + synthetic near-unison crowd vocals
+baselines:
+- Samsung Audio Eraser
+- iPhone Audio Mix (where possible)
+metrics:
+- si_sdri_db
+- Leakage of fans' singing (reduction, not elimination)
+- blind_preference
+- usable_without_apology
+pass_bar:
+  blind_preference_min: 0.6
+  usable_without_apology_min: 0.5
+  note: Wins blind preference on at least 60% of clips; at least half of clips are usable without apology.

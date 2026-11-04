@@ -1,0 +1,24 @@
+id: US-6.1
+persona: P6
+persona_name: K-pop cover singer, vocal student or teacher
+title: Only her lines
+prompt_types:
+- span
+strategy: sequential
+clips:
+  real:
+  - One real group song the team owns, rated subjectively
+  synthetic:
+  - VocalSet singers arranged as alternating lines; two friends on separate tracks
+baselines:
+- LALAL.AI Lead & Back Vocal Splitter
+metrics:
+- si_sdri_db
+- Singer-line recall and precision
+- Group sections labelled not separable
+- blind_preference
+- usable_without_apology
+pass_bar:
+  blind_preference_min: 0.6
+  usable_without_apology_min: 0.5
+  note: Wins blind preference on at least 60% of clips; at least half of clips are usable without apology.

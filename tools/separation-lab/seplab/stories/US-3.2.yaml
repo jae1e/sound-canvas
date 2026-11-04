@@ -1,0 +1,24 @@
+id: US-3.2
+persona: P3
+persona_name: Interview podcaster or oral-history journalist
+title: Name the speakers
+prompt_types:
+- span
+strategy: sequential
+clips:
+  real:
+  - Cafe conversation
+  synthetic:
+  - Synthetic 3-speaker mix with known speaker labels
+baselines:
+- AudioShake (if trial access allows)
+- Descript
+metrics:
+- si_sdri_db
+- Sample picker covers the right speaker
+- blind_preference
+- usable_without_apology
+pass_bar:
+  blind_preference_min: 0.6
+  usable_without_apology_min: 0.5
+  note: Wins blind preference on at least 60% of clips; at least half of clips are usable without apology.

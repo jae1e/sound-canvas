@@ -1,0 +1,25 @@
+id: US-1.2
+persona: P1
+persona_name: Street-interview Shorts creator
+title: Keep me too (camera holder)
+prompt_types:
+- span
+- text
+strategy: sequential
+clips:
+  real:
+  - Same street clips; camera holder marks one question
+  synthetic:
+  - Two target speakers + interferer speech at 0 dB
+baselines:
+- CapCut noise removal
+- Adobe Enhance Speech
+metrics:
+- si_sdri_db
+- Recall and precision of the camera holder's lines
+- blind_preference
+- usable_without_apology
+pass_bar:
+  blind_preference_min: 0.6
+  usable_without_apology_min: 0.5
+  note: Wins blind preference on at least 60% of clips; at least half of clips are usable without apology.

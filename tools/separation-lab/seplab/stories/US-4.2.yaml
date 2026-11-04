@@ -1,0 +1,24 @@
+id: US-4.2
+persona: P4
+persona_name: Freelance VOD highlight editor
+title: Stems for my editor (voice, game sound, music)
+prompt_types:
+- text
+strategy: sequential
+clips:
+  real:
+  - Own stream captures
+  synthetic:
+  - Three-source mixes with ground truth
+baselines:
+- YouTube Erase Song
+metrics:
+- si_sdri_db
+- Stem sum equals input
+- Exact output length
+- blind_preference
+- usable_without_apology
+pass_bar:
+  blind_preference_min: 0.6
+  usable_without_apology_min: 0.5
+  note: Wins blind preference on at least 60% of clips; at least half of clips are usable without apology.

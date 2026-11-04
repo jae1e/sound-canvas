@@ -1,0 +1,23 @@
+id: US-6.4
+persona: P6
+persona_name: K-pop cover singer, vocal student or teacher
+title: Teacher batch (minus one member)
+prompt_types:
+- none (batch story)
+strategy: sequential
+clips:
+  real:
+  - Several songs
+  synthetic:
+  - Several synthetic songs
+baselines:
+- LALAL.AI Lead & Back Vocal Splitter
+metrics:
+- si_sdri_db
+- Throughput
+- blind_preference
+- usable_without_apology
+pass_bar:
+  blind_preference_min: 0.6
+  usable_without_apology_min: 0.5
+  note: Wins blind preference on at least 60% of clips; at least half of clips are usable without apology.

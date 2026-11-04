@@ -1,0 +1,26 @@
+id: US-7.1
+persona: P7
+persona_name: Hobby guitarist learning songs by ear
+title: The second guitar
+prompt_types:
+- text
+strategy: sequential
+clips:
+  real:
+  - Self-recorded two-guitar pieces
+  synthetic:
+  - Slakh2100 songs with two guitars; target 'acoustic rhythm guitar'
+baselines:
+- Moises
+- LALAL.AI
+- Suno stem split
+metrics:
+- si_sdri_db
+- Reranking on vs off
+- Other guitar reduction
+- blind_preference
+- usable_without_apology
+pass_bar:
+  blind_preference_min: 0.6
+  usable_without_apology_min: 0.5
+  note: Wins blind preference on at least 60% of clips; at least half of clips are usable without apology.

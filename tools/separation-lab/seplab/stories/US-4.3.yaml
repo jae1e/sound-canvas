@@ -1,0 +1,23 @@
+id: US-4.3
+persona: P4
+persona_name: Freelance VOD highlight editor
+title: Overnight batch
+prompt_types:
+- none (batch story)
+strategy: sequential
+clips:
+  real:
+  - 10 stream segments
+  synthetic:
+  - 10 synthetic segments
+baselines:
+- YouTube Erase Song
+metrics:
+- si_sdri_db
+- Throughput and GPU cost per audio minute
+- blind_preference
+- usable_without_apology
+pass_bar:
+  blind_preference_min: 0.6
+  usable_without_apology_min: 0.5
+  note: Wins blind preference on at least 60% of clips; at least half of clips are usable without apology.
