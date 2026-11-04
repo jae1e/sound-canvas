@@ -1,4 +1,5 @@
 import { wireModeSessions } from '../session/wire';
+import { wireRoutineController } from '../routine/instance';
 import { restoreWork } from './instance';
 
 /**
@@ -7,5 +8,6 @@ import { restoreWork } from './instance';
  */
 export function restoreWorkSession(): void {
   restoreWork();
+  wireRoutineController();
   wireModeSessions();
 }

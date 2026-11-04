@@ -1,0 +1,178 @@
+[
+ {
+  "file": "ko_moss-tts-nano_ava_K1.wav",
+  "model": "moss-tts-nano",
+  "voice": "ava",
+  "id": "K1",
+  "dur": 4.4,
+  "gen_s": 1.673,
+  "rtf": 0.38,
+  "sr": 48000,
+  "download_bytes": 762666636
+ },
+ {
+  "file": "ko_moss-tts-nano_ava_K2.wav",
+  "model": "moss-tts-nano",
+  "voice": "ava",
+  "id": "K2",
+  "dur": 3.44,
+  "gen_s": 1.325,
+  "rtf": 0.385,
+  "sr": 48000,
+  "download_bytes": 762666636
+ },
+ {
+  "file": "ko_moss-tts-nano_ava_K3.wav",
+  "model": "moss-tts-nano",
+  "voice": "ava",
+  "id": "K3",
+  "dur": 7.28,
+  "gen_s": 2.574,
+  "rtf": 0.354,
+  "sr": 48000,
+  "download_bytes": 762666636
+ },
+ {
+  "file": "ko_moss-tts-nano_ava_K4.wav",
+  "model": "moss-tts-nano",
+  "voice": "ava",
+  "id": "K4",
+  "dur": 1.68,
+  "gen_s": 0.715,
+  "rtf": 0.426,
+  "sr": 48000,
+  "download_bytes": 762666636
+ },
+ {
+  "file": "ko_moss-tts-nano_adam_K1.wav",
+  "model": "moss-tts-nano",
+  "voice": "adam",
+  "id": "K1",
+  "dur": 3.92,
+  "gen_s": 1.428,
+  "rtf": 0.364,
+  "sr": 48000,
+  "download_bytes": 762666636
+ },
+ {
+  "file": "ko_moss-tts-nano_adam_K2.wav",
+  "model": "moss-tts-nano",
+  "voice": "adam",
+  "id": "K2",
+  "dur": 4.16,
+  "gen_s": 1.516,
+  "rtf": 0.365,
+  "sr": 48000,
+  "download_bytes": 762666636
+ },
+ {
+  "file": "ko_moss-tts-nano_adam_K3.wav",
+  "model": "moss-tts-nano",
+  "voice": "adam",
+  "id": "K3",
+  "dur": 7.12,
+  "gen_s": 2.514,
+  "rtf": 0.353,
+  "sr": 48000,
+  "download_bytes": 762666636
+ },
+ {
+  "file": "ko_moss-tts-nano_adam_K4.wav",
+  "model": "moss-tts-nano",
+  "voice": "adam",
+  "id": "K4",
+  "dur": 1.6,
+  "gen_s": 0.663,
+  "rtf": 0.415,
+  "sr": 48000,
+  "download_bytes": 762666636
+ },
+ {
+  "file": "en_moss-tts-nano_ava_E1.wav",
+  "model": "moss-tts-nano",
+  "voice": "ava",
+  "id": "E1",
+  "dur": 4.96,
+  "gen_s": 1.809,
+  "rtf": 0.365,
+  "sr": 48000,
+  "download_bytes": 762666636
+ },
+ {
+  "file": "en_moss-tts-nano_ava_E2.wav",
+  "model": "moss-tts-nano",
+  "voice": "ava",
+  "id": "E2",
+  "dur": 2.96,
+  "gen_s": 1.108,
+  "rtf": 0.374,
+  "sr": 48000,
+  "download_bytes": 762666636
+ },
+ {
+  "file": "en_moss-tts-nano_ava_E3.wav",
+  "model": "moss-tts-nano",
+  "voice": "ava",
+  "id": "E3",
+  "dur": 5.92,
+  "gen_s": 2.117,
+  "rtf": 0.358,
+  "sr": 48000,
+  "download_bytes": 762666636
+ },
+ {
+  "file": "en_moss-tts-nano_ava_E4.wav",
+  "model": "moss-tts-nano",
+  "voice": "ava",
+  "id": "E4",
+  "dur": 2.4,
+  "gen_s": 0.956,
+  "rtf": 0.398,
+  "sr": 48000,
+  "download_bytes": 762666636
+ },
+ {
+  "file": "en_moss-tts-nano_adam_E1.wav",
+  "model": "moss-tts-nano",
+  "voice": "adam",
+  "id": "E1",
+  "dur": 4.72,
+  "gen_s": 1.63,
+  "rtf": 0.345,
+  "sr": 48000,
+  "download_bytes": 762666636
+ },
+ {
+  "file": "en_moss-tts-nano_adam_E2.wav",
+  "model": "moss-tts-nano",
+  "voice": "adam",
+  "id": "E2",
+  "dur": 2.64,
+  "gen_s": 0.98,
+  "rtf": 0.371,
+  "sr": 48000,
+  "download_bytes": 762666636
+ },
+ {
+  "file": "en_moss-tts-nano_adam_E3.wav",
+  "model": "moss-tts-nano",
+  "voice": "adam",
+  "id": "E3",
+  "dur": 4.16,
+  "gen_s": 1.501,
+  "rtf": 0.361,
+  "sr": 48000,
+  "download_bytes": 762666636
+ },
+ {
+  "file": "en_moss-tts-nano_adam_E4.wav",
+  "model": "moss-tts-nano",
+  "voice": "adam",
+  "id": "E4",
+  "dur": 1.6,
+  "gen_s": 0.685,
+  "rtf": 0.428,
+  "sr": 48000,
+  "download_bytes": 762666636
+ }
+]

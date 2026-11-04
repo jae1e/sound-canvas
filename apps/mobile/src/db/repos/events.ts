@@ -4,7 +4,7 @@ import { events } from '../schema';
 import type { AppDb } from '../types';
 
 /** Kinds written by the app. `llm_needed` marks a question the deterministic layer could not answer (M4 input). */
-export type EventKind = 'action' | 'utterance' | 'llm_needed' | 'unrecognized' | 'cue' | 'session' | 'error';
+export type EventKind = 'action' | 'utterance' | 'llm_needed' | 'unrecognized' | 'cue' | 'session' | 'error' | 'routine';
 
 export interface EventRow {
   id: number;

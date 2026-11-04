@@ -5,6 +5,7 @@ import type { NudgeLevel } from '@vlc/session-engine';
 export const LANGUAGE_SETTINGS = ['auto', 'ko', 'en'] as const;
 export const TTS_ENGINES = ['auto', 'platform', 'supertonic'] as const;
 export const OUTPUT_ROUTES = ['auto', 'speaker'] as const;
+export const PACING_LEVELS = ['full', 'short', 'count'] as const;
 export const NUDGE_LEVELS = ['quiet', 'normal', 'chatty'] as const satisfies readonly NudgeLevel[];
 
 export const settingsSchema = z.object({
@@ -22,6 +23,8 @@ export const settingsSchema = z.object({
   /** Suggest a break after a long focus block (Work Partner). Off by default. */
   focusBreakEnabled: z.boolean().default(false),
   focusBreakMinutes: z.number().int().min(5).max(240).default(50),
+  /** Routine voice pacing: `full` (name + count), `short`, or `count` only. */
+  pacingLevel: z.enum(PACING_LEVELS).default('full'),
 });
 
 export type AppSettings = z.infer<typeof settingsSchema>;

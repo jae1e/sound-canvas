@@ -4,6 +4,7 @@ import { getDb } from '../db/client';
 import { appendEvent } from '../db/repos/events';
 import { createJournalEntry, deleteJournalEntry } from '../db/repos/journal';
 import { loadResumableSession, saveSession } from '../db/repos/sessions';
+import { routineController } from '../routine/instance';
 import { useSettings } from '../settings/store';
 import VlcSessionService from '../../modules/vlc-session-service';
 import { WorkController, type ControllerState, type StorePort } from './controller';
@@ -52,9 +53,12 @@ export function wireWorkController(): void {
   workController.subscribe((s) => useWork.setState(s, true));
   workController.onSummary((s) => useWorkSummary.setState(s, true));
 
-  VlcSessionService.addListener('partialTranscript', (e) => workController.onPartial(e.text));
+  VlcSessionService.addListener('partialTranscript', (e) => {
+    if (!routineController.isListening()) workController.onPartial(e.text);
+  });
   VlcSessionService.addListener('finalTranscript', (e) => {
-    if (workController.state().listen !== 'on') return;
+    // A running routine owns the voice loop (it handles the same transcript itself).
+    if (routineController.isListening() || workController.state().listen !== 'on') return;
     workController.onFinal(e.text, e.alternatives, e.lang);
   });
   VlcSessionService.addListener('cueDue', (e) => workController.onCueDue(e.id));

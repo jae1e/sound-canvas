@@ -8,8 +8,14 @@ export interface LlmRequest {
   /** The recognizer's n-best list, top hypothesis first. */
   hypotheses: string[];
   lang: Lang;
-  /** Read-only session context (the model never mutates state: the engine validates every action). */
-  session: Session;
+  /** Read-only session context (the model never mutates state: the engine validates every action). Absent for routine setup. */
+  session?: Session;
+  /**
+   * What the text is for. `routine_setup`: free-form routine text the deterministic parser could not place
+   * (`context` lists the unparsed parts). `routine_target`: a correction note that matches several movements.
+   */
+  kind?: 'routine_setup' | 'routine_target';
+  context?: unknown;
   /** The last few turns, oldest first. */
   recentTurns: { heard: string; reply: string | null }[];
 }
