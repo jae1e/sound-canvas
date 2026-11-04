@@ -15,3 +15,4 @@ export * from './cues';
 export * from './schema';
 export * from './templates';
 export * from './routine';
+export * from './speech';

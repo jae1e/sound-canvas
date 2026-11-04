@@ -11,6 +11,10 @@ export interface Cue {
   stepIndex: number | null;
   turn: TurnType | null;
   text: Record<Lang, string>;
+  /** Fragments that make up [text] for a composed turn cue (see [turnCueParts]); absent for fixed phrases. */
+  parts?: Record<Lang, string[]>;
+  /** Distance to the maneuver when the cue was planned, for staleness. */
+  distanceM?: number;
 }
 
 export interface CueOptions {
@@ -57,16 +61,47 @@ export const approachDistanceM = (paceMps: number) => clamp(Math.round((paceMps 
 /** "Now" distance: about 6 s of walking, between 8 and 15 m. */
 export const nowDistanceM = (paceMps: number) => clamp(Math.round(paceMps * 6), 8, 15);
 
-function turnCueText(kind: "approach" | "now", turn: TurnType, providerKo: string, distM: number): Record<Lang, string> {
+/**
+ * The fragments a turn cue is built from, in speaking order. Joining them with a space gives the full cue text. Fragments
+ * repeat across cues (a few distances times a few turn phrases), so each can be synthesized once and cached; the app
+ * plays them back to back with a short gap when the full sentence has no cached clip.
+ */
+export function turnCueParts(kind: "approach" | "now", turn: TurnType, providerKo: string, distM: number, lang: Lang): string[] {
   const ko = turn === "other" && providerKo ? providerKo : turnPhrase(turn, "ko");
   const en = turnPhrase(turn, "en");
   if (kind === "now") {
-    return { ko: turn === "arrive" ? ko : `지금 ${ko}`, en: turn === "arrive" ? "You have arrived" : `${capitalize(en)} now` };
+    if (lang === "ko") return turn === "arrive" ? [ko] : ["지금", ko];
+    return [turn === "arrive" ? "You have arrived" : `${capitalize(en)} now`];
   }
-  return {
-    ko: `${formatDistance(distM, "ko")} 앞에서 ${ko}`,
-    en: turn === "arrive" ? `You will arrive in ${formatDistance(distM, "en")}` : `In ${formatDistance(distM, "en")}, ${en}`,
-  };
+  if (lang === "ko") return [`${formatDistance(distM, "ko")} 앞에서`, ko];
+  return turn === "arrive" ? ["You will arrive in", formatDistance(distM, "en")] : [`In ${formatDistance(distM, "en")},`, en];
+}
+
+function turnCueParts2(kind: "approach" | "now", turn: TurnType, providerKo: string, distM: number): Record<Lang, string[]> {
+  return { ko: turnCueParts(kind, turn, providerKo, distM, "ko"), en: turnCueParts(kind, turn, providerKo, distM, "en") };
+}
+
+function turnCueText(kind: "approach" | "now", turn: TurnType, providerKo: string, distM: number): Record<Lang, string> {
+  const p = turnCueParts2(kind, turn, providerKo, distM);
+  return { ko: p.ko.join(" "), en: p.en.join(" ") };
+}
+
+/** Approach distances the planner can produce (10 to 80 m in steps of 10, as formatDistance rounds), used to prewarm distance fragments. */
+export const APPROACH_DISTANCES_M = [10, 20, 30, 40, 50, 60, 70, 80] as const;
+
+/**
+ * Every fragment a route's turn cues can need, so the app can synthesize them the moment the route is fetched or
+ * re-fetched. Provider instructions for "other" turns are free text and come back as fragments of their own.
+ */
+export function routeCueFragments(route: { steps: ReadonlyArray<{ turn: TurnType; instruction: string }> }, lang: Lang): string[] {
+  const out = new Set<string>();
+  for (const step of route.steps) {
+    if (step.turn === "straight" || step.turn === "start") continue;
+    if (step.turn === "other" && !step.instruction) continue;
+    for (const d of APPROACH_DISTANCES_M) for (const p of turnCueParts("approach", step.turn, step.instruction, d, lang)) out.add(p);
+    for (const p of turnCueParts("now", step.turn, step.instruction, 10, lang)) out.add(p);
+  }
+  return [...out];
 }
 
 /**
@@ -160,11 +195,11 @@ export function planCues(
   if (d <= nowM) {
     if (!fired.has(nowId)) {
       fired.add(approachId); // an approach cue after the "now" cue would be wrong
-      emit({ id: nowId, kind: "now", stepIndex: i, turn: step.turn, text: turnCueText("now", step.turn, step.instruction, d) });
+      emit({ id: nowId, kind: "now", stepIndex: i, turn: step.turn, text: turnCueText("now", step.turn, step.instruction, d), parts: turnCueParts2("now", step.turn, step.instruction, d), distanceM: d });
     }
   } else if (d <= approachM && !fired.has(approachId) && !fired.has(nowId)) {
     if (legM >= approachM + 20) {
-      emit({ id: approachId, kind: "approach", stepIndex: i, turn: step.turn, text: turnCueText("approach", step.turn, step.instruction, d) });
+      emit({ id: approachId, kind: "approach", stepIndex: i, turn: step.turn, text: turnCueText("approach", step.turn, step.instruction, d), parts: turnCueParts2("approach", step.turn, step.instruction, d), distanceM: d });
     } else {
       // Leg too short for two cues: keep only the "now" cue.
       fired.add(approachId);
