@@ -19,6 +19,14 @@ sam = [
   "sam-audio @ git+https://github.com/facebookresearch/sam-audio",
 ]
 
+# Speaker/singer clustering spike. Needs access to pyannote/speaker-diarization-community-1.
+diarization = [
+  "torch",
+  "torchaudio",
+  "pyannote.audio>=4.0",
+  "pyannote.metrics",
+]
+
 [project.scripts]
 seplab = "seplab.cli:main"
 
@@ -37,3 +45,9 @@ packages = ["seplab"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+
+# sam-audio pins numpy<2 (via laion-clap) and pyannote.audio 4 needs numpy>=2.2, so the extras
+# cannot share an environment. Use a separate venv for diarization:
+#   UV_PROJECT_ENVIRONMENT=.venv-diar uv sync --extra diarization
+[tool.uv]
+conflicts = [[{ extra = "sam" }, { extra = "diarization" }]]

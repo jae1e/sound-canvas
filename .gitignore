@@ -33,6 +33,7 @@ tools/tts-samples/**/*.wav
 
 # Separation lab: environment, data, runs, generated media
 tools/separation-lab/.venv/
+tools/separation-lab/.venv-diar/
 tools/separation-lab/data/
 tools/separation-lab/runs/
 tools/separation-lab/**/*.wav

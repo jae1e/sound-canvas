@@ -58,6 +58,13 @@ def cmd_mix(a):
     print(f"wrote {a.out_dir}/manifest.json ({m['n_samples']} samples)")
 
 
+def cmd_build_clips(a):
+    from .build_sets import build_all
+    made = build_all(a.data, a.out, a.story or None)
+    for k, v in made.items():
+        print(f"{k}: {len(v)} clips")
+
+
 def cmd_separate(a):
     audio, sr = read_wav(a.input)
     targets = [parse_target(t) for t in a.target]
@@ -135,6 +142,10 @@ def main(argv=None):
     s.add_argument("--strategy", choices=list(STRATEGIES), default="sequential")
     s.add_argument("--manifest", help="clip manifest for the fake oracle backend")
     s.add_argument("--out-dir", required=True); backend_args(s); s.set_defaults(fn=cmd_separate)
+
+    s = sub.add_parser("build-clips", help="build the synthetic clip sets from the licensed corpora under --data")
+    s.add_argument("--data", default="data"); s.add_argument("--out", default="data/clips")
+    s.add_argument("--story", action="append", help="limit to a story (repeatable)"); s.set_defaults(fn=cmd_build_clips)
 
     s = sub.add_parser("remix", help="remix separated tracks with a gain each")
     s.add_argument("tracks_dir"); s.add_argument("output")

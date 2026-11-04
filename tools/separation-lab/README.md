@@ -28,11 +28,25 @@ Run as `uv run seplab <command>`.
 | `mix --target T.wav --interferer F.wav,SNR_DB,OFFSET_S [--rir R.wav] --seed N --out-dir D` | deterministic mixture, stems and `manifest.json` |
 | `separate IN.wav --target "desc\|+:6.3:7.0" [--target ...] --strategy sequential\|parallel --backend fake\|sam --out-dir D` | targets plus others; writes one WAV per target, `others.wav`, `multitrack.wav`, `tracks.json` |
 | `remix D OUT.wav --gain name=0.5 --others-gain 0 [--video V --output-video O.mp4]` | remix with a gain per track |
+| `build-clips [--data data] [--out data/clips] [--story US-3.1 ...]` | builds the synthetic clip sets (about 5 per story: US-3.1, US-1.x, US-2.1, US-7.1, US-6.1) with ground-truth stems, activity and a `manifest.json` each; needs the corpora in [DATA.md](DATA.md) under `data/` |
 | `run-story US-3.1 --clips DIR --backend fake\|sam [--out runs/US-3.1]` | runs a story over every `manifest.json` under DIR; writes `results.json` and an `index.html` listening page (no autoplay) |
 
 SAM options for `separate` and `run-story`: `--model small|base|large|small-tv|base-tv|large-tv` (default `facebook/sam-audio-large`), `--predict-spans`, `--rerank N`, `--chunk-s`, `--overlap-s` (long files, crossfaded). With `--backend sam` all processing needs the GPU and the gated weights; without access the command stops with a clear error.
 
 Story specs live in `seplab/stories/*.yaml`, one per story (US-1.1 to US-7.2 plus the P5 concert stretch case). Each has the persona, prompt types, clip sets (real and synthetic), baselines, metrics and the pass bar: wins blind preference on at least 60% of clips, and at least half of clips are usable without apology. The `ratings` fields in `results.json` are for you to fill in after listening.
+
+## Synthetic data and the pyannote spike
+
+Corpora, licences and the `data/` layout: [DATA.md](DATA.md). Set `TMPDIR` to a folder under `data/` (`/tmp` hit the disk quota). Clip manifests keep run-story's format (`targets[].spans` are "mark a moment" prompts) plus `activity` (ground-truth speech segments), `others_parts` and story metadata.
+
+The diarization spike needs its own environment, because `sam-audio` needs numpy<2 and pyannote.audio 4 needs numpy>=2.2:
+
+```bash
+UV_PROJECT_ENVIRONMENT=.venv-diar uv sync --extra diarization
+UV_PROJECT_ENVIRONMENT=.venv-diar uv run --no-sync python -m seplab.spike_pyannote --clips data/clips --out runs/pyannote
+```
+
+Results: [spike-results/pyannote-clustering.md](spike-results/pyannote-clustering.md).
 
 ## Getting SAM Audio access (do this yourself)
 
