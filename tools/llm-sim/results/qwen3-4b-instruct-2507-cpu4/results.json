@@ -1,0 +1,1535 @@
+{
+ "meta": {
+  "label": "qwen3-4b-instruct-2507-cpu4",
+  "backend": "qwen3-4b-instruct-2507-cpu4",
+  "date": "2026-11-04",
+  "concurrency": 1,
+  "note": "CPU only, 4 threads, every 3rd case (subset)."
+ },
+ "rows": [
+  {
+   "id": "align-ko-001",
+   "task": "align",
+   "lang": "ko",
+   "tags": [
+    "real",
+    "asr"
+   ],
+   "heard": "리조트 5분 타이머 | 리조또 5분 타이머",
+   "score": {
+    "pass": true,
+    "jsonValid": true,
+    "accepted": true,
+    "checks": {
+     "exactAction": true,
+     "args": true,
+     "confirm": true,
+     "askedWhenShould": true
+    },
+    "actual": "start_timer {\"t\":\"\",\"l\":\"리조또\",\"s\":300,\"n\":0} conf=true"
+   },
+   "promptTokens": 816,
+   "completionTokens": 57,
+   "ms": 5721,
+   "raw": "{\"text\":\"리조또 5분 타이머\",\"type\":\"start_timer\",\"target\":\"\",\"label\":\"리조또\",\"from\":\"\",\"seconds\":300,\"count\":0,\"flag\":false,\"confidence\":\"high\",\"needsConfirmation\":false,\"confirmQuestion\":\"\"}"
+  },
+  {
+   "id": "align-ko-004",
+   "task": "align",
+   "lang": "ko",
+   "tags": [
+    "numbers"
+   ],
+   "heard": "찌개 오분 타이머 | 찌개 5분 타이머",
+   "score": {
+    "pass": false,
+    "jsonValid": true,
+    "accepted": true,
+    "checks": {
+     "exactAction": true,
+     "args": true,
+     "confirm": false,
+     "quietWhenShould": false
+    },
+    "actual": "start_timer {\"t\":\"\",\"l\":\"찌개\",\"s\":300,\"n\":0} conf=true",
+    "why": "needsConfirmation true, expected false"
+   },
+   "promptTokens": 794,
+   "completionTokens": 55,
+   "ms": 5361,
+   "raw": "{\"text\":\"찌개 5분 타이머\",\"type\":\"start_timer\",\"target\":\"\",\"label\":\"찌개\",\"from\":\"\",\"seconds\":300,\"count\":0,\"flag\":false,\"confidence\":\"high\",\"needsConfirmation\":false,\"confirmQuestion\":\"\"}"
+  },
+  {
+   "id": "align-ko-007",
+   "task": "align",
+   "lang": "ko",
+   "tags": [
+    "hard",
+    "honorific"
+   ],
+   "heard": "파스타 타이머 취소해 주세요 | 파스타 타이머 취소해 주세요.",
+   "score": {
+    "pass": true,
+    "jsonValid": true,
+    "accepted": true,
+    "checks": {
+     "exactAction": true,
+     "args": true,
+     "confirm": true,
+     "askedWhenShould": true
+    },
+    "actual": "cancel_timer {\"t\":\"파스타\",\"l\":\"\",\"s\":0,\"n\":0} conf=true"
+   },
+   "promptTokens": 819,
+   "completionTokens": 55,
+   "ms": 5425,
+   "raw": "{\"text\":\"파스타 타이머 취소해 주세요\",\"type\":\"cancel_timer\",\"target\":\"파스타\",\"label\":\"\",\"from\":\"\",\"seconds\":0,\"count\":0,\"flag\":false,\"confidence\":\"high\",\"needsConfirmation\":false,\"confirmQuestion\":\"\"}"
+  },
+  {
+   "id": "align-ko-010",
+   "task": "align",
+   "lang": "ko",
+   "tags": [
+    "casual"
+   ],
+   "heard": "다 됐어 | 다 됐어요",
+   "score": {
+    "pass": true,
+    "jsonValid": true,
+    "accepted": true,
+    "checks": {
+     "exactAction": true,
+     "args": true,
+     "confirm": true,
+     "quietWhenShould": true
+    },
+    "actual": "task_done {\"t\":\"청소기 돌리기\",\"l\":\"\",\"s\":0,\"n\":0} conf=false"
+   },
+   "promptTokens": 788,
+   "completionTokens": 51,
+   "ms": 4854,
+   "raw": "{\"text\":\"다 됐어\",\"type\":\"task_done\",\"target\":\"청소기 돌리기\",\"label\":\"\",\"from\":\"\",\"seconds\":0,\"count\":0,\"flag\":false,\"confidence\":\"high\",\"needsConfirmation\":false,\"confirmQuestion\":\"\"}"
+  },
+  {
+   "id": "align-ko-013",
+   "task": "align",
+   "lang": "ko",
+   "tags": [
+    "numbers"
+   ],
+   "heard": "10분 동안 조용히 해줘 | 십분 동안 조용히 해줘",
+   "score": {
+    "pass": false,
+    "jsonValid": true,
+    "accepted": true,
+    "checks": {
+     "exactAction": true,
+     "args": true,
+     "confirm": false,
+     "quietWhenShould": false
+    },
+    "actual": "set_quiet {\"t\":\"\",\"l\":\"\",\"s\":600,\"n\":0} conf=true",
+    "why": "needsConfirmation true, expected false"
+   },
+   "promptTokens": 817,
+   "completionTokens": 54,
+   "ms": 5515,
+   "raw": "{\"text\":\"10분 동안 조용히 해줘\",\"type\":\"set_quiet\",\"target\":\"\",\"label\":\"\",\"from\":\"\",\"seconds\":600,\"count\":0,\"flag\":true,\"confidence\":\"high\",\"needsConfirmation\":false,\"confirmQuestion\":\"\"}"
+  },
+  {
+   "id": "align-ko-016",
+   "task": "align",
+   "lang": "ko",
+   "tags": [
+    "oos"
+   ],
+   "heard": "그래서 범인이 누구였냐면 | 그래서 범인이 누구였냐면은",
+   "score": {
+    "pass": true,
+    "jsonValid": true,
+    "accepted": true,
+    "checks": {
+     "exactAction": true,
+     "args": true,
+     "confirm": true,
+     "quietWhenShould": true
+    },
+    "actual": "none {\"t\":\"\",\"l\":\"\",\"s\":0,\"n\":0} conf=false"
+   },
+   "promptTokens": 818,
+   "completionTokens": 49,
+   "ms": 4790,
+   "raw": "{\"text\":\"그래서 범인이 누구였냐면\",\"type\":\"none\",\"target\":\"\",\"label\":\"\",\"from\":\"\",\"seconds\":0,\"count\":0,\"flag\":false,\"confidence\":\"medium\",\"needsConfirmation\":false,\"confirmQuestion\":\"\"}"
+  },
+  {
+   "id": "align-ko-019",
+   "task": "align",
+   "lang": "ko",
+   "tags": [
+    "casual"
+   ],
+   "heard": "다음 동작으로 넘어가 | 다음 동작으로 넘어가 줘",
+   "score": {
+    "pass": true,
+    "jsonValid": true,
+    "accepted": true,
+    "checks": {
+     "exactAction": true,
+     "args": true,
+     "confirm": true,
+     "quietWhenShould": true
+    },
+    "actual": "skip {\"t\":\"스쿼트\",\"l\":\"\",\"s\":0,\"n\":0} conf=false"
+   },
+   "promptTokens": 836,
+   "completionTokens": 51,
+   "ms": 8472,
+   "raw": "{\"text\":\"다음 동작으로 넘어가\",\"type\":\"skip\",\"target\":\"스쿼트\",\"label\":\"\",\"from\":\"\",\"seconds\":0,\"count\":0,\"flag\":false,\"confidence\":\"high\",\"needsConfirmation\":false,\"confirmQuestion\":\"\"}"
+  },
+  {
+   "id": "align-ko-022",
+   "task": "align",
+   "lang": "ko",
+   "tags": [
+    "numbers"
+   ],
+   "heard": "오분만 쉬자 | 5분만 쉬자",
+   "score": {
+    "pass": false,
+    "jsonValid": true,
+    "accepted": true,
+    "checks": {
+     "exactAction": true,
+     "args": true,
+     "confirm": false,
+     "quietWhenShould": false
+    },
+    "actual": "rest {\"t\":\"\",\"l\":\"\",\"s\":300,\"n\":0} conf=true",
+    "why": "needsConfirmation true, expected false"
+   },
+   "promptTokens": 835,
+   "completionTokens": 52,
+   "ms": 4793,
+   "raw": "{\"text\":\"5분만 쉬자\",\"type\":\"rest\",\"target\":\"\",\"label\":\"\",\"from\":\"스쿼트\",\"seconds\":300,\"count\":0,\"flag\":false,\"confidence\":\"high\",\"needsConfirmation\":false,\"confirmQuestion\":\"\"}"
+  },
+  {
+   "id": "align-en-003",
+   "task": "align",
+   "lang": "en",
+   "tags": [
+    "asr"
+   ],
+   "heard": "start a rice timer for ten minutes | start a ride timer for ten minutes",
+   "score": {
+    "pass": true,
+    "jsonValid": true,
+    "accepted": true,
+    "checks": {
+     "exactAction": true,
+     "args": true,
+     "confirm": true,
+     "askedWhenShould": true
+    },
+    "actual": "start_timer {\"t\":\"\",\"l\":\"rice\",\"s\":600,\"n\":0} conf=true"
+   },
+   "promptTokens": 802,
+   "completionTokens": 52,
+   "ms": 8222,
+   "raw": "{\"text\":\"start a rice timer for ten minutes\",\"type\":\"start_timer\",\"target\":\"\",\"label\":\"rice\",\"from\":\"\",\"seconds\":600,\"count\":0,\"flag\":false,\"confidence\":\"high\",\"needsConfirmation\":false,\"confirmQuestion\":\"\"}"
+  },
+  {
+   "id": "align-en-006",
+   "task": "align",
+   "lang": "en",
+   "tags": [
+    "casual"
+   ],
+   "heard": "yeah pause the laundry timer | yeah pause the laundry time",
+   "score": {
+    "pass": true,
+    "jsonValid": true,
+    "accepted": true,
+    "checks": {
+     "exactAction": true,
+     "args": true,
+     "confirm": true,
+     "quietWhenShould": true
+    },
+    "actual": "pause_timer {\"t\":\"laundry\",\"l\":\"\",\"s\":0,\"n\":0} conf=false"
+   },
+   "promptTokens": 800,
+   "completionTokens": 49,
+   "ms": 4872,
+   "raw": "{\"text\":\"yeah pause the laundry timer\",\"type\":\"pause_timer\",\"target\":\"laundry\",\"label\":\"\",\"from\":\"\",\"seconds\":0,\"count\":0,\"flag\":false,\"confidence\":\"high\",\"needsConfirmation\":false,\"confirmQuestion\":\"\"}"
+  },
+  {
+   "id": "align-en-009",
+   "task": "align",
+   "lang": "en",
+   "tags": [
+    "hard"
+   ],
+   "heard": "skip vacuum | skip the vacuum",
+   "score": {
+    "pass": true,
+    "jsonValid": true,
+    "accepted": true,
+    "checks": {
+     "exactAction": true,
+     "args": true,
+     "confirm": true,
+     "askedWhenShould": true
+    },
+    "actual": "skip_task {\"t\":\"vacuum\",\"l\":\"\",\"s\":0,\"n\":0} conf=true"
+   },
+   "promptTokens": 796,
+   "completionTokens": 46,
+   "ms": 4536,
+   "raw": "{\"text\":\"skip vacuum\",\"type\":\"skip_task\",\"target\":\"vacuum\",\"label\":\"\",\"from\":\"\",\"seconds\":0,\"count\":0,\"flag\":false,\"confidence\":\"high\",\"needsConfirmation\":false,\"confirmQuestion\":\"\"}"
+  },
+  {
+   "id": "align-en-012",
+   "task": "align",
+   "lang": "en",
+   "tags": [
+    "numbers"
+   ],
+   "heard": "two more minutes | to more minutes",
+   "score": {
+    "pass": true,
+    "jsonValid": true,
+    "accepted": true,
+    "checks": {
+     "exactAction": true,
+     "args": true,
+     "confirm": true,
+     "quietWhenShould": true
+    },
+    "actual": "extend_timer {\"t\":\"oven\",\"l\":\"\",\"s\":120,\"n\":0} conf=false"
+   },
+   "promptTokens": 787,
+   "completionTokens": 48,
+   "ms": 4561,
+   "raw": "{\"text\":\"two more minutes\",\"type\":\"extend_timer\",\"target\":\"oven\",\"label\":\"\",\"from\":\"\",\"seconds\":120,\"count\":0,\"flag\":false,\"confidence\":\"high\",\"needsConfirmation\":false,\"confirmQuestion\":\"\"}"
+  },
+  {
+   "id": "align-en-015",
+   "task": "align",
+   "lang": "en",
+   "tags": [
+    "casual"
+   ],
+   "heard": "add buy milk to my list | add buy milk to my lists",
+   "score": {
+    "pass": false,
+    "jsonValid": true,
+    "accepted": true,
+    "checks": {
+     "exactAction": true,
+     "args": true,
+     "confirm": false,
+     "quietWhenShould": false
+    },
+    "actual": "add_task {\"t\":\"\",\"l\":\"buy milk\",\"s\":0,\"n\":0} conf=true",
+    "why": "needsConfirmation true, expected false"
+   },
+   "promptTokens": 800,
+   "completionTokens": 50,
+   "ms": 5023,
+   "raw": "{\"text\":\"add buy milk to my list\",\"type\":\"add_task\",\"target\":\"\",\"label\":\"buy milk\",\"from\":\"\",\"seconds\":0,\"count\":0,\"flag\":false,\"confidence\":\"high\",\"needsConfirmation\":false,\"confirmQuestion\":\"\"}"
+  },
+  {
+   "id": "align-en-018",
+   "task": "align",
+   "lang": "en",
+   "tags": [
+    "oos"
+   ],
+   "heard": "and that's why the stock market closed lower today | and that's why the stock market close lower today",
+   "score": {
+    "pass": true,
+    "jsonValid": true,
+    "accepted": true,
+    "checks": {
+     "exactAction": true,
+     "args": true,
+     "confirm": true,
+     "quietWhenShould": true
+    },
+    "actual": "none {\"t\":\"\",\"l\":\"\",\"s\":0,\"n\":0} conf=false"
+   },
+   "promptTokens": 808,
+   "completionTokens": 50,
+   "ms": 5057,
+   "raw": "{\"text\":\"and that's why the stock market close lower today\",\"type\":\"none\",\"target\":\"\",\"label\":\"\",\"from\":\"\",\"seconds\":0,\"count\":0,\"flag\":false,\"confidence\":\"low\",\"needsConfirmation\":false,\"confirmQuestion\":\"\"}"
+  },
+  {
+   "id": "align-en-021",
+   "task": "align",
+   "lang": "en",
+   "tags": [
+    "casual"
+   ],
+   "heard": "go back one | go back",
+   "score": {
+    "pass": false,
+    "jsonValid": true,
+    "accepted": true,
+    "checks": {
+     "exactAction": false,
+     "args": false,
+     "confirm": true,
+     "quietWhenShould": true
+    },
+    "actual": "repeat_from {\"t\":\"\",\"l\":\"\",\"s\":0,\"n\":1} conf=false",
+    "why": "type repeat_from, expected back"
+   },
+   "promptTokens": 816,
+   "completionTokens": 44,
+   "ms": 7550,
+   "raw": "{\"text\":\"go back one\",\"type\":\"repeat_from\",\"target\":\"\",\"label\":\"\",\"from\":\"\",\"seconds\":0,\"count\":1,\"flag\":false,\"confidence\":\"high\",\"needsConfirmation\":false,\"confirmQuestion\":\"\"}"
+  },
+  {
+   "id": "command-ko-002",
+   "task": "command",
+   "lang": "ko",
+   "tags": [
+    "numbers",
+    "honorific"
+   ],
+   "heard": "쉬는 시간 30초로 해 주세요",
+   "score": {
+    "pass": true,
+    "jsonValid": true,
+    "accepted": true,
+    "checks": {
+     "kind": true,
+     "exactAction": true,
+     "args": true,
+     "clarifyCorrect": true,
+     "quietWhenShould": true
+    },
+    "actual": "action rest {\"t\":\"스쿼트\",\"l\":\"\",\"f\":\"\",\"s\":30,\"n\":0}"
+   },
+   "promptTokens": 723,
+   "completionTokens": 36,
+   "ms": 5175,
+   "raw": "{\"kind\":\"action\",\"type\":\"rest\",\"target\":\"스쿼트\",\"label\":\"\",\"from\":\"\",\"seconds\":30,\"count\":0,\"flag\":false,\"question\":\"\"}"
+  },
+  {
+   "id": "command-ko-005",
+   "task": "command",
+   "lang": "ko",
+   "tags": [
+    "casual"
+   ],
+   "heard": "너무 빨라, 좀 천천히",
+   "score": {
+    "pass": true,
+    "jsonValid": true,
+    "accepted": true,
+    "checks": {
+     "kind": true,
+     "exactAction": true,
+     "args": true,
+     "clarifyCorrect": true,
+     "quietWhenShould": true
+    },
+    "actual": "action tempo_slower {\"t\":\"\",\"l\":\"\",\"f\":\"\",\"s\":0,\"n\":0}"
+   },
+   "promptTokens": 722,
+   "completionTokens": 34,
+   "ms": 2962,
+   "raw": "{\"kind\":\"action\",\"type\":\"tempo_slower\",\"target\":\"\",\"label\":\"\",\"from\":\"\",\"seconds\":0,\"count\":0,\"flag\":false,\"question\":\"\"}"
+  },
+  {
+   "id": "command-ko-008",
+   "task": "command",
+   "lang": "ko",
+   "tags": [
+    "casual"
+   ],
+   "heard": "라면 3분 타이머 맞춰줘",
+   "score": {
+    "pass": true,
+    "jsonValid": true,
+    "accepted": true,
+    "checks": {
+     "kind": true,
+     "exactAction": true,
+     "args": true,
+     "clarifyCorrect": true,
+     "quietWhenShould": true
+    },
+    "actual": "action start_timer {\"t\":\"\",\"l\":\"라면\",\"f\":\"\",\"s\":180,\"n\":0}"
+   },
+   "promptTokens": 677,
+   "completionTokens": 37,
+   "ms": 5873,
+   "raw": "{\"kind\":\"action\",\"type\":\"start_timer\",\"target\":\"\",\"label\":\"라면\",\"from\":\"\",\"seconds\":180,\"count\":0,\"flag\":false,\"question\":\"\"}"
+  },
+  {
+   "id": "command-ko-011",
+   "task": "command",
+   "lang": "ko",
+   "tags": [
+    "casual"
+   ],
+   "heard": "찌개 타이머 다시 시작해줘",
+   "score": {
+    "pass": false,
+    "jsonValid": true,
+    "accepted": false,
+    "checks": {
+     "kind": false,
+     "exactAction": false,
+     "args": false
+    },
+    "actual": "invalid_output:bad_duration",
+    "why": "invalid_output:bad_duration"
+   },
+   "promptTokens": 706,
+   "completionTokens": 38,
+   "ms": 3985,
+   "raw": "{\"kind\":\"action\",\"type\":\"start_timer\",\"target\":\"찌개\",\"label\":\"찌개\",\"from\":\"\",\"seconds\":0,\"count\":0,\"flag\":false,\"question\":\"\"}"
+  },
+  {
+   "id": "command-ko-014",
+   "task": "command",
+   "lang": "ko",
+   "tags": [
+    "ambiguous",
+    "casual"
+   ],
+   "heard": "다 됐어",
+   "score": {
+    "pass": false,
+    "jsonValid": true,
+    "accepted": true,
+    "checks": {
+     "kind": false,
+     "exactAction": true,
+     "args": true,
+     "clarifyCorrect": false,
+     "askedWhenShould": false
+    },
+    "actual": "action task_done {\"t\":\"보고서 쓰기\",\"l\":\"\",\"f\":\"\",\"s\":0,\"n\":0}",
+    "why": "kind action, expected clarify"
+   },
+   "promptTokens": 694,
+   "completionTokens": 54,
+   "ms": 5127,
+   "raw": "{\"kind\":\"action\",\"type\":\"task_done\",\"target\":\"보고서 쓰기\",\"label\":\"\",\"from\":\"\",\"seconds\":0,\"count\":0,\"flag\":false,\"question\":\"보고서 쓰기 작업을 완료하시겠어요?\"}"
+  },
+  {
+   "id": "command-ko-017",
+   "task": "command",
+   "lang": "ko",
+   "tags": [
+    "casual"
+   ],
+   "heard": "할 일에 우유 사기 추가해줘",
+   "score": {
+    "pass": true,
+    "jsonValid": true,
+    "accepted": true,
+    "checks": {
+     "kind": true,
+     "exactAction": true,
+     "args": true,
+     "clarifyCorrect": true,
+     "quietWhenShould": true
+    },
+    "actual": "action add_task {\"t\":\"\",\"l\":\"우유 사기\",\"f\":\"\",\"s\":0,\"n\":0}"
+   },
+   "promptTokens": 700,
+   "completionTokens": 37,
+   "ms": 3322,
+   "raw": "{\"kind\":\"action\",\"type\":\"add_task\",\"target\":\"\",\"label\":\"우유 사기\",\"from\":\"\",\"seconds\":0,\"count\":0,\"flag\":false,\"question\":\"\"}"
+  },
+  {
+   "id": "command-ko-020",
+   "task": "command",
+   "lang": "ko",
+   "tags": [
+    "hard",
+    "casual"
+   ],
+   "heard": "오늘은 이만 끝낼게",
+   "score": {
+    "pass": true,
+    "jsonValid": true,
+    "accepted": true,
+    "checks": {
+     "kind": true,
+     "exactAction": true,
+     "args": true,
+     "clarifyCorrect": true,
+     "quietWhenShould": true
+    },
+    "actual": "action end_session {\"t\":\"\",\"l\":\"\",\"f\":\"\",\"s\":0,\"n\":0}"
+   },
+   "promptTokens": 699,
+   "completionTokens": 32,
+   "ms": 3227,
+   "raw": "{\"kind\":\"action\",\"type\":\"end_session\",\"target\":\"\",\"label\":\"\",\"from\":\"\",\"seconds\":0,\"count\":0,\"flag\":false,\"question\":\"\"}"
+  },
+  {
+   "id": "command-ko-023",
+   "task": "command",
+   "lang": "ko",
+   "tags": [
+    "oos",
+    "casual"
+   ],
+   "heard": "아 배고프다",
+   "score": {
+    "pass": true,
+    "jsonValid": true,
+    "accepted": true,
+    "checks": {
+     "kind": true,
+     "exactAction": true,
+     "args": true,
+     "clarifyCorrect": true,
+     "quietWhenShould": true
+    },
+    "actual": "not_command"
+   },
+   "promptTokens": 690,
+   "completionTokens": 32,
+   "ms": 3364,
+   "raw": "{\"kind\":\"not_command\",\"type\":\"none\",\"target\":\"\",\"label\":\"\",\"from\":\"\",\"seconds\":0,\"count\":0,\"flag\":false,\"question\":\"\"}"
+  },
+  {
+   "id": "command-en-003",
+   "task": "command",
+   "lang": "en",
+   "tags": [
+    "numbers"
+   ],
+   "heard": "rest for a minute and a half",
+   "score": {
+    "pass": true,
+    "jsonValid": true,
+    "accepted": true,
+    "checks": {
+     "kind": true,
+     "exactAction": true,
+     "args": true,
+     "clarifyCorrect": true,
+     "quietWhenShould": true
+    },
+    "actual": "action rest {\"t\":\"lunge\",\"l\":\"\",\"f\":\"\",\"s\":90,\"n\":0}"
+   },
+   "promptTokens": 707,
+   "completionTokens": 35,
+   "ms": 6191,
+   "raw": "{\"kind\":\"action\",\"type\":\"rest\",\"target\":\"lunge\",\"label\":\"\",\"from\":\"\",\"seconds\":90,\"count\":0,\"flag\":false,\"question\":\"\"}"
+  },
+  {
+   "id": "command-en-006",
+   "task": "command",
+   "lang": "en",
+   "tags": [
+    "casual"
+   ],
+   "heard": "what's next",
+   "score": {
+    "pass": true,
+    "jsonValid": true,
+    "accepted": true,
+    "checks": {
+     "kind": true,
+     "exactAction": true,
+     "args": true,
+     "clarifyCorrect": true,
+     "quietWhenShould": true
+    },
+    "actual": "action query_next {\"t\":\"\",\"l\":\"\",\"f\":\"\",\"s\":0,\"n\":0}"
+   },
+   "promptTokens": 703,
+   "completionTokens": 32,
+   "ms": 2816,
+   "raw": "{\"kind\":\"action\",\"type\":\"query_next\",\"target\":\"\",\"label\":\"\",\"from\":\"\",\"seconds\":0,\"count\":0,\"flag\":false,\"question\":\"\"}"
+  },
+  {
+   "id": "command-en-009",
+   "task": "command",
+   "lang": "en",
+   "tags": [
+    "ambiguous",
+    "numbers"
+   ],
+   "heard": "add 2 more minutes",
+   "score": {
+    "pass": false,
+    "jsonValid": true,
+    "accepted": true,
+    "checks": {
+     "kind": false,
+     "exactAction": true,
+     "args": true,
+     "clarifyCorrect": false,
+     "askedWhenShould": false
+    },
+    "actual": "action extend_task {\"t\":\"fold laundry\",\"l\":\"\",\"f\":\"\",\"s\":120,\"n\":0}",
+    "why": "kind action, expected clarify"
+   },
+   "promptTokens": 685,
+   "completionTokens": 37,
+   "ms": 6184,
+   "raw": "{\"kind\":\"action\",\"type\":\"extend_task\",\"target\":\"fold laundry\",\"label\":\"\",\"from\":\"\",\"seconds\":120,\"count\":0,\"flag\":false,\"question\":\"\"}"
+  },
+  {
+   "id": "command-en-012",
+   "task": "command",
+   "lang": "en",
+   "tags": [
+    "hard",
+    "ambiguous"
+   ],
+   "heard": "cancel the timer",
+   "score": {
+    "pass": false,
+    "jsonValid": true,
+    "accepted": true,
+    "checks": {
+     "kind": false,
+     "exactAction": true,
+     "args": true,
+     "clarifyCorrect": false,
+     "askedWhenShould": false
+    },
+    "actual": "action cancel_timer {\"t\":\"oven\",\"l\":\"\",\"f\":\"\",\"s\":0,\"n\":0}",
+    "why": "kind action, expected clarify"
+   },
+   "promptTokens": 683,
+   "completionTokens": 45,
+   "ms": 3937,
+   "raw": "{\"kind\":\"action\",\"type\":\"cancel_timer\",\"target\":\"oven\",\"label\":\"\",\"from\":\"\",\"seconds\":0,\"count\":0,\"flag\":false,\"question\":\"Are you sure you want to cancel the oven timer?\"}"
+  },
+  {
+   "id": "command-en-015",
+   "task": "command",
+   "lang": "en",
+   "tags": [],
+   "heard": "finished the report",
+   "score": {
+    "pass": true,
+    "jsonValid": true,
+    "accepted": true,
+    "checks": {
+     "kind": true,
+     "exactAction": true,
+     "args": true,
+     "clarifyCorrect": true,
+     "quietWhenShould": true
+    },
+    "actual": "action task_done {\"t\":\"write report\",\"l\":\"\",\"f\":\"\",\"s\":0,\"n\":0}"
+   },
+   "promptTokens": 680,
+   "completionTokens": 35,
+   "ms": 3504,
+   "raw": "{\"kind\":\"action\",\"type\":\"task_done\",\"target\":\"write report\",\"label\":\"\",\"from\":\"\",\"seconds\":0,\"count\":0,\"flag\":false,\"question\":\"\"}"
+  },
+  {
+   "id": "command-en-018",
+   "task": "command",
+   "lang": "en",
+   "tags": [
+    "casual"
+   ],
+   "heard": "next step",
+   "score": {
+    "pass": true,
+    "jsonValid": true,
+    "accepted": true,
+    "checks": {
+     "kind": true,
+     "exactAction": true,
+     "args": true,
+     "clarifyCorrect": true,
+     "quietWhenShould": true
+    },
+    "actual": "action next_step {\"t\":\"\",\"l\":\"\",\"f\":\"\",\"s\":0,\"n\":0}"
+   },
+   "promptTokens": 675,
+   "completionTokens": 32,
+   "ms": 3072,
+   "raw": "{\"kind\":\"action\",\"type\":\"next_step\",\"target\":\"\",\"label\":\"\",\"from\":\"\",\"seconds\":0,\"count\":0,\"flag\":false,\"question\":\"\"}"
+  },
+  {
+   "id": "command-en-021",
+   "task": "command",
+   "lang": "en",
+   "tags": [
+    "hard"
+   ],
+   "heard": "end the session now",
+   "score": {
+    "pass": true,
+    "jsonValid": true,
+    "accepted": true,
+    "checks": {
+     "kind": true,
+     "exactAction": true,
+     "args": true,
+     "clarifyCorrect": true,
+     "quietWhenShould": true
+    },
+    "actual": "action end_session {\"t\":\"\",\"l\":\"\",\"f\":\"\",\"s\":0,\"n\":0}"
+   },
+   "promptTokens": 681,
+   "completionTokens": 43,
+   "ms": 3945,
+   "raw": "{\"kind\":\"action\",\"type\":\"end_session\",\"target\":\"\",\"label\":\"\",\"from\":\"\",\"seconds\":0,\"count\":0,\"flag\":false,\"question\":\"Are you sure you want to end the session now?\"}"
+  },
+  {
+   "id": "correction-ko-001",
+   "task": "correction",
+   "lang": "ko",
+   "tags": [
+    "real",
+    "casual"
+   ],
+   "heard": "오른손 먼저 나가야되는데 자꾸 왼손이 나가요",
+   "score": {
+    "pass": true,
+    "jsonValid": true,
+    "accepted": true,
+    "checks": {
+     "scope": true,
+     "target": true,
+     "side": true,
+     "cue": true,
+     "confirm": true
+    },
+    "actual": "movement p1#2 side=right \"오른손 먼저!\" / \"right hand first!\" confirm=false"
+   },
+   "promptTokens": 720,
+   "completionTokens": 74,
+   "ms": 6659,
+   "raw": "{\n  \"scope\": \"movement\",\n  \"itemId\": \"p1\",\n  \"movementNo\": 2,\n  \"side\": \"right\",\n  \"part\": \"hand\",\n  \"cueKo\": \"오른손 먼저!\",\n  \"cueEn\": \"right hand first!\",\n  \"needsConfirmation\": false,\n  \"question\": \"\"\n}"
+  },
+  {
+   "id": "correction-ko-004",
+   "task": "correction",
+   "lang": "ko",
+   "tags": [
+    "ambiguous",
+    "casual"
+   ],
+   "heard": "아래막기 할 때 팔꿈치가 벌어져요",
+   "score": {
+    "pass": false,
+    "jsonValid": true,
+    "accepted": true,
+    "checks": {
+     "scope": true,
+     "target": true,
+     "side": true,
+     "cue": true,
+     "confirm": false
+    },
+    "actual": "movement p1#5 side=both \"팔꿈치 꼭 꿈겨요!\" / \"keep elbows tight!\" confirm=false",
+    "why": "wrong: confirm"
+   },
+   "promptTokens": 706,
+   "completionTokens": 81,
+   "ms": 7249,
+   "raw": "{\n  \"scope\": \"movement\",\n  \"itemId\": \"p1\",\n  \"movementNo\": 5,\n  \"side\": \"both\",\n  \"part\": \"arm\",\n  \"cueKo\": \"팔꿈치 꼭 꿈겨요!\",\n  \"cueEn\": \"keep elbows tight!\",\n  \"needsConfirmation\": false,\n  \"question\": \"\"\n}"
+  },
+  {
+   "id": "correction-ko-007",
+   "task": "correction",
+   "lang": "ko",
+   "tags": [
+    "casual"
+   ],
+   "heard": "스쿼트할 때 무릎이 안으로 모여요",
+   "score": {
+    "pass": false,
+    "jsonValid": true,
+    "accepted": true,
+    "checks": {
+     "scope": false,
+     "target": false,
+     "side": true,
+     "cue": true,
+     "confirm": true
+    },
+    "actual": "routine side=none \"무릎을 펴세요!\" / \"straighten your knees!\" confirm=false",
+    "why": "wrong: scope"
+   },
+   "promptTokens": 748,
+   "completionTokens": 77,
+   "ms": 6608,
+   "raw": "{\n  \"scope\": \"routine\",\n  \"itemId\": \"\",\n  \"movementNo\": 0,\n  \"side\": \"none\",\n  \"part\": \"none\",\n  \"cueKo\": \"무릎을 펴세요!\",\n  \"cueEn\": \"straighten your knees!\",\n  \"needsConfirmation\": false,\n  \"question\": \"\"\n}"
+  },
+  {
+   "id": "correction-ko-010",
+   "task": "correction",
+   "lang": "ko",
+   "tags": [
+    "casual"
+   ],
+   "heard": "앞차기할 때 왼발이 먼저 나가요. 오른발이어야 해요",
+   "score": {
+    "pass": false,
+    "jsonValid": true,
+    "accepted": true,
+    "checks": {
+     "scope": true,
+     "target": true,
+     "side": true,
+     "cue": true,
+     "confirm": false
+    },
+    "actual": "movement p1#14 side=right \"오른발 먼저 나가요!\" / \"right foot first!\" confirm=false",
+    "why": "wrong: confirm"
+   },
+   "promptTokens": 712,
+   "completionTokens": 78,
+   "ms": 6831,
+   "raw": "{\n  \"scope\": \"movement\",\n  \"itemId\": \"p1\",\n  \"movementNo\": 14,\n  \"side\": \"right\",\n  \"part\": \"foot\",\n  \"cueKo\": \"오른발 먼저 나가요!\",\n  \"cueEn\": \"right foot first!\",\n  \"needsConfirmation\": false,\n  \"question\": \"\"\n}"
+  },
+  {
+   "id": "correction-ko-013",
+   "task": "correction",
+   "lang": "ko",
+   "tags": [
+    "numbers",
+    "casual"
+   ],
+   "heard": "13번에서 얼굴막기가 너무 낮아요",
+   "score": {
+    "pass": true,
+    "jsonValid": true,
+    "accepted": true,
+    "checks": {
+     "scope": true,
+     "target": true,
+     "side": true,
+     "cue": true,
+     "confirm": true
+    },
+    "actual": "movement p1#13 side=both \"얼굴 막기 높이로!\" / \"Head block higher!\" confirm=false"
+   },
+   "promptTokens": 705,
+   "completionTokens": 81,
+   "ms": 6916,
+   "raw": "{\n  \"scope\": \"movement\",\n  \"itemId\": \"p1\",\n  \"movementNo\": 13,\n  \"side\": \"both\",\n  \"part\": \"hand\",\n  \"cueKo\": \"얼굴 막기 높이로!\",\n  \"cueEn\": \"Head block higher!\",\n  \"needsConfirmation\": false,\n  \"question\": \"\"\n}"
+  },
+  {
+   "id": "correction-en-003",
+   "task": "correction",
+   "lang": "en",
+   "tags": [
+    "casual"
+   ],
+   "heard": "right hand should go first but my left hand keeps going",
+   "score": {
+    "pass": true,
+    "jsonValid": true,
+    "accepted": true,
+    "checks": {
+     "scope": true,
+     "target": true,
+     "side": true,
+     "cue": true,
+     "confirm": true
+    },
+    "actual": "movement p1#2 side=right \"오른손 먼저!\" / \"right hand first!\" confirm=false"
+   },
+   "promptTokens": 601,
+   "completionTokens": 74,
+   "ms": 6434,
+   "raw": "{\n  \"scope\": \"movement\",\n  \"itemId\": \"p1\",\n  \"movementNo\": 2,\n  \"side\": \"right\",\n  \"part\": \"hand\",\n  \"cueKo\": \"오른손 먼저!\",\n  \"cueEn\": \"right hand first!\",\n  \"needsConfirmation\": false,\n  \"question\": \"\"\n}"
+  },
+  {
+   "id": "correction-en-006",
+   "task": "correction",
+   "lang": "en",
+   "tags": [
+    "casual",
+    "ambiguous"
+   ],
+   "heard": "keep my back straight",
+   "score": {
+    "pass": false,
+    "jsonValid": true,
+    "accepted": true,
+    "checks": {
+     "scope": false,
+     "target": false,
+     "side": true,
+     "cue": true,
+     "confirm": true
+    },
+    "actual": "routine side=none \"척추를 직선으로 유지하세요!\" / \"Keep your back straight!\" confirm=false",
+    "why": "wrong: scope"
+   },
+   "promptTokens": 583,
+   "completionTokens": 76,
+   "ms": 6668,
+   "raw": "{\n  \"scope\": \"routine\",\n  \"itemId\": \"\",\n  \"movementNo\": 0,\n  \"side\": \"none\",\n  \"part\": \"\",\n  \"cueKo\": \"척추를 직선으로 유지하세요!\",\n  \"cueEn\": \"Keep your back straight!\",\n  \"needsConfirmation\": false,\n  \"question\": \"\"\n}"
+  },
+  {
+   "id": "correction-en-009",
+   "task": "correction",
+   "lang": "en",
+   "tags": [
+    "ambiguous",
+    "casual"
+   ],
+   "heard": "low block elbows flare out",
+   "score": {
+    "pass": false,
+    "jsonValid": true,
+    "accepted": true,
+    "checks": {
+     "scope": true,
+     "target": true,
+     "side": true,
+     "cue": true,
+     "confirm": false
+    },
+    "actual": "movement p1#1 side=both \"팔꿈치 펴세요!\" / \"elbows spread!\" confirm=false",
+    "why": "wrong: confirm"
+   },
+   "promptTokens": 584,
+   "completionTokens": 78,
+   "ms": 7402,
+   "raw": "{\n  \"scope\": \"movement\",\n  \"itemId\": \"p1\",\n  \"movementNo\": 1,\n  \"side\": \"both\",\n  \"part\": \"elbow\",\n  \"cueKo\": \"팔꿈치 펴세요!\",\n  \"cueEn\": \"elbows spread!\",\n  \"needsConfirmation\": false,\n  \"question\": \"\"\n}"
+  },
+  {
+   "id": "correction-en-012",
+   "task": "correction",
+   "lang": "en",
+   "tags": [
+    "numbers",
+    "casual"
+   ],
+   "heard": "left shoulder is too high in movement 8",
+   "score": {
+    "pass": false,
+    "jsonValid": true,
+    "accepted": true,
+    "checks": {
+     "scope": true,
+     "target": true,
+     "side": false,
+     "cue": true,
+     "confirm": true
+    },
+    "actual": "movement p1#8 side=both \"왼쪽 어깨 낮추세요!\" / \"lower left shoulder!\" confirm=false",
+    "why": "wrong: side"
+   },
+   "promptTokens": 588,
+   "completionTokens": 79,
+   "ms": 7242,
+   "raw": "{\n  \"scope\": \"movement\",\n  \"itemId\": \"p1\",\n  \"movementNo\": 8,\n  \"side\": \"both\",\n  \"part\": \"shoulder\",\n  \"cueKo\": \"왼쪽 어깨 낮추세요!\",\n  \"cueEn\": \"lower left shoulder!\",\n  \"needsConfirmation\": false,\n  \"question\": \"\"\n}"
+  },
+  {
+   "id": "routine_setup-ko-002",
+   "task": "routine_setup",
+   "lang": "ko",
+   "tags": [
+    "numbers",
+    "casual"
+   ],
+   "heard": "스쿼트 15개 3세트 사이에 40초 쉬고",
+   "score": {
+    "pass": true,
+    "jsonValid": true,
+    "accepted": true,
+    "checks": {
+     "items": true,
+     "time": true,
+     "count": true,
+     "flag": true
+    },
+    "actual": "1 items, 3.6 min: 스쿼트"
+   },
+   "promptTokens": 676,
+   "completionTokens": 158,
+   "ms": 14381,
+   "raw": "{\n  \"name\": \"스쿼트\",\n  \"targetMinutes\": 0,\n  \"items\": [\n    {\n      \"kind\": \"exercise\",\n      \"name\": \"스쿼트\",\n      \"reps\": 15,\n      \"sets\": 3,\n      \"secPerRep\": 3,\n      \"holdSec\": 0,\n      \"perSide\": false,\n      \"restSec\": 40,\n      \"repeat\": 0,\n      \"formNo\": 0\n    }\n  ],\n  \"assumptions\": [\"15개의 스쿼트를 3세트 반복\", \"세트 간 40초 쉬기\"],\n  \"needsConfirmation\": false,\n  \"question\": \"\"\n}"
+  },
+  {
+   "id": "routine_setup-ko-005",
+   "task": "routine_setup",
+   "lang": "ko",
+   "tags": [
+    "honorific"
+   ],
+   "heard": "태극 1장 두 번 하고 싶어요",
+   "score": {
+    "pass": true,
+    "jsonValid": true,
+    "accepted": true,
+    "checks": {
+     "items": true,
+     "time": true,
+     "count": true,
+     "flag": true
+    },
+    "actual": "1 items, 1.6 min: 태극 1장"
+   },
+   "promptTokens": 668,
+   "completionTokens": 157,
+   "ms": 13949,
+   "raw": "{\n  \"name\": \"태극 1장\",\n  \"targetMinutes\": 0,\n  \"items\": [\n    {\n      \"kind\": \"poomsae\",\n      \"name\": \"태극 1장\",\n      \"reps\": 0,\n      \"sets\": 2,\n      \"secPerRep\": 0,\n      \"holdSec\": 0,\n      \"perSide\": false,\n      \"restSec\": 0,\n      \"repeat\": 2,\n      \"formNo\": 1\n    }\n  ],\n  \"assumptions\": [\"태극 1장을 2회 반복\", \"각 회에서 정확한 형태 수행\"],\n  \"needsConfirmation\": false,\n  \"question\": \"\"\n}"
+  },
+  {
+   "id": "routine_setup-ko-008",
+   "task": "routine_setup",
+   "lang": "ko",
+   "tags": [
+    "asr",
+    "honorific"
+   ],
+   "heard": "푸쉬업 10개 3세트랑 스쿠아트 12개 3세트 할게요",
+   "score": {
+    "pass": true,
+    "jsonValid": true,
+    "accepted": true,
+    "checks": {
+     "items": true,
+     "time": true,
+     "count": true,
+     "flag": true
+    },
+    "actual": "2 items, 4.7 min: 푸쉬업, 스쿠아트"
+   },
+   "promptTokens": 685,
+   "completionTokens": 253,
+   "ms": 25351,
+   "raw": "{\n  \"name\": \"푸쉬업과 스쿠아트\",\n  \"targetMinutes\": 0,\n  \"items\": [\n    {\n      \"kind\": \"exercise\",\n      \"name\": \"푸쉬업\",\n      \"reps\": 10,\n      \"sets\": 3,\n      \"secPerRep\": 3,\n      \"holdSec\": 0,\n      \"perSide\": false,\n      \"restSec\": 20,\n      \"repeat\": 0,\n      \"formNo\": 0\n    },\n    {\n      \"kind\": \"exercise\",\n      \"name\": \"스쿠아트\",\n      \"reps\": 12,\n      \"sets\": 3,\n      \"secPerRep\": 3,\n      \"holdSec\": 0,\n      \"perSide\": false,\n      \"restSec\": 20,\n      \"repeat\": 0,\n      \"formNo\": 0\n    }\n  ],\n  \"assumptions\": [\"각 세트 간 20초 휴식\", \"10개 푸쉬업, 12개 스쿠아트\"],\n  \"needsConfirmation\": false,\n  \"question\": \"\"\n}"
+  },
+  {
+   "id": "routine_setup-ko-011",
+   "task": "routine_setup",
+   "lang": "ko",
+   "tags": [
+    "mixed",
+    "casual"
+   ],
+   "heard": "Warm up 하고 push-ups 15개 2세트 하고 싶어",
+   "score": {
+    "pass": true,
+    "jsonValid": true,
+    "accepted": true,
+    "checks": {
+     "items": true,
+     "time": true,
+     "count": true,
+     "flag": true
+    },
+    "actual": "2 items, 3.1 min: Warm up, Push-ups"
+   },
+   "promptTokens": 673,
+   "completionTokens": 225,
+   "ms": 22320,
+   "raw": "{\n  \"name\": \"Push-ups\",\n  \"targetMinutes\": 0,\n  \"items\": [\n    {\n      \"kind\": \"hold\",\n      \"name\": \"Warm up\",\n      \"reps\": 0,\n      \"sets\": 1,\n      \"secPerRep\": 0,\n      \"holdSec\": 60,\n      \"perSide\": false,\n      \"restSec\": 0,\n      \"repeat\": 0,\n      \"formNo\": 0\n    },\n    {\n      \"kind\": \"exercise\",\n      \"name\": \"Push-ups\",\n      \"reps\": 15,\n      \"sets\": 2,\n      \"secPerRep\": 3,\n      \"holdSec\": 0,\n      \"perSide\": false,\n      \"restSec\": 30,\n      \"repeat\": 0,\n      \"formNo\": 0\n    }\n  ],\n  \"assumptions\": [\"15 push-ups per set\", \"30 seconds rest between sets\"],\n  \"needsConfirmation\": false,\n  \"question\": \"\"\n}"
+  },
+  {
+   "id": "routine_setup-en-001",
+   "task": "routine_setup",
+   "lang": "en",
+   "tags": [
+    "real",
+    "casual",
+    "numbers"
+   ],
+   "heard": "lower body focus, about 20 minutes",
+   "score": {
+    "pass": true,
+    "jsonValid": true,
+    "accepted": true,
+    "checks": {
+     "items": true,
+     "time": true,
+     "count": true,
+     "flag": true
+    },
+    "actual": "6 items, 18.3 min: Warm-up Stretch, Bodyweight Squats, Lunges (Forward), Glute Bridges, High Knees, Cool Down Stretch"
+   },
+   "promptTokens": 665,
+   "completionTokens": 604,
+   "ms": 117290,
+   "raw": "{\n  \"name\": \"Lower Body Focus Routine\",\n  \"targetMinutes\": 20,\n  \"items\": [\n    {\n      \"kind\": \"hold\",\n      \"name\": \"Warm-up Stretch\",\n      \"reps\": 0,\n      \"sets\": 1,\n      \"secPerRep\": 0,\n      \"holdSec\": 60,\n      \"perSide\": false,\n      \"restSec\": 0,\n      \"repeat\": 0,\n      \"formNo\": 0\n    },\n    {\n      \"kind\": \"exercise\",\n      \"name\": \"Bodyweight Squats\",\n      \"reps\": 20,\n      \"sets\": 3,\n      \"secPerRep\": 3,\n      \"holdSec\": 0,\n      \"perSide\": false,\n      \"restSec\": 30,\n      \"repeat\": 0,\n      \"formNo\": 0\n    },\n    {\n      \"kind\": \"exercise\",\n      \"name\": \"Lunges (Forward)\",\n      \"reps\": 15,\n      \"sets\": 3,\n      \"secPerRep\": 4,\n      \"holdSec\": 0,\n      \"perSide\": true,\n      \"restSec\": 30,\n      \"repeat\": 0,\n      \"formNo\": 0\n    },\n    {\n      \"kind\": \"exercise\",\n      \"name\": \"Glute Bridges\",\n      \"reps\": 20,\n      \"sets\": 3,\n      \"secPerRep\": 3,\n      \"holdSec\": 0,\n      \"perSide\": false,\n      \"restSec\": 30,\n      \"repeat\": 0,\n      \"formNo\": 0\n    },\n    {\n      \"kind\": \"exercise\",\n      \"name\": \"High Knees\",\n      \"reps\": 20,\n      \"sets\": 3,\n      \"secPerRep\": 3,\n      \"holdSec\": 0,\n      \"perSide\": false,\n      \"restSec\": 30,\n      \"repeat\": 0,\n      \"formNo\": 0\n    },\n    {\n      \"kind\": \"hold\",\n      \"name\": \"Cool Down Stretch\",\n      \"reps\": 0,\n      \"sets\": 1,\n      \"secPerRep\": 0,\n      \"holdSec\": 60,\n      \"perSide\": false,\n      \"restSec\": 0,\n      \"repeat\": 0,\n      \"formNo\": 0\n    }\n  ],\n  \"assumptions\": [\n    \"20 reps of squats, 15 reps of lunges per side, 20 reps of glute bridges per set\",\n    \"30 seconds rest between sets\",\n    \"each exercise performed in 3 sets\"\n  ],\n  \"needsConfirmation\": false,\n  \"question\": \"\"\n}"
+  },
+  {
+   "id": "routine_setup-en-004",
+   "task": "routine_setup",
+   "lang": "en",
+   "tags": [
+    "numbers"
+   ],
+   "heard": "hamstring stretch 30 seconds each leg",
+   "score": {
+    "pass": true,
+    "jsonValid": true,
+    "accepted": true,
+    "checks": {
+     "items": true,
+     "time": true,
+     "count": true,
+     "flag": true
+    },
+    "actual": "1 items, 1.1 min: Hamstring Stretch (left leg)"
+   },
+   "promptTokens": 664,
+   "completionTokens": 157,
+   "ms": 19675,
+   "raw": "{\n  \"name\": \"Hamstring Stretch\",\n  \"targetMinutes\": 0,\n  \"items\": [\n    {\n      \"kind\": \"hold\",\n      \"name\": \"Hamstring Stretch (left leg)\",\n      \"reps\": 0,\n      \"sets\": 1,\n      \"secPerRep\": 0,\n      \"holdSec\": 30,\n      \"perSide\": true,\n      \"restSec\": 0,\n      \"repeat\": 0,\n      \"formNo\": 0\n    }\n  ],\n  \"assumptions\": [\n    \"30 seconds per leg\",\n    \"performed on both legs\",\n    \"no rest between stretches\"\n  ],\n  \"needsConfirmation\": false,\n  \"question\": \"\"\n}"
+  },
+  {
+   "id": "routine_setup-en-007",
+   "task": "routine_setup",
+   "lang": "en",
+   "tags": [
+    "ambiguous",
+    "oos"
+   ],
+   "heard": "Taegeuk 3",
+   "score": {
+    "pass": true,
+    "jsonValid": true,
+    "accepted": false,
+    "checks": {
+     "flagged": true,
+     "items": true
+    },
+    "actual": "invalid_output:unknown_poomsae"
+   },
+   "promptTokens": 662,
+   "completionTokens": 159,
+   "ms": 19495,
+   "raw": "{\n  \"name\": \"Taegeuk 3 Form\",\n  \"targetMinutes\": 0,\n  \"items\": [\n    {\n      \"kind\": \"poomsae\",\n      \"name\": \"Taegeuk 3\",\n      \"reps\": 0,\n      \"sets\": 1,\n      \"secPerRep\": 0,\n      \"holdSec\": 0,\n      \"perSide\": false,\n      \"restSec\": 0,\n      \"repeat\": 1,\n      \"formNo\": 3\n    }\n  ],\n  \"assumptions\": [\"Standard Taegeuk 3 form performed once\", \"No equipment required\", \"Bodyweight only\"],\n  \"needsConfirmation\": false,\n  \"question\": \"\"\n}"
+  },
+  {
+   "id": "routine_setup-en-010",
+   "task": "routine_setup",
+   "lang": "en",
+   "tags": [
+    "numbers"
+   ],
+   "heard": "10 pushups, rest 1 minute, then 10 pushups again",
+   "score": {
+    "pass": false,
+    "jsonValid": true,
+    "accepted": true,
+    "checks": {
+     "items": false,
+     "time": true,
+     "count": false,
+     "flag": true
+    },
+    "actual": "1 items, 2.0 min: Pushups",
+    "why": "missing rest, exercise[push]"
+   },
+   "promptTokens": 674,
+   "completionTokens": 153,
+   "ms": 17022,
+   "raw": "{\n  \"name\": \"Pushups\",\n  \"targetMinutes\": 2,\n  \"items\": [\n    {\n      \"kind\": \"exercise\",\n      \"name\": \"Pushups\",\n      \"reps\": 10,\n      \"sets\": 2,\n      \"secPerRep\": 3,\n      \"holdSec\": 0,\n      \"perSide\": false,\n      \"restSec\": 60,\n      \"repeat\": 0,\n      \"formNo\": 0\n    }\n  ],\n  \"assumptions\": [\n    \"10 pushups per set\",\n    \"1 minute rest between sets\",\n    \"2 sets total\"\n  ],\n  \"needsConfirmation\": false,\n  \"question\": \"\"\n}"
+  },
+  {
+   "id": "routine_setup-en-013",
+   "task": "routine_setup",
+   "lang": "en",
+   "tags": [
+    "ambiguous",
+    "numbers"
+   ],
+   "heard": "I want a 5 hour workout",
+   "score": {
+    "pass": true,
+    "jsonValid": true,
+    "accepted": true,
+    "checks": {
+     "items": true,
+     "time": true,
+     "count": true,
+     "flag": true
+    },
+    "actual": "6 items, 20.3 min: Squats, Pushups, Plank, Mountain Climbers, Bodyweight Lunges, Cool down stretch"
+   },
+   "promptTokens": 663,
+   "completionTokens": 593,
+   "ms": 58694,
+   "raw": "{\n  \"name\": \"5-Hour Workout Routine\",\n  \"targetMinutes\": 300,\n  \"items\": [\n    {\n      \"kind\": \"exercise\",\n      \"name\": \"Squats\",\n      \"reps\": 20,\n      \"sets\": 4,\n      \"secPerRep\": 3,\n      \"holdSec\": 0,\n      \"perSide\": false,\n      \"restSec\": 30,\n      \"repeat\": 0,\n      \"formNo\": 0\n    },\n    {\n      \"kind\": \"exercise\",\n      \"name\": \"Pushups\",\n      \"reps\": 15,\n      \"sets\": 4,\n      \"secPerRep\": 3,\n      \"holdSec\": 0,\n      \"perSide\": false,\n      \"restSec\": 30,\n      \"repeat\": 0,\n      \"formNo\": 0\n    },\n    {\n      \"kind\": \"exercise\",\n      \"name\": \"Plank\",\n      \"reps\": 0,\n      \"sets\": 3,\n      \"secPerRep\": 0,\n      \"holdSec\": 60,\n      \"perSide\": false,\n      \"restSec\": 0,\n      \"repeat\": 0,\n      \"formNo\": 0\n    },\n    {\n      \"kind\": \"exercise\",\n      \"name\": \"Mountain Climbers\",\n      \"reps\": 20,\n      \"sets\": 3,\n      \"secPerRep\": 3,\n      \"holdSec\": 0,\n      \"perSide\": false,\n      \"restSec\": 30,\n      \"repeat\": 0,\n      \"formNo\": 0\n    },\n    {\n      \"kind\": \"exercise\",\n      \"name\": \"Bodyweight Lunges\",\n      \"reps\": 10,\n      \"sets\": 4,\n      \"secPerRep\": 3,\n      \"holdSec\": 0,\n      \"perSide\": true,\n      \"restSec\": 30,\n      \"repeat\": 0,\n      \"formNo\": 0\n    },\n    {\n      \"kind\": \"hold\",\n      \"name\": \"Cool down stretch\",\n      \"reps\": 0,\n      \"sets\": 1,\n      \"secPerRep\": 0,\n      \"holdSec\": 60,\n      \"perSide\": false,\n      \"restSec\": 0,\n      \"repeat\": 0,\n      \"formNo\": 0\n    }\n  ],\n  \"assumptions\": [\n    \"Each exercise performed as described with 30-second rest between sets\",\n    \"Total duration approximates 300 minutes (5 hours)\",\n    \"Bodyweight only, no equipment\"\n  ],\n  \"needsConfirmation\": false,\n  \"question\": \"\"\n}"
+  },
+  {
+   "id": "travel_qa-ko-003",
+   "task": "travel_qa",
+   "lang": "ko",
+   "tags": [
+    "casual"
+   ],
+   "heard": "덕수궁은 쉬는 날이 언제예요?",
+   "score": {
+    "pass": true,
+    "jsonValid": true,
+    "accepted": true,
+    "checks": {
+     "answerable": true,
+     "included": true,
+     "noInvention": true,
+     "rescued": false,
+     "notInSourceCorrect": true
+    },
+    "actual": "answered (ok): 월요일에는 쉬요"
+   },
+   "promptTokens": 399,
+   "completionTokens": 31,
+   "ms": 2528,
+   "raw": "{\"answerable\": true, \"answer\": \"월요일에는 쉬요\", \"quote\": \"월요일은 쉬어요\"}"
+  },
+  {
+   "id": "travel_qa-ko-006",
+   "task": "travel_qa",
+   "lang": "ko",
+   "tags": [
+    "casual",
+    "numbers"
+   ],
+   "heard": "보신각 종은 언제 새로 만들었어요?",
+   "score": {
+    "pass": true,
+    "jsonValid": true,
+    "accepted": true,
+    "checks": {
+     "answerable": true,
+     "included": true,
+     "noInvention": true,
+     "rescued": false,
+     "notInSourceCorrect": true
+    },
+    "actual": "answered (ok): 보신각 종은 1985년에 새로 만들었어요."
+   },
+   "promptTokens": 331,
+   "completionTokens": 65,
+   "ms": 5069,
+   "raw": "{\"answerable\": true, \"answer\": \"보신각 종은 1985년에 새로 만들었어요.\", \"quote\": \"지금의 건물은 1979년에 다시 지었고, 종은 1985년에 새로 만들었어요.\"}"
+  },
+  {
+   "id": "travel_qa-ko-009",
+   "task": "travel_qa",
+   "lang": "ko",
+   "tags": [
+    "oos",
+    "casual",
+    "numbers"
+   ],
+   "heard": "경복궁 입장료는 얼마예요?",
+   "score": {
+    "pass": true,
+    "jsonValid": true,
+    "accepted": true,
+    "checks": {
+     "answerable": true,
+     "included": true,
+     "noInvention": true,
+     "rescued": false,
+     "notInSourceCorrect": true
+    },
+    "actual": "not in source (not_in_source): 경복궁에 대한 자료에는 그 내용이 나와 있지 않아요."
+   },
+   "promptTokens": 395,
+   "completionTokens": 16,
+   "ms": 1291,
+   "raw": "{\"answerable\": false, \"answer\": \"\", \"quote\": \"\"}"
+  },
+  {
+   "id": "travel_qa-ko-012",
+   "task": "travel_qa",
+   "lang": "ko",
+   "tags": [
+    "oos",
+    "honorific"
+   ],
+   "heard": "조계사 근처에 맛집 추천해 주세요",
+   "score": {
+    "pass": true,
+    "jsonValid": true,
+    "accepted": true,
+    "checks": {
+     "answerable": true,
+     "included": true,
+     "noInvention": true,
+     "rescued": false,
+     "notInSourceCorrect": true
+    },
+    "actual": "not in source (not_in_source): 조계사에 대한 자료에는 그 내용이 나와 있지 않아요."
+   },
+   "promptTokens": 347,
+   "completionTokens": 16,
+   "ms": 1530,
+   "raw": "{\"answerable\": false, \"answer\": \"\", \"quote\": \"\"}"
+  },
+  {
+   "id": "travel_qa-ko-015",
+   "task": "travel_qa",
+   "lang": "ko",
+   "tags": [
+    "oos",
+    "casual",
+    "numbers"
+   ],
+   "heard": "청계천에 매년 몇 명이 방문해요?",
+   "score": {
+    "pass": true,
+    "jsonValid": true,
+    "accepted": true,
+    "checks": {
+     "answerable": true,
+     "included": true,
+     "noInvention": true,
+     "rescued": false,
+     "notInSourceCorrect": true
+    },
+    "actual": "not in source (not_in_source): 청계천에 대한 자료에는 그 내용이 나와 있지 않아요."
+   },
+   "promptTokens": 349,
+   "completionTokens": 16,
+   "ms": 1273,
+   "raw": "{\"answerable\": false, \"answer\": \"\", \"quote\": \"\"}"
+  },
+  {
+   "id": "travel_qa-en-002",
+   "task": "travel_qa",
+   "lang": "en",
+   "tags": [
+    "casual"
+   ],
+   "heard": "Which day is Gyeongbokgung closed?",
+   "score": {
+    "pass": true,
+    "jsonValid": true,
+    "accepted": true,
+    "checks": {
+     "answerable": true,
+     "included": true,
+     "noInvention": true,
+     "rescued": false,
+     "notInSourceCorrect": true
+    },
+    "actual": "answered (ok): Gyeongbokgung is closed on Tuesdays."
+   },
+   "promptTokens": 379,
+   "completionTokens": 33,
+   "ms": 2602,
+   "raw": "{\"answerable\": true, \"answer\": \"Gyeongbokgung is closed on Tuesdays.\", \"quote\": \"Closed on Tuesdays\"}"
+  },
+  {
+   "id": "travel_qa-en-005",
+   "task": "travel_qa",
+   "lang": "en",
+   "tags": [
+    "casual"
+   ],
+   "heard": "What is special about the tree in the courtyard of Jogyesa?",
+   "score": {
+    "pass": false,
+    "jsonValid": true,
+    "accepted": true,
+    "checks": {
+     "answerable": true,
+     "included": false,
+     "noInvention": true,
+     "rescued": false,
+     "notInSourceCorrect": true
+    },
+    "actual": "answered (ok): The tree is designated as a natural monument.",
+    "why": "missing required fact"
+   },
+   "promptTokens": 300,
+   "completionTokens": 40,
+   "ms": 4256,
+   "raw": "{\"answerable\": true, \"answer\": \"The tree is designated as a natural monument.\", \"quote\": \"An old white-barked pine in the courtyard is designated a natural monument.\"}"
+  },
+  {
+   "id": "travel_qa-en-008",
+   "task": "travel_qa",
+   "lang": "en",
+   "tags": [
+    "casual",
+    "numbers"
+   ],
+   "heard": "How long is Cheonggyecheon?",
+   "score": {
+    "pass": true,
+    "jsonValid": true,
+    "accepted": true,
+    "checks": {
+     "answerable": true,
+     "included": true,
+     "noInvention": true,
+     "rescued": false,
+     "notInSourceCorrect": true
+    },
+    "actual": "answered (ok): Cheonggyecheon is about 10.9 kilometers long."
+   },
+   "promptTokens": 305,
+   "completionTokens": 57,
+   "ms": 5664,
+   "raw": "{\"answerable\": true, \"answer\": \"Cheonggyecheon is about 10.9 kilometers long.\", \"quote\": \"Cheonggyecheon is a stream that runs east to west through downtown Seoul, about 10.9 kilometers long.\"}"
+  },
+  {
+   "id": "travel_qa-en-011",
+   "task": "travel_qa",
+   "lang": "en",
+   "tags": [
+    "oos",
+    "casual"
+   ],
+   "heard": "Who was the architect of Seokjojeon?",
+   "score": {
+    "pass": true,
+    "jsonValid": true,
+    "accepted": true,
+    "checks": {
+     "answerable": true,
+     "included": true,
+     "noInvention": true,
+     "rescued": false,
+     "notInSourceCorrect": true
+    },
+    "actual": "not in source (not_in_source): My source for Deoksugung Palace doesn't say."
+   },
+   "promptTokens": 344,
+   "completionTokens": 16,
+   "ms": 2860,
+   "raw": "{\"answerable\": false, \"answer\": \"\", \"quote\": \"\"}"
+  },
+  {
+   "id": "travel_qa-en-014",
+   "task": "travel_qa",
+   "lang": "en",
+   "tags": [
+    "oos"
+   ],
+   "heard": "Is Bosingak a UNESCO World Heritage Site?",
+   "score": {
+    "pass": true,
+    "jsonValid": true,
+    "accepted": true,
+    "checks": {
+     "answerable": true,
+     "included": true,
+     "noInvention": true,
+     "rescued": false,
+     "notInSourceCorrect": true
+    },
+    "actual": "not in source (not_in_source): My source for Bosingak Belfry doesn't say."
+   },
+   "promptTokens": 303,
+   "completionTokens": 16,
+   "ms": 2439,
+   "raw": "{\"answerable\": false, \"answer\": \"\", \"quote\": \"\"}"
+  }
+ ]
+}
