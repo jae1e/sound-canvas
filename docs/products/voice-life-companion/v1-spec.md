@@ -96,6 +96,86 @@ The LLM must never invent nudges about safety or health. Nudge copy for the freq
 - long planning conversations
 - camera or vision
 
+### 2.1 Concrete first case: home workout, stretching and Taekwondo poomsae (2026-11-04)
+
+**User feedback (2026-11-04).** The user was not sure what voice adds to Work Partner. What would make it worth it, in their words: (1) departing from the planned routine without touching the screen, (2) **voice pacing**, (3) setting up a routine by voice or by text. The user approved workout and stretching as the specific case and suggested poomsae such as 태극 1장. Later the same day the user added a fourth requirement: personal correction notes that turn into voice guidance (example: "오른손 먼저 나가야되는데 자꾸 왼손이 나가요").
+
+The generic task copilot above keeps working; the routine screens sit next to it (`/work/routine`, entered from the Work Partner start screen).
+
+**Routine model** (`packages/session-engine/src/routine`, pure TypeScript). Item kinds: exercise (reps x sets, seconds per rep or a phase pattern, rest between sets), timed hold (seconds, sets, optionally left/right), rest, and poomsae (ordered movements with a count number, stance, technique, facing, optional 기합 flag). The **template** (`RoutineTemplate`) is never changed by a session. A running session (`RunState`) holds a copy of the items, a tempo factor and a deviation log; at the end the app offers "save changes to the template?" (default no; a built-in routine is saved as a copy). Skips, back, pause and "repeat from N" are transient and never count as changes.
+
+**Setup by text or voice.** `parseRoutineText` is a deterministic ko/en parser ("스쿼트 15개 3세트, 플랭크 45초, 세트 사이 휴식 30초", "squats 15 reps 3 sets, plank 45 seconds, rest 30 seconds", "햄스트링 스트레칭 좌우 30초", "태극 1장 3번"). It returns editable items, the parts it did not understand and the defaults it assumed (rest 30 s, 3 s per rep, 2.5 s per movement). Leftovers go to the `askLlm()` stub (`kind: 'routine_setup'`), which stays unimplemented until M4. UI: text box and Parse, a voice "루틴 만들기 / create routine" flow, a preview with edit, save as template. "어제 루틴 시작" / "start my last routine" starts the most recent run.
+
+**Changing the routine during a session** (`parseRoutineIntent` + `applyCommand`, ko and en): skip this exercise; N more reps; one more or one fewer set; change the rest to N seconds; swap X for Y; repeat from movement N; go back one move; slower or faster (x1.15 or x0.85 on rep and movement durations, clamped to 0.5x-2x, so speed 50%-200%); pause and resume; "how many left?", "what's next?"; end early; "mark as fixed" for a correction. Each command is answered with one short sentence and the pacing continues from the right place.
+
+**Voice pacing (the key feature).**
+- *Why pre-synthesis.* Supertonic takes about 1.8 s to first audio and is not streaming, so live synthesis cannot keep a rhythm. At routine start the app pre-synthesizes every phrase the routine can say (numbers 1-30, the countdown and hold words, the routine's item and movement names, transition phrases, correction cues and the kihap cue) into WAV files in `filesDir/vlc-pacing/`. Cache key: SHA-1 of `engine|voice|steps|lang|text`. Supertonic is used when its model is ready, otherwise platform TTS with `synthesizeToFile`; a clip Supertonic fails on falls back to platform. The first run pays the synthesis time, later runs hit the cache.
+- *Timeline.* `planTimeline` flattens the session copy into units (rep, hold, rest, poomsae movement, ...) and produces a beat list with offsets. Unit starts sit on a fixed grid (tempo); phrases never move a beat. A phrase that is longer than its slot is shortened (full to short to count) and reported.
+- *Native player.* `PacingPlayer` (in the session service) schedules each beat with `Handler.postAtTime` on a dedicated thread against `SystemClock.uptimeMillis` (the same path as `CueScheduler`, absolute times, no chained delays), so it works with the screen locked. Each beat plays a pre-built `MODE_STATIC` `AudioTrack` (`USAGE_MEDIA`, low-latency), created one or two beats ahead. It follows the system media route and **never forces the phone speaker** (no preferred device, no communication device). It requests `AUDIOFOCUS_GAIN_TRANSIENT_MAY_DUCK` for a segment and releases it shortly after the last clip, so other audio ducks rather than stops.
+- *Accuracy logging.* Every beat logs `pace_beat` (scheduled offset, drift = play start minus scheduled, clip length, routed device, source); each set ends with a `pace_segment` summary (mean, p95, max, count of beats later than 50 and 100 ms). A missing clip falls back to live TTS and logs `pace_clip_missing`. The summary screen lists the per-set drift. Expected: handler-path jitter of a few ms plus `AudioTrack.play()` start latency, median drift under about 30 ms and p95 under about 60 ms on the Galaxy S25 (an estimate until measured; see TESTING.md). Bluetooth adds a constant 150-250 ms output latency that the drift number does not include.
+- *Half-duplex STT.* The platform recognizer is paused for each clip (existing echo tail), and listens between counts. If the gap to the next clip is under `MIN_LISTEN_GAP_MS` = 700 ms, it stays paused across the gap (a recognizer restart per beat would thrash). Priority stop: a "멈춰 / stop" partial transcript heard in a gap pauses pacing at once, without waiting for the final transcript; the on-screen Pause button is the fallback for fast tempos where the gaps are too short to listen.
+- *Pacing levels* (setting, also chips on the active screen): **full** ("하나, 왼발 앞서기 아래막기"), **short** ("하나, 아래막기"), **count only** ("하나"). Reps are counted "하나, 둘, 셋..." or "one, two, three..."; holds say the side, "10초 남았어요" (holds of 25 s or more) and "3, 2, 1"; rests say "휴식 30초", "다음 세트" or "다음: 푸시업 10개 3세트" (rests of 15 s or more) and "3, 2, 1"; a pass change says "다시 한 번". Movement 18 gets a "기합!" reminder before its count at every level.
+
+**Correction notes that become voice cues.** The user can state a problem by voice or text, in practice or in the routine editor ("문제: ...", "고칠 점: ...", "note: I keep ...", or a plain sentence that has both a problem marker such as 자꾸/"I keep" and a side or body-part word). Rules (`corrections.ts`, deterministic, ko and en):
+- *Attachment.* A named movement ("5번 동작", "movement 5") wins; then a technique name that matches exactly one movement; then a named exercise; then, in practice, the current movement (or the previous one if the current one started less than 1.2 s ago); then the practiced item; otherwise the whole routine. A technique name that matches several movements (아래막기 appears in five) is ambiguous: the text goes to the `askLlm()` stub (`kind: 'routine_target'`) and the user picks the movement on screen.
+- *Cue.* Side and body-part keywords (오른손/왼손/오른발/왼발/몸통/얼굴..., right/left hand/foot...) plus an optional modifier (먼저/first, 높이/higher, ...) give a short cue: "오른손 먼저 나가야되는데 자꾸 왼손이 나가요" gives "오른손 먼저!"; "the right hand should go first but I keep leading with my left" gives "right hand first!". The full note is kept for display.
+- *Playback.* The cue is pre-synthesized with the other clips and plays just before the movement's count at every pacing level, including count only. It takes its time from the gap before the movement, never from the beat: if the previous unit is flexible (intro, rest) the gap is widened; otherwise a cue that does not fit is dropped and logged (`cues_dropped`).
+- *Persistence.* Notes are stored per template (and per movement or item) in SQLite (`routine_corrections`), carry over to future sessions, can be edited, deleted or marked fixed ("이제 괜찮아", "mark as fixed", or in the editor), which stops the cue. Each note is also saved to the Journal as a user note linked to the routine and movement (`task_id = <template>:<movement>`). The session summary adds one line, for example "오늘 5번 동작 오른손 먼저 큐 3번 나왔어요", and counts are added to the note's `shown` total.
+
+### 2.2 Built-in routines
+
+Stretching (neck, shoulder, hamstring, quad, spinal twist, child's pose), Bodyweight workout (squats 15x3, push-ups 10x3, lunges 12x3, plank 45 s x3), and 태극 1장 (Taegeuk 1 Jang). The stretching and bodyweight contents are plain activity lists with no health guidance.
+
+### 2.3 Status (2026-11-04)
+
+Built and unit-tested (`packages/session-engine` routine tests, `apps/mobile` routine controller, view and DB tests); native player compiles in a release build. **Not run on a device**; the drift numbers above are design expectations, not measurements. Not covered: Supertonic synthesis time for a full poomsae cache on the S25, platform `synthesizeToFile` output on the S25's TTS engine, behaviour with the screen off for a long set, and whether the recognizer restarts cleanly between counts.
+
+### 2.4 Taegeuk 1 Jang (태극 1장): sources and movement list (checked 2026-11-04)
+
+**Sources (web, opened on 2026-11-04):**
+- NBTKDA Taegeuk 1 poomsae chart (Kukkiwon terminology, the primary data): https://www.nbtkda.com/s/Taegeuk-1-NBTKDA-Poomsae-Chart.pdf
+- NBTKDA page (stances and techniques; kihap on the final punch): https://nbtkda.com/taegeuk-1
+- Taekwondo Nation, 18-movement numbering with one kihap on movement 18: https://www.taekwondonation.com/tae-kwon-do-white-belt-form-taegeuk-il-jang/
+- Yonggi Taekwondo, 18-movement numbering: https://www.sites.google.com/site/yonggitaekwondo/poomse/il-jang
+- Wikipedia, technique inventory and lead-foot turns: https://en.wikipedia.org/wiki/Taegeuk_Il_Jang
+- Kukkiwon Taegeuk 1 page (symbolism only, no movement list): https://www.kukkiwon.or.kr/eng/board/read?boardManagementNo=55&boardNo=1347&page=2&menuLevel=3&menuNo=72
+- Kukkiwon digital encyclopedia summary (technique list only): https://mookas.com/news/17083
+
+**Authority and caveat.** The most authoritative source is the Kukkiwon Taekwondo Textbook (Poomsae volume) or the World Taekwondo recognized-poomsae material. **Neither is online, and no opened source was a Kukkiwon or World Taekwondo movement list.** The data therefore comes from the NBTKDA chart (which uses Kukkiwon terms), cross-checked against the two 18-movement lists. The facing directions are derived from the stated turns (start facing = N), not copied. **Please check the list against your dojang's form once and report differences.**
+
+**Movements (18-movement numbering; descriptions are our own words).** Start: parallel ready stance (나란히서기, 기본준비자세).
+
+| # | Turn, facing | Stance | Technique |
+| --- | --- | --- | --- |
+| 1 | 90 degrees left, W | left 앞서기 (walking stance) | 아래막기 (low block) |
+| 2 | W | right 앞서기 | 몸통지르기 (middle punch) |
+| 3 | 180 degrees right, E | right 앞서기 | 아래막기 |
+| 4 | E | left 앞서기 | 몸통지르기 |
+| 5 | 90 degrees left, N | left 앞굽이 (front stance) | 아래막기 |
+| 6 | N | left 앞굽이 | 몸통지르기 |
+| 7 | 90 degrees right, E | right 앞서기 | 몸통안막기 (middle inside block) |
+| 8 | E | left 앞서기 | 몸통지르기 |
+| 9 | 180 degrees left, W | left 앞서기 | 몸통안막기 |
+| 10 | W | right 앞서기 | 몸통지르기 |
+| 11 | 90 degrees right, N | right 앞굽이 | 아래막기 |
+| 12 | N | right 앞굽이 | 몸통지르기 |
+| 13 | 90 degrees left, W | left 앞서기 | 얼굴막기 (high block) |
+| 14 | W | right 앞서기 | 앞차기 (front kick), then 몸통지르기 |
+| 15 | 180 degrees right, E | right 앞서기 | 얼굴막기 |
+| 16 | E | left 앞서기 | 앞차기, then 몸통지르기 |
+| 17 | 90 degrees left, N | left 앞굽이 | 아래막기 |
+| 18 | N | right 앞굽이 | 몸통지르기 with **기합 (kihap)** |
+
+Then the left foot returns to the ready stance (바로).
+
+**Where sources disagree, and the choice made.**
+- *Numbering.* The NBTKDA chart counts 16 numbers with a/b sub-techniques (moves 5, 10, 12, 14); two other sources count 18 with 5/6 and 11/12 split and each kick-plus-punch as one movement. The app uses the 18-movement numbering (the task's "18 movements").
+- *Kihap.* All three main sources put the single kihap on the final punch (chart 16 = movement 18); none puts one at a kick.
+- *Stance names.* Consistent across the sources: 앞서기 for moves 1-4, 7-10, 13-16 and 앞굽이 for 5, 6, 11, 12, 17, 18; no source calls the walking-stance moves 앞굽이. (Hence the user's list of terms is used as is.)
+- *Punch labels.* Sources label the punches 바로지르기 and 반대지르기 in opposite ways; the app does not use these labels and stores only the stance and the technique. Which fist punches is not spoken.
+- *Move 17 turn.* One source says "right", the others "left"; the app uses left (it must end facing N).
+- *Ending.* Two sources say "turn 180 degrees left" at the end, which contradicts facing N already; the app follows the chart: the left foot returns to the ready stance. Whether Kukkiwon words it this way is unverified. Line spacing (how far the form ends from the start) is unverified and not modelled.
+
 ## 3. Travel Guide / 여행 가이드 (first-version scope)
 
 **Purpose:** walking guidance and "what's around here / where should I go" by voice, using GPS.
