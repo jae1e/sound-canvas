@@ -1,4 +1,4 @@
-import { summarizeTake, type Frame, type Lang, type TakeMode, type TakeSummary, type TargetSpec, type TimedWord } from '@vlc/voice-analysis';
+import { summarizeTake, type Frame, type Lang, type NoteStyle, type TakeMode, type TakeSummary, type TargetSpec, type TimedWord } from '@vlc/voice-analysis';
 import type { NativeContour } from '../../modules/vlc-voice-coach';
 
 /** Columnar native contour -> Frame[] (unvoiced f0 stays null). */
@@ -17,12 +17,13 @@ export interface SummaryContext {
   words?: TimedWord[];
   /** Language of the speech being practised (rate unit and filler list). */
   speechLang: Lang;
+  noteStyle?: NoteStyle;
 }
 
 /** Summary for one take; `previous` is the previous take's summary for trend sentences. */
 export function summarize(frames: Frame[], ctx: SummaryContext, previous?: TakeSummary | null): TakeSummary {
   return summarizeTake(
-    { mode: ctx.mode, frames, target: ctx.target, transcript: ctx.transcript, words: ctx.words, speechLang: ctx.speechLang },
+    { mode: ctx.mode, frames, target: ctx.target, transcript: ctx.transcript, words: ctx.words, speechLang: ctx.speechLang, noteStyle: ctx.noteStyle },
     previous?.metrics ?? null,
   );
 }
