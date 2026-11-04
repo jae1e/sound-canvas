@@ -173,3 +173,59 @@ export const planTemplates = sqliteTable('plan_templates', {
   createdAt: integer('created_at').notNull(),
   updatedAt: integer('updated_at').notNull(),
 });
+
+/** Work Partner routines (workout, stretching, poomsae). `routine_json` is a validated engine `RoutineTemplate`. */
+export const routineTemplates = sqliteTable('routine_templates', {
+  id: text('id').primaryKey(),
+  name: text('name').notNull(),
+  lang: text('lang').notNull(),
+  routineJson: text('routine_json').notNull(),
+  createdAt: integer('created_at').notNull(),
+  updatedAt: integer('updated_at').notNull(),
+  /** Last time a session started from this routine ("start my last routine"). */
+  lastUsedAt: integer('last_used_at'),
+});
+
+/**
+ * Personal correction notes per routine template (and per movement or item). `template_id` may name a built-in routine
+ * that has no row in `routine_templates`, so there is deliberately no foreign key.
+ */
+export const routineCorrections = sqliteTable(
+  'routine_corrections',
+  {
+    id: text('id').primaryKey(),
+    templateId: text('template_id').notNull(),
+    itemId: text('item_id'),
+    movementId: text('movement_id'),
+    movementNo: integer('movement_no'),
+    /** The note as said or typed. */
+    text: text('text').notNull(),
+    /** Short spoken cue derived from the note. */
+    cue: text('cue').notNull(),
+    side: text('side'),
+    part: text('part'),
+    lang: text('lang').notNull(),
+    fixed: integer('fixed').notNull().default(0),
+    shown: integer('shown').notNull().default(0),
+    createdAt: integer('created_at').notNull(),
+    updatedAt: integer('updated_at').notNull(),
+  },
+  (t) => [index('routine_corrections_template_idx').on(t.templateId)],
+);
+
+/** One finished (or abandoned) routine session. `used_template_id` is the template it started from, built-in or saved. */
+export const routineRuns = sqliteTable(
+  'routine_runs',
+  {
+    id: text('id').primaryKey(),
+    templateId: text('template_id').notNull(),
+    templateName: text('template_name').notNull(),
+    lang: text('lang').notNull(),
+    startedAt: integer('started_at').notNull(),
+    endedAt: integer('ended_at'),
+    endedEarly: integer('ended_early').notNull().default(0),
+    /** Deviations, cue counts and pace summary as JSON. */
+    summaryJson: text('summary_json'),
+  },
+  (t) => [index('routine_runs_started_idx').on(t.startedAt)],
+);

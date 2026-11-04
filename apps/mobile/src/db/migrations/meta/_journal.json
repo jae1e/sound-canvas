@@ -15,6 +15,13 @@
       "when": 1793704716279,
       "tag": "0001_aspiring_hedge_knight",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1793756577176,
+      "tag": "0002_dear_lucky_pierre",
+      "breakpoints": true
     }
   ]
 }

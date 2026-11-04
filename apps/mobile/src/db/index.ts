@@ -6,3 +6,4 @@ export * from './repos/events';
 export * from './repos/journal';
 export * from './repos/settings';
 export * from './repos/templates';
+export * from './repos/routines';
