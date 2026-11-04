@@ -114,7 +114,7 @@ The technical risk is the hardest case in separation: voice against voice, and w
 Add four camera-holder cases to the Recommendation A bake-off:
 1. narration in a crowd (keep);
 2. a parent talking over a recital (remove);
-3. singing along at a concert (remove);
+3. singing along at a concert (remove). This is close to unison when the fan sings the performer's melody, so it is a stretch test only after the user excluded unison (2026-11-04);
 4. a POV interview with the holder asking questions (split into two tracks).
 
 If either direction works, idea 1 becomes "any voice, keep or remove, chosen by face, by moment or by description". That raises its audience score. Pricing should assume one-off, per-video buyers in the "remove" case.
@@ -147,8 +147,7 @@ The user prefers the separation topic: splitting voices, individual voices and i
      - Choir separation is an active research problem, and unison is the hard case ([UPF](https://repositori.upf.edu/items/244597c0-e786-4585-8b4d-325e3aaa7958/full), [Frontiers 2022](https://www.frontiersin.org/articles/10.3389/frsip.2022.808594/pdf)).
    - **Feasibility by case:**
      - Singers who alternate lines (duets, group songs with member lines): likely feasible with span prompts and singer clustering.
-     - Harmony parts (SATB, a cappella): partly feasible, using pitch cues.
-     - Unison: not promised. Meta says highly similar sources remain a challenge.
+     - Harmony parts (SATB, a cappella) and unison choruses: **out of scope by user decision (2026-11-04)** as too difficult. Sections where several singers sing together are flagged to the user as not separable.
    - **Korean angle:** fans and cover singers who want one member's line from a K-pop group song. Demand is unmeasured; check it in the community pass [hypothesis].
    - **Scope limit:** Meta says isolating one instrument from an orchestra is still hard, so stick to bands and small ensembles.
    - **Licensing:** most open instrument models train on non-commercial datasets (MUSDB18, MoisesDB), so use SAM Audio.
@@ -156,9 +155,7 @@ The user prefers the separation topic: splitting voices, individual voices and i
    - **Bake-off cases to add:**
      1. audio-only stems against Moises, LALAL.AI and Suno;
      2. an alternating-line duet;
-     3. a harmony group;
-     4. a unison chorus;
-     5. a group song with member lines.
+     3. a group song with member lines.
 
 **MVP scope (about 3 months):**
 - **Product flow:** a web app where the user uploads video or audio. It shows the detected sources as tracks: faces and players from computer vision, plus speech, music and effects tags from an audio tagger. SAM Audio needs a prompt and cannot separate everything unprompted, so these detections serve as the prompts. The user keeps or mutes each track and gets a free 30-second preview. Export is WAV stems or a remixed MP4.

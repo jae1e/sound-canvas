@@ -27,6 +27,8 @@ This repository is a workspace for studying multiple markets and product opportu
 - For this product, the user explicitly selected simultaneous delivery of GPS walking/navigation, conversational activity assistance, and vocal/voice practice, with shared journaling. Do not revert to the earlier assistant recommendation of a vocal-only first release.
 - Read the linked implementation, earbud-compatibility, and technical-decisions documents before implementing this product. The user selected Android-first development (iPhone later), Expo/React Native with TypeScript, Korean and English, on-device-first processing with cloud fallback, and strong latency/cost priorities. Other market studies remain independent.
 
+- Audio separation SaaS (exploration, MVP not committed): [docs/products/audio-separation/personas-and-user-stories.md](docs/products/audio-separation/personas-and-user-stories.md). The user chose the sound-separation topic (voices, individual voices, instruments, individual singers who take turns; audio and video input) and excluded harmony groups and unison choruses as too difficult.
+
 ## Code
 
 - Write code, comments, and identifiers in English.
