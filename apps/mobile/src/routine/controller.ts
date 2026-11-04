@@ -552,10 +552,10 @@ export class RoutineController {
       if (run) void askLlm({ hypotheses: [text], lang, kind: 'routine_target', context: a.candidates, recentTurns: [] }).catch(() => undefined);
       this.set({ pick: { text, candidates: a.candidates } });
       const reply = t2(lang, '어느 동작인지 화면에서 골라 주세요.', 'Please pick the movement on screen.');
-      this.say(reply);
+      if (opts.practice !== false) this.say(reply);
       return reply;
     }
-    return this.storeCorrection(text, a.target, tpl, lang);
+    return this.storeCorrection(text, a.target, tpl, lang, opts.practice !== false);
   }
 
   pickTarget(target: Target, template?: RoutineTemplate): void {
@@ -570,7 +570,12 @@ export class RoutineController {
     this.set({ pick: null });
   }
 
-  private storeCorrection(text: string, target: Target, tpl: RoutineTemplate, lang: Lang): string {
+  /** Stores a correction for a chosen target outside a run (the editor). Never speaks. */
+  storeCorrectionFor(text: string, target: Target, template: RoutineTemplate): string {
+    return this.storeCorrection(text, target, template, template.lang, false);
+  }
+
+  private storeCorrection(text: string, target: Target, tpl: RoutineTemplate, lang: Lang, speak = true): string {
     const c = makeCorrection({ id: `cor-${this.env.newId()}`, templateId: tpl.id, text, lang, target, now: this.env.now() });
     this.store.saveCorrection(c);
     this.set({ corrections: [...this.s.corrections.filter((x) => x.templateId === tpl.id), c] });
@@ -585,7 +590,7 @@ export class RoutineController {
       createdAt: c.createdAt,
     });
     const reply = t2(lang, `${where}에 메모했어요. 다음부터 "${c.cue.replace(/!$/, '')}" 하고 알려드릴게요.`, `Noted for ${where}. I will cue "${c.cue.replace(/!$/, '')}" from now on.`);
-    this.say(reply);
+    if (speak) this.say(reply);
     // Future pacing picks the new cue up at the next unit boundary without disturbing the rhythm.
     if (this.s.phase === 'running' && this.s.run && this.tl && this.s.timelineStart !== null) {
       void this.prepareClips().then(() => this.replanSeamless());

@@ -42,6 +42,7 @@ export default function RootLayout() {
       <Stack screenOptions={{ headerStyle: { backgroundColor: colors.bg }, headerShadowVisible: false, contentStyle: { backgroundColor: colors.bg } }}>
         <Stack.Screen name="index" options={{ title: 'Voice Life Companion' }} />
         <Stack.Screen name="work/index" options={{ title: t('common.mode.work') }} />
+        <Stack.Screen name="work/routine" options={{ title: t('routine.entry.title') }} />
         <Stack.Screen name="travel/index" options={{ title: t('common.mode.travel') }} />
         <Stack.Screen name="voice-coach/index" options={{ title: t('common.mode.coach') }} />
         <Stack.Screen name="journal/index" options={{ title: t('common.journal') }} />

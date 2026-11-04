@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useRouter } from 'expo-router';
 import { Alert, Text, TextInput, View } from 'react-native';
 import { builtinTemplates, type PlanTemplate } from '@vlc/session-engine';
 
@@ -38,6 +39,7 @@ export function StartPanel() {
   const lang = useSettings((s) => s.language);
   const { templates, remove } = useTemplates();
   const [name, setName] = useState('');
+  const router = useRouter();
 
   const start = (tpl?: PlanTemplate) => {
     try {
@@ -54,6 +56,11 @@ export function StartPanel() {
 
   return (
     <View style={{ gap: space.md }}>
+      <Card>
+        <Text style={shared.h2}>{t('routine.entry.title')}</Text>
+        <Text style={shared.muted}>{t('routine.entry.desc')}</Text>
+        <Button big kind="primary" label={t('routine.entry.title')} onPress={() => router.push('/work/routine')} />
+      </Card>
       <Text style={shared.h1}>{t('work.start.title')}</Text>
       <Text style={shared.muted}>{t('work.start.hint')}</Text>
       <TextInput style={shared.input} value={name} onChangeText={setName} placeholder={t('work.start.titleLabel')} accessibilityLabel={t('work.start.titleLabel')} />
