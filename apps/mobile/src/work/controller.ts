@@ -21,6 +21,7 @@ import {
   type PlannedCue,
   type Session,
   type TurnResult,
+  describeCannotAnswer,
   describeChanges,
   describeRejection,
   handleUtterance,
@@ -474,7 +475,8 @@ export class WorkController {
     const a = res.align;
     if (!a.mapped || a.mapped.domain !== 'work') {
       this.store.appendEvent('unrecognized', { heard: hyps[0] ?? '', hypotheses: hyps, via: 'llm' });
-      this.finishSynthetic(cur, hyps, lang, 'no_intent', null, now);
+      // A question nothing can answer gets the honest "can't answer"; other unmapped speech stays silent.
+      this.finishSynthetic(cur, hyps, lang, route.why === 'question' ? 'needs_llm' : 'no_intent', route.why === 'question' ? describeCannotAnswer(cur.lang) : null, now);
       return;
     }
     if (a.needsConfirmation) {

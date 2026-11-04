@@ -208,3 +208,33 @@ export function describeFlat(f: Flat, ko: boolean): string {
 }
 
 export const defaultConfirmQuestion = (f: Flat, ko: boolean): string => (ko ? `${describeFlat(f, true)}, 맞나요?` : `${describeFlat(f, false)}, right?`);
+
+const sq = (s: string) => s.normalize('NFC').toLowerCase().replace(/[^\p{L}\p{N}]/gu, '');
+
+/**
+ * Work-mode grounding checks for names the model produced (a small model can copy a name from the prompt examples):
+ * a NEW label must occur in what the user said, and a `target` must be one of the labels in the context.
+ */
+export function checkNames(f: Flat, mode: Mode, heard: readonly string[], known: readonly string[]): Checked<null> {
+  if (mode !== 'work') return ok(null);
+  const label = sq(f.label);
+  if ((f.type === 'start_timer' || f.type === 'add_task' || f.type === 'add_step') && label && !heard.some((h) => sq(h).includes(label))) return bad('label_not_heard');
+  const target = sq(f.target);
+  if (target && !known.some((k) => sq(k) === target || sq(k).includes(target) || target.includes(sq(k)))) return bad('unknown_target');
+  return ok(null);
+}
+
+const digits = (s: string) => (s.normalize('NFC').match(/\d+/g) ?? []).join(',');
+
+/**
+ * Deterministic confirmation policy input (technical-decisions section 5.5): the recognizer's top alternatives disagree on a
+ * number, or on a new label that the session does not already know. The model's own `needsConfirmation` flag was not reliable
+ * enough on small models to be the only signal, so this is computed from the n-best list itself.
+ */
+export function hypothesesDisagree(hyps: readonly string[], f: Flat, known: readonly string[]): boolean {
+  const [a, b] = hyps;
+  if (a === undefined || b === undefined || sq(a) === sq(b)) return false;
+  if (digits(a) !== digits(b)) return true;
+  const label = sq(f.label);
+  return label !== '' && !known.some((k) => sq(k) === label);
+}

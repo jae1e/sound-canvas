@@ -43,3 +43,20 @@ export function routeUtterance(session: Session, hypotheses: string[], lang: Lan
 function squash(s: string): string {
   return s.normalize('NFC').toLowerCase().replace(/[^\p{L}\p{N}]/gu, '');
 }
+
+/** Shape of a deterministic routine parse (`ParsedRoutine`), reduced to what the check needs. */
+export interface ParsedLike {
+  items: ReadonlyArray<{ name: string }>;
+  unparsed: ReadonlyArray<unknown>;
+}
+
+const FREE_FORM = /위주|정도|오늘|이번|가볍게|적당히|알아서|추천|focus|about|around|roughly|something|routine|workout for|lower body|upper body|full body|하체|상체|전신|코어/iu;
+
+/**
+ * True when a deterministic routine parse should not be trusted: leftovers remain, no item was found, or an item "name" is
+ * really a sentence fragment or a goal ("오늘은 하체 위주로 정" parses as a 20-minute hold otherwise).
+ */
+export function routineParseNeedsLlm(parsed: ParsedLike): boolean {
+  if (parsed.unparsed.length > 0 || parsed.items.length === 0) return true;
+  return parsed.items.some((i) => FREE_FORM.test(i.name) || i.name.trim().split(/\s+/).length > 5);
+}

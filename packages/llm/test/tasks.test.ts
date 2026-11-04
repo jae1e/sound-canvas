@@ -24,6 +24,15 @@ describe('align', () => {
     expect(r.ok && r.value.needsConfirmation).toBe(true);
     expect(r.ok && r.value.confirmQuestion).toContain('파스타');
   });
+  it('asks when the n-best list disagrees on a number or an unknown label, even if the model did not', async () => {
+    const quiet = { ...ans, needsConfirmation: false, confirmQuestion: '', confidence: 'high' };
+    const r = await run('align', { ...quiet, ...flat({ type: 'extend_timer', target: '파스타', seconds: 300 }) }, { ...input, hypotheses: ['파스타 5분 더', '파스타 9분 더'] });
+    expect(r.ok && r.value.needsConfirmation).toBe(true);
+    const spelled = await run('align', { ...quiet, ...flat({ type: 'start_timer', label: '리조또', seconds: 300 }) }, input);
+    expect(spelled.ok && spelled.value.needsConfirmation).toBe(true);
+    const single = await run('align', { ...quiet, needsConfirmation: true, ...flat({ type: 'start_timer', label: '리조또', seconds: 300 }) }, { ...input, hypotheses: ['리조또 5분 타이머'] });
+    expect(single.ok && single.value.needsConfirmation).toBe(false);
+  });
   it('treats low confidence as needing confirmation', async () => {
     const r = await run('align', { ...ans, confidence: 'low', needsConfirmation: false, confirmQuestion: '' }, input);
     expect(r.ok && r.value.needsConfirmation).toBe(true);
@@ -42,6 +51,14 @@ describe('align', () => {
   it('tolerates a fenced JSON answer', async () => {
     const r = await run('align', '```json\n' + JSON.stringify(ans) + '\n```', input);
     expect(r.ok).toBe(true);
+  });
+  it('rejects a new label the user never said and a target that is not in the context', async () => {
+    const copied = await run('align', { ...ans, text: '쿠키 5분', ...flat({ type: 'start_timer', label: '리조또', seconds: 300 }) }, { ...input, hypotheses: ['쿠키 5분 타이머', '쿠기 5분 타이머'] });
+    expect(!copied.ok && copied.detail).toBe('label_not_heard');
+    const ghost = await run('align', { ...ans, ...flat({ type: 'pause_timer', target: '카레' }), needsConfirmation: false, confirmQuestion: '' }, input);
+    expect(!ghost.ok && ghost.detail).toBe('unknown_target');
+    const fine = await run('align', { ...ans, ...flat({ type: 'extend_timer', target: '파스타', seconds: 60 }), needsConfirmation: false }, input);
+    expect(fine.ok).toBe(true);
   });
   it('puts context and every hypothesis in the prompt', () => {
     const p = TASKS.align.buildPrompt(TASKS.align.inputSchema.parse(input));

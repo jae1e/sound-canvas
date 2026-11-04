@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-import { defaultConfirmQuestion, flatFields, HARD_TO_UNDO, type Flat, mapFlat, type Mapped, type Mode } from '../actions';
+import { checkNames, defaultConfirmQuestion, flatFields, HARD_TO_UNDO, type Flat, mapFlat, type Mapped, type Mode } from '../actions';
 import { contextSchema, formatContext, langSchema, turnsSchema } from '../context';
 import { bad, jsonSchemaOf, ok, type Task } from '../task';
 import { actionReference, FIELD_GUIDE } from './command-prompt';
@@ -39,8 +39,9 @@ const SYSTEM = `You map ONE free-form spoken utterance (Korean or English, casua
 
 {ACTIONS}
 
-Example (work mode, timers: 파스타 (2:00 left); 달걀 (4:00 left)): "2분 더 줘"
--> {"kind":"clarify","type":"none","target":"","label":"","from":"","seconds":0,"count":0,"flag":false,"question":"파스타와 달걀 중 어느 타이머에 2분을 더할까요?"}
+Illustrative examples only (never copy names from them).
+Example (work mode, timers: 토스트 (2:00 left); 수프 (4:00 left)): "2분 더 줘"
+-> {"kind":"clarify","type":"none","target":"","label":"","from":"","seconds":0,"count":0,"flag":false,"question":"토스트와 수프 중 어느 타이머에 2분을 더할까요?"}
 Example (routine mode): "make it a bit slower"
 -> {"kind":"action","type":"tempo_slower","target":"","label":"","from":"","seconds":0,"count":0,"flag":false,"question":""}`;
 
@@ -64,6 +65,8 @@ export const commandTask: Task<z.output<typeof commandInput>, CommandResult> = {
     if (o.kind === 'clarify') return o.question.trim() ? ok({ kind: 'clarify', question: o.question.trim() }) : bad('clarify_without_question');
     const m = mapFlat(o, input.context.mode);
     if (!m.ok) return bad(m.reason);
+    const names = checkNames(o, input.context.mode, [input.utterance], [...input.context.tasks, ...input.context.timers.map((t) => t.label)]);
+    if (!names.ok) return bad(names.reason);
     if (m.value === null) return bad('action_without_type');
     const needs = HARD_TO_UNDO.has(o.type);
     return ok({ kind: 'action', mapped: m.value, needsConfirmation: needs, question: needs ? o.question.trim() || defaultConfirmQuestion(o, input.lang === 'ko') : '', flat: o });

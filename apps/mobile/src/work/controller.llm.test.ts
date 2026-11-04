@@ -33,13 +33,12 @@ afterEach(() => {
 });
 
 describe('Work Partner LLM tier', () => {
-  it('applies a confident LLM action through the engine after hypotheses disagree', async () => {
-    const t = setup(reply(align({ type: 'start_timer', label: '쿠키', seconds: 300 })));
+  it('applies a confident LLM action through the engine for free-form phrasing', async () => {
+    const t = setup(reply(align({ type: 'task_done', target: '파스타' })));
     controllers.push(t.c);
-    t.c.onFinal('쿠키 5분 타이머', ['쿠키 5분 타이머', '쿠기 5분 타이머'], 'ko');
+    t.c.onFinal('파스타는 이제 다 끝났다고 보면 돼', undefined, 'ko');
     await settle();
-    const timers = Object.values(t.c.state().session!.timers);
-    expect(timers.map((x) => [x.label, x.durationMs])).toEqual([['쿠키', 300000]]);
+    expect(Object.values(t.c.state().session!.tasks).map((x) => [x.label, x.status])).toEqual([['파스타', 'completed']]);
     expect(t.events.some((e) => e.kind === 'utterance' && e.payload.outcome === 'llm' && e.payload.ok)).toBe(true);
   });
 

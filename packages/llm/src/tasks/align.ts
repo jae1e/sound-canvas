@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-import { defaultConfirmQuestion, flatFields, HARD_TO_UNDO, type Flat, mapFlat, type Mapped, type Mode } from '../actions';
+import { checkNames, defaultConfirmQuestion, flatFields, HARD_TO_UNDO, hypothesesDisagree, type Flat, mapFlat, type Mapped, type Mode } from '../actions';
 import { contextSchema, formatContext, langSchema, turnsSchema } from '../context';
 import { bad, jsonSchemaOf, ok, type Task } from '../task';
 import { actionReference, FIELD_GUIDE } from './command-prompt';
@@ -50,11 +50,11 @@ Rules:
 
 {ACTIONS}
 
-Example (work mode, tasks: 파스타; timers: 파스타 (1:10 left)):
-heard: 1. 리조트 5분 타이머  2. 리조또 5분 타이머  (no 리조또 in context)
--> {"text":"리조또 5분 타이머","type":"start_timer","target":"","label":"리조또","from":"","seconds":300,"count":0,"flag":false,"confidence":"medium","needsConfirmation":true,"confirmQuestion":"리조또 5분 타이머 맞나요?"}
-Example: heard: 1. 파스타 다 됐어
--> {"text":"파스타 다 됐어","type":"task_done","target":"파스타","label":"","from":"","seconds":0,"count":0,"flag":false,"confidence":"high","needsConfirmation":false,"confirmQuestion":""}`;
+Illustrative examples only (never copy names from them; names must come from the user's words or the context):
+heard: 1. 수프 5분 타이머  2. 수푸 5분 타이머   (tasks: 토스트; timers: 토스트 (1:10 left))
+-> {"text":"수프 5분 타이머","type":"start_timer","target":"","label":"수프","from":"","seconds":300,"count":0,"flag":false,"confidence":"medium","needsConfirmation":true,"confirmQuestion":"수프 5분 타이머 맞나요?"}
+heard: 1. 토스트 다 됐어
+-> {"text":"토스트 다 됐어","type":"task_done","target":"토스트","label":"","from":"","seconds":0,"count":0,"flag":false,"confidence":"high","needsConfirmation":false,"confirmQuestion":""}`;
 
 function systemFor(mode: Mode): string {
   return SYSTEM.replace('{FIELDS}', FIELD_GUIDE).replace('{ACTIONS}', actionReference(mode));
@@ -77,8 +77,15 @@ export const alignTask: Task<z.output<typeof alignInput>, AlignResult> = {
     const o = p.data;
     const m = mapFlat(o, input.context.mode);
     if (!m.ok) return bad(m.reason);
+    const names = checkNames(o, input.context.mode, input.hypotheses, [...input.context.tasks, ...input.context.timers.map((t) => t.label)]);
+    if (!names.ok) return bad(names.reason);
     const ko = input.lang === 'ko';
-    const needs = m.value !== null && (o.needsConfirmation || o.confidence === 'low' || HARD_TO_UNDO.has(o.type));
+    const known = [...input.context.tasks, ...input.context.timers.map((t) => t.label)];
+    // Confirmation is a policy, not only the model's opinion: low confidence, hard-to-undo actions, and n-best disagreement
+    // on a number or an unknown label always ask. The model's flag counts when there was an n-best list to disagree about.
+    const needs =
+      m.value !== null &&
+      (o.confidence === 'low' || HARD_TO_UNDO.has(o.type) || hypothesesDisagree(input.hypotheses, o, known) || (o.needsConfirmation && input.hypotheses.length > 1));
     return ok({
       text: o.text,
       mapped: m.value,

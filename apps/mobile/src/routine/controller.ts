@@ -40,6 +40,7 @@ import {
 
 import type { EventKind } from '../db/repos/events';
 import type { NewJournalEntry } from '../db/repos/journal';
+import { routineParseNeedsLlm } from '@vlc/llm';
 import { askLlm, isLlmAvailable } from '../llm/askLlm';
 import { CONFIRM_TTL_MS, cancelledMessage, parseYesNo } from '../llm/confirm';
 
@@ -204,25 +205,29 @@ export class RoutineController {
   // ------------------------------------------------------------ setup
 
   /** Deterministic parse of typed or spoken routine text. Leftovers go to the (stub) LLM tier. */
-  parseText(text: string, lang?: Lang): ParsedRoutine {
+  parseText(text: string, lang?: Lang, onLlmDone?: (draft: ParsedRoutine | null) => void): ParsedRoutine {
     const parsed = parseRoutineText(text, { idPrefix: `i${this.env.newId().slice(-4)}`, lang });
     this.set({ draft: parsed });
     this.store.appendEvent('routine', { what: 'parse', text, items: parsed.items.length, unparsed: parsed.unparsed.length });
-    if (needsLlm(parsed)) {
+    if (needsLlm(parsed) || routineParseNeedsLlm(parsed)) {
       this.store.appendEvent('llm_needed', { heard: text, kind: 'routine_setup', unparsed: parsed.unparsed });
       void askLlm({ hypotheses: [text], lang: parsed.lang, kind: 'routine_setup', context: parsed.unparsed, recentTurns: [] })
         .then((res) => {
           // The model's routine replaces the draft only if the user has not touched it meanwhile and nothing was lost.
-          if (!res.ok || res.task !== 'routine_setup' || this.s.draft !== parsed) return;
+          if (!res.ok || res.task !== 'routine_setup' || this.s.draft !== parsed || res.setup.template.items.length < parsed.items.length) {
+            onLlmDone?.(null);
+            return;
+          }
           const items = res.setup.template.items;
-          if (items.length < parsed.items.length) return;
           const lang = parsed.lang;
           const note = t2(lang, 'AI가 해석한 루틴이에요. 확인하고 고쳐 주세요.', 'Interpreted by AI. Please check and edit.');
-          this.set({ draft: { lang, items, unparsed: [], assumed: [note, ...res.setup.assumptions] } });
+          const draft: ParsedRoutine = { lang, items, unparsed: [], assumed: [note, ...res.setup.assumptions] };
+          this.set({ draft });
           this.store.appendEvent('routine', { what: 'llm_setup', items: items.length });
+          onLlmDone?.(draft);
         })
-        .catch(() => undefined);
-    }
+        .catch(() => onLlmDone?.(null));
+    } else onLlmDone?.(parsed);
     return parsed;
   }
 
@@ -264,13 +269,26 @@ export class RoutineController {
       reply(t2(lang, '어떤 운동을 할까요? 예를 들어 스쿼트 15개 3세트, 플랭크 45초.', 'What would you like to do? For example, squats 15 reps 3 sets, plank 45 seconds.'));
       return;
     }
-    const parsed = this.parseText(text, lang);
+    const found = (d: ParsedRoutine, extra = '') => reply(t2(lang, `${d.items.length}개 운동을 찾았어요.${extra} 화면에서 확인해 주세요.`, `Found ${d.items.length} item(s).${extra} Please check the preview.`));
+    const failed = () => reply(t2(lang, '이해하지 못했어요. 다시 말하거나 입력해 주세요.', 'I did not catch a routine. Say it again or type it.'));
+    const llmWillTry = isLlmAvailable();
+    let waiting = false;
+    const parsed = this.parseText(text, lang, (d) => {
+      if (!waiting) return;
+      if (d && d.items.length > 0) found(d);
+      else failed();
+    });
+    if (llmWillTry && (parsed.unparsed.length > 0 || parsed.items.length === 0 || routineParseNeedsLlm(parsed))) {
+      waiting = true;
+      reply(t2(lang, '잠시만요, 정리해 볼게요.', 'One moment, let me put that together.'));
+      return;
+    }
     if (parsed.items.length === 0) {
-      reply(t2(lang, '이해하지 못했어요. 다시 말하거나 입력해 주세요.', 'I did not catch a routine. Say it again or type it.'));
+      failed();
       return;
     }
     const more = parsed.unparsed.length > 0 ? t2(lang, ` ${parsed.unparsed.length}개는 이해하지 못했어요.`, ` ${parsed.unparsed.length} part(s) were not understood.`) : '';
-    reply(t2(lang, `${parsed.items.length}개 운동을 찾았어요.${more} 화면에서 확인해 주세요.`, `Found ${parsed.items.length} item(s).${more} Please check the preview.`));
+    found(parsed, more);
   }
 
   setDraft(draft: ParsedRoutine | null): void {

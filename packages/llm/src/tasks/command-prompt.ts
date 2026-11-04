@@ -15,7 +15,8 @@ task_done(target) | task_not_yet(target) | skip_task(target) | extend_task(targe
 next_step | prev_step | set_quiet(flag, seconds=0 means until turned off) | pause_session | resume_session | end_session | none`;
 
 const ROUTINE_ACTIONS = `Action types (routine mode):
-skip | more_reps(count) | sets_add | sets_remove | rest(seconds) | swap(from, label) | repeat_from(count = movement number) | back
-tempo_slower | tempo_faster | pause | resume | query_left | query_next | end | none`;
+skip (skip the current exercise) | more_reps(count = extra reps) | sets_add | sets_remove | rest(seconds = change the REST TIME between sets) | swap(from, label)
+repeat_from(count = movement number) | back | tempo_slower | tempo_faster | pause (stop and wait NOW; "I need a break", "잠깐 쉴게요") | resume | query_left | query_next | end (stop the whole routine) | none
+Resting "right now" is pause, not rest. Use rest only when the user names a rest length.`
 
 export const actionReference = (mode: Mode): string => (mode === 'work' ? WORK_ACTIONS : ROUTINE_ACTIONS);
