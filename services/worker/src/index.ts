@@ -4,8 +4,10 @@ import { KakaoPlaces } from "./providers/kakao";
 import { TmapWalk } from "./providers/tmap";
 import { ProviderError, type PlacesProvider, type WalkProvider } from "./providers/types";
 import { checkRate } from "./ratelimit";
+import { llmTransport } from "./providers/llm";
 import { LandmarkService, type LandmarksProvider } from "./providers/landmarks";
 import { landmarkDetailRequest, landmarksNearbyRequest, llmRequest, searchRequest, walkRequest, whereRequest } from "./schemas";
+import { LlmBackendError, TASKS, type TaskTransport } from "@vlc/llm";
 import type { ZodType } from "zod";
 
 const json = (body: unknown, status = 200, headers: Record<string, string> = {}) =>
@@ -69,12 +71,12 @@ async function requireKey<T>(key: string | undefined, run: () => Promise<T>): Pr
 }
 
 /** Request handler with injectable dependencies (tests mock fetch and time). */
-export async function handle(request: Request, env: Env, deps: Deps = defaultDeps(), providers?: Providers): Promise<Response> {
+export async function handle(request: Request, env: Env, deps: Deps = defaultDeps(), providers?: Providers, llm?: TaskTransport): Promise<Response> {
   const started = deps.now();
   const path = new URL(request.url).pathname;
   let status = 500;
   try {
-    const res = await route(request, path, env, deps, providers ?? providersFor(env, deps));
+    const res = await route(request, path, env, deps, providers ?? providersFor(env, deps), llm);
     status = res.status;
     return res;
   } catch (e) {
@@ -94,7 +96,7 @@ export async function handle(request: Request, env: Env, deps: Deps = defaultDep
   }
 }
 
-async function route(request: Request, path: string, env: Env, deps: Deps, p: Providers): Promise<Response> {
+async function route(request: Request, path: string, env: Env, deps: Deps, p: Providers, transport?: TaskTransport): Promise<Response> {
   if (path === "/health" && request.method === "GET") return json({ ok: true });
   if (!["/places/search", "/places/where", "/route/walk", "/landmarks/nearby", "/landmarks/detail", "/llm"].includes(path)) throw new HttpError(404, { error: "not_found" });
   if (request.method !== "POST") throw new HttpError(405, { error: "method_not_allowed" }, { Allow: "POST" });
@@ -115,10 +117,30 @@ async function route(request: Request, path: string, env: Env, deps: Deps, p: Pr
       return json({ landmarks: await p.landmarks.nearby(await parseBody(request, landmarksNearbyRequest)) });
     case "/landmarks/detail":
       return json({ detail: await p.landmarks.detail(await parseBody(request, landmarkDetailRequest)) });
-    default: {
-      await parseBody(request, llmRequest);
-      return json({ error: "not_implemented", message: "LLM proxy arrives in milestone M4" }, 501);
-    }
+    default:
+      return llmRoute(request, env, deps, transport);
+  }
+}
+
+/** Runs one task through the configured provider. Logs token counts and latency only (never the input or output). */
+async function llmRoute(request: Request, env: Env, deps: Deps, injected?: TaskTransport): Promise<Response> {
+  const req = await parseBody(request, llmRequest);
+  const task = TASKS[req.task];
+  const input = task.inputSchema.safeParse(req.input);
+  if (!input.success) throw new HttpError(400, { error: "invalid_request", issues: [{ path: "input", message: "does not match the task input schema" }] });
+  const transport = injected ?? llmTransport(env, deps);
+  if (!transport) throw new HttpError(503, { error: "not_configured" });
+  const t0 = deps.now();
+  try {
+    const res = await transport.call(req.task, input.data);
+    console.log(JSON.stringify({ path: "/llm", task: req.task, provider: transport.name, promptTokens: res.promptTokens, completionTokens: res.completionTokens, backendMs: res.ms, ms: deps.now() - t0 }));
+    return json({ text: res.text, promptTokens: res.promptTokens, completionTokens: res.completionTokens, ms: res.ms });
+  } catch (e) {
+    const kind = e instanceof LlmBackendError ? e.kind : "unknown";
+    const upstream = e instanceof LlmBackendError ? e.status : undefined;
+    console.log(JSON.stringify({ path: "/llm", task: req.task, provider: transport.name, error: kind, upstream, ms: deps.now() - t0 }));
+    if (kind === "timeout") throw new HttpError(504, { error: "llm_timeout" });
+    throw new HttpError(502, { error: "upstream_error", provider: "llm", status: upstream });
   }
 }
 

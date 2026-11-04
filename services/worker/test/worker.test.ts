@@ -35,7 +35,7 @@ const tmapResp = {
 function setup(responder: (url: string, init?: RequestInit) => unknown, status = 200) {
   const fetchMock = vi.fn(async (url: string | URL | Request, init?: RequestInit) => {
     const body = responder(String(url), init);
-    return new Response(JSON.stringify(body), { status });
+    return new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
   });
   let t = 1_700_000_000_000;
   const deps: Deps = { fetch: fetchMock as unknown as typeof fetch, now: () => (t += 5) };
@@ -198,11 +198,83 @@ describe("/route/walk", () => {
 });
 
 describe("/llm", () => {
-  it("validates, then returns 501", async () => {
-    const { deps } = setup(() => ({}));
-    expect((await call("/llm", { messages: [] }, deps)).status).toBe(400);
-    const ok = await call("/llm", { messages: [{ role: "user", content: "hi" }], lang: "ko" }, deps);
-    expect(ok.status).toBe(501);
+  const anthropicReply = (text: string, usage = { input_tokens: 412, output_tokens: 57 }) => ({
+    id: "msg_1",
+    type: "message",
+    role: "assistant",
+    model: "claude-haiku-5-5",
+    content: [{ type: "text", text }],
+    stop_reason: "end_turn",
+    stop_sequence: null,
+    usage,
+  });
+  const keyed = (over: Partial<Env> = {}) => env({ ANTHROPIC_API_KEY: "sk-ant-test-key", ...over });
+  const qa = { task: "travel_qa", input: { question: "언제 지었어요?", lang: "ko", landmarkName: "경복궁", sourceText: "경복궁은 1395년에 지었어요." } };
+
+  it("needs a token, a known task and a valid input; answers 503 without a key", async () => {
+    const { deps, fetchMock } = setup(() => ({}));
+    expect((await call("/llm", qa, deps, keyed(), null)).status).toBe(401);
+    expect((await call("/llm", { task: "chat", input: {} }, deps, keyed())).status).toBe(400);
+    expect((await call("/llm", { messages: [] }, deps, keyed())).status).toBe(400);
+    expect((await call("/llm", { task: "travel_qa", input: { question: 1 } }, deps, keyed())).status).toBe(400);
+    expect((await call("/llm", qa, deps, env())).status).toBe(503);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("builds the prompt server-side and sends a structured-output request to Anthropic", async () => {
+    const out = JSON.stringify({ answerable: true, answer: "1395년에 지었어요.", quote: "경복궁은 1395년에 지었어요." });
+    const { deps, fetchMock } = setup(() => anthropicReply(out));
+    const res = await call("/llm", qa, deps, keyed());
+    expect(res.status).toBe(200);
+    expect(await res.json()).toMatchObject({ text: out, promptTokens: 412, completionTokens: 57 });
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toContain("/v1/messages");
+    const headers = new Headers(init.headers);
+    expect(headers.get("authorization") ?? headers.get("x-api-key")).toContain("sk-ant-test-key");
+    const body = JSON.parse(init.body as string);
+    expect(body.model).toBe("claude-haiku-5-5");
+    expect(body.thinking).toEqual({ type: "disabled" });
+    expect(body.temperature).toBeUndefined();
+    expect(body.output_config.format.type).toBe("json_schema");
+    expect(body.output_config.format.schema.properties.answerable).toBeTruthy();
+    expect(body.system).toContain("ONLY the source text");
+    expect(body.messages[0].content).toContain("question: 언제 지었어요?");
+  });
+
+  it("honours LLM_MODEL", async () => {
+    const { deps, fetchMock } = setup(() => anthropicReply("{}"));
+    await call("/llm", qa, deps, keyed({ LLM_MODEL: "claude-sonnet-5-5" }));
+    expect(JSON.parse((fetchMock.mock.calls[0] as [string, RequestInit])[1].body as string).model).toBe("claude-sonnet-5-5");
+  });
+
+  it("maps upstream failures to 502 and never leaks the key or the input", async () => {
+    const { deps } = setup(() => ({ type: "error", error: { type: "api_error", message: "boom sk-ant-test-key" } }), 500);
+    const res = await call("/llm", qa, deps, keyed());
+    expect(res.status).toBe(502);
+    const text = await res.text();
+    expect(text).not.toContain("sk-ant");
+    expect(text).not.toContain("경복궁");
+  });
+
+  it("maps a 429 from the provider to 502 with the upstream status", async () => {
+    const { deps } = setup(() => ({ type: "error", error: { type: "rate_limit_error", message: "slow down" } }), 429);
+    const res = await call("/llm", qa, deps, keyed());
+    expect(res.status).toBe(502);
+    expect(await res.json()).toMatchObject({ error: "upstream_error", status: 429 });
+  });
+
+  it("logs task, tokens and latency but not the question, the answer or the key", async () => {
+    const spy = vi.spyOn(console, "log").mockImplementation(() => {});
+    const { deps } = setup(() => anthropicReply('{"answerable":false,"answer":"","quote":""}'));
+    await call("/llm", qa, deps, keyed());
+    const logged = spy.mock.calls.map((c) => String(c[0])).join("\n");
+    spy.mockRestore();
+    expect(logged).toContain('"task":"travel_qa"');
+    expect(logged).toContain('"promptTokens":412');
+    expect(logged).toContain('"completionTokens":57');
+    expect(logged).toMatch(/"ms":\d+/);
+    expect(logged).not.toContain("언제");
+    expect(logged).not.toContain("sk-ant");
   });
 });
 

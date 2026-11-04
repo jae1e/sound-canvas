@@ -1,4 +1,5 @@
 import { categoryCodeFor } from "@vlc/travel";
+import { TASK_NAMES, type TaskName } from "@vlc/llm";
 import { z } from "zod";
 
 export const latLng = z.object({
@@ -34,28 +35,12 @@ export const walkRequest = z
   .strict();
 export type WalkRequest = z.infer<typeof walkRequest>;
 
-/** Provider-agnostic LLM request (M4). The route validates and returns 501 for now. */
-export const llmRequest = z
-  .object({
-    messages: z
-      .array(z.object({ role: z.enum(["system", "user", "assistant", "tool"]), content: z.string().max(16000) }))
-      .min(1)
-      .max(64),
-    tools: z
-      .array(
-        z.object({
-          name: z.string().min(1).max(64),
-          description: z.string().max(1000).optional(),
-          parameters: z.record(z.string(), z.unknown()).optional(),
-        }),
-      )
-      .max(32)
-      .optional(),
-    maxTokens: z.number().int().min(1).max(4096).optional(),
-    temperature: z.number().min(0).max(2).optional(),
-    lang: z.enum(["ko", "en"]).optional(),
-  })
-  .strict();
+/**
+ * `POST /llm`. The client sends only the task name and its structured input; the prompt and output schema are built here
+ * from the shared `@vlc/llm` task definitions. That keeps prompts in one place and means a leaked token cannot be used as a
+ * free general-purpose model proxy. `input` is validated against the task's own schema inside the route.
+ */
+export const llmRequest = z.object({ task: z.enum(TASK_NAMES as [TaskName, ...TaskName[]]), input: z.unknown() }).strict();
 export type LlmRequest = z.infer<typeof llmRequest>;
 
 const langEnum = z.enum(["ko", "en"]);

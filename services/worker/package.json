@@ -10,6 +10,7 @@
     "mint-token": "node scripts/mint-token.mjs"
   },
   "dependencies": {
+    "@vlc/llm": "workspace:*",
     "@vlc/travel": "workspace:*",
     "zod": "^4.0.0"
   },

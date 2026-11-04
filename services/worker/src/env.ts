@@ -7,6 +7,12 @@ export interface Env {
   TOUR_API_KEY?: string;
   /** HMAC secret used to validate per-install bearer tokens (secret). */
   TOKEN_SIGNING_SECRET: string;
+  /** Anthropic API key for `/llm` (secret: `wrangler secret put ANTHROPIC_API_KEY`). Without it `/llm` answers 503. */
+  ANTHROPIC_API_KEY?: string;
+  /** Model for `/llm` (default `claude-haiku-5-5`). */
+  LLM_MODEL?: string;
+  /** Upstream timeout for `/llm` in milliseconds (default 5000). */
+  LLM_TIMEOUT_MS?: string;
   /** Optional KV namespace for rate-limit counters. Falls back to in-memory counters when absent. */
   RATE_LIMIT?: KVNamespace;
   /** Requests per token per minute (default 30). */

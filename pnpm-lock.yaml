@@ -321,6 +321,9 @@ importers:
 
   services/worker:
     dependencies:
+      '@vlc/llm':
+        specifier: workspace:*
+        version: link:../../packages/llm
       '@vlc/travel':
         specifier: workspace:*
         version: link:../../packages/travel
