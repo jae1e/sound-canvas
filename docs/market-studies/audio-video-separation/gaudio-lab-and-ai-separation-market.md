@@ -191,6 +191,39 @@ A YouTube-only "remove and replace claimed music" SaaS is largely served and has
   - The self-serve pricing of Korean vendors (BlurMe, World Vertex, Blurtle).
   - Whether person-selective enhancement has paying demand. No evidence was found, and general enhancement is crowded.
 
+The user declined redaction as a direction (2026-11-04) and keeps it in a mental backlog.
+
+**Candidate: "click a person, get their voice" (hypothesis; checked 2026-11-04).** The idea is audio-visual target-speaker extraction for any footage. The user picks a face, and the tool returns that person's clean voice, plus optionally per-person tracks.
+
+*What exists today*
+- The major tools isolate all voices, not one chosen person: Adobe Enhance Speech, ElevenLabs Voice Isolator, CapCut, and Samsung Audio Eraser's sound categories.
+- iPhone 16 Audio Mix "In-Frame" favours the voices of people visible in frame. It works only on spatial-audio video shot on an iPhone 16, and since iOS 26 third-party apps can offer it ([MacRumors](https://www.macrumors.com/2025/06/21/ios-26-audio-mix-beyond-photos-app/), [Tom's Guide](https://www.tomsguide.com/phones/iphones/i-shoot-video-professionally-so-i-put-the-iphone-16-pros-most-hyped-feature-to-the-test)).
+- Selecting a face to isolate a voice exists in research, but no commercial product for arbitrary footage turned up:
+  - Google's Looking to Listen (2018) ([Google Research](https://research.google/pubs/looking-to-listen-at-the-cocktail-party-audio-visual-speech-separation/)).
+  - Dolphin, from ICLR 2026, with a public demo that works best with frontal faces ([demo](https://jusperlee-dolphin.hf.space)).
+
+*Why it fits this team*
+- It uses face detection and tracking.
+- It runs offline and needs no blending.
+- It matches the user's Slack ideas: picking a person, and very good speaker separation.
+
+*Likely users (hypothesis)*
+- Street-interview and vlog creators.
+- Wedding and event videographers, for vows and speeches recorded over crowd noise.
+- Journalists and documentary makers.
+
+For all of them, salvaging footage protects paid work.
+
+*Risks*
+- Quality on overlapping speech and off-angle faces.
+- Weight and training-data licences. AVSpeech is derived from YouTube.
+- Video-plus-audio compute.
+- A fast follow by Adobe or CapCut.
+
+*Cheap test*
+
+Run a Dolphin-class model and the incumbents' isolators on 10–20 messy real clips the user owns. Score them on "one chosen person among several". Build only if the model clearly wins.
+
 **Unit cost (estimate).**
 - Using a third-party API first, for example Music.ai cinematic stems at $0.05/min, costs about $3 per audio hour.
 - Self-hosting later costs roughly $0.005–0.5 per audio hour (see the run-cost section), but needs model weights that are cleared for commercial use.
