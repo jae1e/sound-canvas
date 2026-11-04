@@ -175,6 +175,22 @@ A YouTube-only "remove and replace claimed music" SaaS is largely served and has
 - keeping effects and ambience at higher quality than voice isolators;
 - licensed replacement music for platforms that offer none.
 
+**General-purpose uses like BlurMe: privacy redaction (hypothesis; checked 2026-11-04).** The user asked about general-purpose tools in the BlurMe style. Their earlier Slack ideas included sound separation and enhancement, choosing a person in a video and enhancing them, and speaker or instrument separation.
+
+- **The pattern.** BlurMe looks general-purpose, but its paying buyers have a legal trigger: public bodies answering CCTV disclosure requests.
+- **Price gap.** Compliance redaction is priced far above creative audio tools:
+  - Secure Redact gives 20 free minutes per month. Top-ups are about $6.5–8 per minute, and subscriptions are reported at $79–189 per month (aggregator and competitor figures, [Capterra](https://capterra.com/p/246571/Secure-Redact/), [CCTV User Group](https://www.cctvusergroup.com/post/free-trial-pimloc-video-privacy-and-analytics-platform)).
+  - CaseGuard costs about $99–379 per user per month. It redacts faces, plates and screens, mutes PII words in audio, and imports body-cam footage from Axon (aggregators and vendor, [Capterra](https://www.capterra.co.uk/software/1076794/CaseGuard), [CaseGuard](https://caseguard.com/get-pricing)).
+  - That per-minute price is about 30–100 times the per-minute price of audio separation ($0.05–0.24/min).
+- **Generic consumer blurring is free.** YouTube Studio's Face blur detects faces, lets the creator choose which ones to blur, and applies the blur [V] ([YouTube Help](https://support.google.com/youtube/answer/9057652)). Premiere has tracking masks, and phone apps (YouCam, PutMask, Face Guardian) do the same ([Korean guide](https://edimakor.hitpaw.kr/video-editing-tips/blur-face-in-video-with-mosaic.html)).
+- **Where this points.** A self-serve redaction SaaS for compliance-triggered users fits the user's constraints. Covering video and audio together would combine the team's computer-vision skills with speaker separation, so that a bystander's voice can be muted or anonymized and spoken names and numbers bleeped. It also uses blurring rather than photoreal replacement, so it avoids the blending problem.
+- **Candidate users (unverified).** These are Korean small organizations that receive footage requests: apartment management offices, shops, schools, clinics, insurers, and people sharing dashcam footage.
+- **Not yet verified.**
+  - The PIPA (개인정보보호법) masking obligation and how many requests these users receive.
+  - Whether Korean-language audio PII redaction exists today.
+  - The self-serve pricing of Korean vendors (BlurMe, World Vertex, Blurtle).
+  - Whether person-selective enhancement has paying demand. No evidence was found, and general enhancement is crowded.
+
 **Unit cost (estimate).**
 - Using a third-party API first, for example Music.ai cinematic stems at $0.05/min, costs about $3 per audio hour.
 - Self-hosting later costs roughly $0.005–0.5 per audio hour (see the run-cost section), but needs model weights that are cleared for commercial use.
