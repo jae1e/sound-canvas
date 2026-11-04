@@ -224,6 +224,18 @@ For all of them, salvaging footage protects paid work.
 
 Run a Dolphin-class model and the incumbents' isolators on 10–20 messy real clips the user owns. Score them on "one chosen person among several". Build only if the model clearly wins.
 
+**Target scale and open speech models (2026-11-04).**
+- **Target scale.** The user says a business of a few hundred thousand USD a year is enough to start, as long as it is easy to begin and can expand later. At $12 per month, $300K a year needs about 2,100 paying subscribers (arithmetic). That puts niche web tools that large platforms serve poorly in scope.
+- **NVIDIA Nemotron 3.5 Transcribe.** It was released on 2026-10-28 and lowers the cost of building speech features further. Its claims:
+  - 40 language-locales and recordings of up to one hour.
+  - Multi-speaker ASR for up to 8 speakers in 13 languages, including Korean.
+  - Korean FLEURS CER of 2.78%.
+  - 34B total and 4.3B active parameters. The reference deployment is an H100, and an RTX 5090 can run it at NVFP4.
+  - The licence is OpenMDW-1.1, which allows commercial use but carries notice and litigation-termination conditions.
+
+  These are vendor claims taken from secondary write-ups. The primary model card was not read ([braindetox](https://braindetox.kr/en/posts/nvidia_nemotron_3_5_transcribe_korean_asr.html), [datanorth](https://datanorth.ai/news/nvidia-nemotron-3-5-transcribe)).
+- **What it means.** Transcription and diarization are now free, strong building blocks, which supports selling a job rather than a model. Competitors can use them too.
+
 **Unit cost (estimate).**
 - Using a third-party API first, for example Music.ai cinematic stems at $0.05/min, costs about $3 per audio hour.
 - Self-hosting later costs roughly $0.005–0.5 per audio hour (see the run-cost section), but needs model weights that are cleared for commercial use.
