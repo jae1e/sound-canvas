@@ -119,6 +119,31 @@ Add four camera-holder cases to the Recommendation A bake-off:
 
 If either direction works, idea 1 becomes "any voice, keep or remove, chosen by face, by moment or by description". That raises its audience score. Pricing should assume one-off, per-video buyers in the "remove" case.
 
+### User direction (2026-11-04): focus on sound separation
+
+The user prefers the separation topic: splitting voices, individual voices and instruments from both video and audio. Within that topic, the recommended MVP is one separation engine with three entry products. Each entry product gets its own landing page, and they launch in the order below. All of these are hypotheses until the bake-off and validation steps run.
+
+1. **One person's voice from a video, kept or removed.** The user picks the person by clicking a face, marking a moment, or typing a description such as "the person holding the camera". An audio-only mode splits an interview into one track per speaker.
+   - **Why first:** free tools cover this least. The team's computer-vision work (face tracking, active-speaker detection) supplies the prompts, so the edge is not the separation model itself. It also has the strongest "wow".
+   - **Main risk:** Meta itself says SAM Audio still finds it "a challenge" to separate "highly similar audio events", such as one voice among many ([The Register, 2025-12-16](https://www.theregister.com/2025/12/16/meta_sam_ai_audio/)). The bake-off is the gate.
+   - **Competitor for the audio-only mode:** AudioShake markets multi-speaker separation into individual tracks through a pay-as-you-go API, but it is B2B-oriented [vendor claim] ([AudioShake developer](https://developer.audioshake.ai)).
+2. **Voice, music and effects split for creators' videos ("remove the music, keep my voice and the sounds").** Video in, video out, for any platform, with batch processing for a back catalogue.
+   - **Why:** the pain is well documented. Twitch mutes VODs and deletes clips that contain copyrighted audio. YouTube Erase Song works only on uploads that already have a claim.
+   - **Free tools fall short:** CapCut and Adobe isolate the voice but drop the sound effects, or require an editor.
+   - **Gate:** the Content ID test from Recommendation B.
+   - **Later upsell:** royalty-free replacement music, which needs a licensed music source.
+3. **Instrument stems from performance videos ("click the guitarist")**, for musicians, cover creators and music teachers.
+   - **Why third:** audio-only stem splitting is the most crowded area. Moises reports 70M registered users (Dec 2025), and LALAL.AI, Suno Get Stems, Flow Music and free UVR/Demucs all compete. The only open wedge is video-native selection of the player on screen.
+   - **Scope limit:** Meta says isolating one instrument from an orchestra is still hard, so stick to bands and small ensembles.
+   - **Licensing:** most open instrument models train on non-commercial datasets (MUSDB18, MoisesDB), so use SAM Audio.
+   - **Rights posture:** the same as Moises and LALAL.AI. Users upload their own files, and the product does not fetch YouTube links.
+
+**MVP scope (about 3 months):**
+- **Product flow:** a web app where the user uploads video or audio. It shows the detected sources as tracks: faces and players from computer vision, plus speech, music and effects tags from an audio tagger. SAM Audio needs a prompt and cannot separate everything unprompted, so these detections serve as the prompts. The user keeps or mutes each track and gets a free 30-second preview. Export is WAV stems or a remixed MP4.
+- **Pricing:** per-minute credits plus a monthly plan.
+- **Models:** SAM Audio, with SAM 3 for tracking.
+- **Gates:** the bake-off, the Content ID test, and the MRR checkpoints above.
+
 ## Evidence is thin where it matters most, so do a manual community pass first
 
 The demand evidence rests on vendor pages, review sites and press because Reddit and Korean communities (Clien, DC Inside, Naver Cafe) returned almost nothing in this research. No Google Trends or search-volume data was pulled, Samsung's Korean market share and Kmong/Soomgo pricing for editing and audio cleanup were not found, and the BlurMe-versus-YouTube-blur premise could not be verified (BlurMe lists a free tier and paid plans from about $7/month per GetApp) ([GetApp](https://www.getapp.com/all-software/a/blurme-ai-face-blur/)). Several figures conflict: Descript, Vrew and CapCut pricing differs between secondary sources, OpusClip and ElevenLabs ARR claims vary widely, and the CapCut paywall details are unresolved. The model-licence picture has unread primaries: sam-audio's own LICENSE, Nemotron's model card, OpenMDW-1.1, SeedVR2 weights, LatentSync weights. The scores in the first table are judgement, and the platform coverage grid has many unverified cells. No tool was tested hands-on, so every quality claim here is untested.
