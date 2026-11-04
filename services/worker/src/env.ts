@@ -3,6 +3,8 @@ export interface Env {
   KAKAO_REST_KEY: string;
   /** SK Open API / TMAP app key (secret). */
   TMAP_APP_KEY: string;
+  /** data.go.kr service key for Korea Tourism Organization TourAPI (secret, optional: landmarks fall back to Kakao only). */
+  TOUR_API_KEY?: string;
   /** HMAC secret used to validate per-install bearer tokens (secret). */
   TOKEN_SIGNING_SECRET: string;
   /** Optional KV namespace for rate-limit counters. Falls back to in-memory counters when absent. */

@@ -4,7 +4,8 @@ import { KakaoPlaces } from "./providers/kakao";
 import { TmapWalk } from "./providers/tmap";
 import { ProviderError, type PlacesProvider, type WalkProvider } from "./providers/types";
 import { checkRate } from "./ratelimit";
-import { llmRequest, searchRequest, walkRequest, whereRequest } from "./schemas";
+import { LandmarkService, type LandmarksProvider } from "./providers/landmarks";
+import { landmarkDetailRequest, landmarksNearbyRequest, llmRequest, searchRequest, walkRequest, whereRequest } from "./schemas";
 import type { ZodType } from "zod";
 
 const json = (body: unknown, status = 200, headers: Record<string, string> = {}) =>
@@ -41,10 +42,17 @@ async function parseBody<T>(req: Request, schema: ZodType<T>): Promise<T> {
 export interface Providers {
   places: PlacesProvider;
   walk: WalkProvider;
+  landmarks: LandmarksProvider;
 }
 
 function providersFor(env: Env, deps: Deps): Providers {
+  const landmarks = new LandmarkService({ tour: env.TOUR_API_KEY, kakao: env.KAKAO_REST_KEY }, deps);
+  const needLandmarks = <T>(run: () => Promise<T>): Promise<T> => (landmarks.configured ? run() : Promise.reject(new HttpError(503, { error: "not_configured" })));
   return {
+    landmarks: {
+      nearby: (r) => needLandmarks(() => landmarks.nearby(r)),
+      detail: (r) => needLandmarks(() => landmarks.detail(r)),
+    },
     places: {
       search: (r) => requireKey(env.KAKAO_REST_KEY, () => new KakaoPlaces(env.KAKAO_REST_KEY, deps).search(r)),
       where: (r) => requireKey(env.KAKAO_REST_KEY, () => new KakaoPlaces(env.KAKAO_REST_KEY, deps).where(r)),
@@ -88,7 +96,7 @@ export async function handle(request: Request, env: Env, deps: Deps = defaultDep
 
 async function route(request: Request, path: string, env: Env, deps: Deps, p: Providers): Promise<Response> {
   if (path === "/health" && request.method === "GET") return json({ ok: true });
-  if (!["/places/search", "/places/where", "/route/walk", "/llm"].includes(path)) throw new HttpError(404, { error: "not_found" });
+  if (!["/places/search", "/places/where", "/route/walk", "/landmarks/nearby", "/landmarks/detail", "/llm"].includes(path)) throw new HttpError(404, { error: "not_found" });
   if (request.method !== "POST") throw new HttpError(405, { error: "method_not_allowed" }, { Allow: "POST" });
 
   const installId = await verifyBearer(request.headers.get("Authorization"), env.TOKEN_SIGNING_SECRET);
@@ -103,6 +111,10 @@ async function route(request: Request, path: string, env: Env, deps: Deps, p: Pr
       return json({ where: await p.places.where(await parseBody(request, whereRequest)) });
     case "/route/walk":
       return json({ route: await p.walk.route(await parseBody(request, walkRequest)) });
+    case "/landmarks/nearby":
+      return json({ landmarks: await p.landmarks.nearby(await parseBody(request, landmarksNearbyRequest)) });
+    case "/landmarks/detail":
+      return json({ detail: await p.landmarks.detail(await parseBody(request, landmarkDetailRequest)) });
     default: {
       await parseBody(request, llmRequest);
       return json({ error: "not_implemented", message: "LLM proxy arrives in milestone M4" }, 501);
