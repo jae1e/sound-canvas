@@ -1,0 +1,695 @@
+[
+ {
+  "id": "routine_setup-ko-001",
+  "task": "routine_setup",
+  "lang": "ko",
+  "tags": [
+   "real",
+   "casual",
+   "numbers"
+  ],
+  "input": {
+   "text": "오늘은 하체 위주로 20분 정도",
+   "lang": "ko"
+  },
+  "expect": {
+   "items": [
+    {
+     "kind": "exercise",
+     "nameAny": [
+      "스쿼트",
+      "런지",
+      "브릿지",
+      "레그",
+      "카프"
+     ]
+    }
+   ],
+   "minItems": 3,
+   "totalMinutes": {
+    "min": 15,
+    "max": 25
+   }
+  },
+  "note": "Focus-only; model must choose leg exercises. nameAny checked via a generic exercise item."
+ },
+ {
+  "id": "routine_setup-ko-002",
+  "task": "routine_setup",
+  "lang": "ko",
+  "tags": [
+   "numbers",
+   "casual"
+  ],
+  "input": {
+   "text": "스쿼트 15개 3세트 사이에 40초 쉬고",
+   "lang": "ko"
+  },
+  "expect": {
+   "items": [
+    {
+     "kind": "exercise",
+     "nameAny": [
+      "스쿼트"
+     ],
+     "reps": 15,
+     "sets": 3,
+     "restSec": 40
+    }
+   ]
+  }
+ },
+ {
+  "id": "routine_setup-ko-003",
+  "task": "routine_setup",
+  "lang": "ko",
+  "tags": [
+   "numbers"
+  ],
+  "input": {
+   "text": "햄스트링 스트레칭 좌우 30초씩",
+   "lang": "ko"
+  },
+  "expect": {
+   "items": [
+    {
+     "kind": "hold",
+     "nameAny": [
+      "햄스트링"
+     ],
+     "holdSec": 30,
+     "perSide": true
+    }
+   ]
+  }
+ },
+ {
+  "id": "routine_setup-ko-004",
+  "task": "routine_setup",
+  "lang": "ko",
+  "tags": [
+   "numbers"
+  ],
+  "input": {
+   "text": "플랭크 45초 3세트 쉬는 시간 20초",
+   "lang": "ko"
+  },
+  "expect": {
+   "items": [
+    {
+     "kind": "hold",
+     "nameAny": [
+      "플랭크"
+     ],
+     "holdSec": 45,
+     "sets": 3,
+     "restSec": 20
+    }
+   ]
+  }
+ },
+ {
+  "id": "routine_setup-ko-005",
+  "task": "routine_setup",
+  "lang": "ko",
+  "tags": [
+   "honorific"
+  ],
+  "input": {
+   "text": "태극 1장 두 번 하고 싶어요",
+   "lang": "ko"
+  },
+  "expect": {
+   "items": [
+    {
+     "kind": "poomsae",
+     "repeat": 2
+    }
+   ]
+  },
+  "note": "Taegeuk 1 repeated twice."
+ },
+ {
+  "id": "routine_setup-ko-006",
+  "task": "routine_setup",
+  "lang": "ko",
+  "tags": [
+   "honorific",
+   "ambiguous"
+  ],
+  "input": {
+   "text": "태극 2장 하고 싶어요",
+   "lang": "ko"
+  },
+  "expect": {
+   "items": [],
+   "maxItems": 2,
+   "needsConfirmation": true
+  },
+  "note": "Only Taegeuk 1 exists; Taegeuk 2 must be flagged (no poomsae item for it)."
+ },
+ {
+  "id": "routine_setup-ko-007",
+  "task": "routine_setup",
+  "lang": "ko",
+  "tags": [
+   "casual",
+   "numbers"
+  ],
+  "input": {
+   "text": "코어 운동 10분",
+   "lang": "ko"
+  },
+  "expect": {
+   "items": [],
+   "minItems": 3,
+   "totalMinutes": {
+    "min": 7,
+    "max": 13
+   }
+  }
+ },
+ {
+  "id": "routine_setup-ko-008",
+  "task": "routine_setup",
+  "lang": "ko",
+  "tags": [
+   "asr",
+   "honorific"
+  ],
+  "input": {
+   "text": "푸쉬업 10개 3세트랑 스쿠아트 12개 3세트 할게요",
+   "lang": "ko"
+  },
+  "expect": {
+   "items": [
+    {
+     "kind": "exercise",
+     "nameAny": [
+      "푸시업",
+      "푸쉬업"
+     ],
+     "reps": 10,
+     "sets": 3
+    },
+    {
+     "kind": "exercise",
+     "nameAny": [
+      "스쿼트",
+      "스쿠아트"
+     ],
+     "reps": 12,
+     "sets": 3
+    }
+   ]
+  },
+  "note": "Order follows the utterance: pushups first. Recognition slips; normalised names accepted."
+ },
+ {
+  "id": "routine_setup-ko-009",
+  "task": "routine_setup",
+  "lang": "ko",
+  "tags": [
+   "ambiguous",
+   "casual",
+   "honorific"
+  ],
+  "input": {
+   "text": "가볍게 운동할래요",
+   "lang": "ko"
+  },
+  "expect": {
+   "items": [],
+   "minItems": 2,
+   "maxItems": 8
+  },
+  "note": "Vague request; reasonable light routine OR confirmation. needsConfirmation not asserted."
+ },
+ {
+  "id": "routine_setup-ko-010",
+  "task": "routine_setup",
+  "lang": "ko",
+  "tags": [
+   "numbers",
+   "casual"
+  ],
+  "input": {
+   "text": "스트레칭 하고 휴식 1분 그다음에 스쿼트 10개 2세트",
+   "lang": "ko"
+  },
+  "expect": {
+   "items": [
+    {
+     "kind": "rest",
+     "sec": 60
+    },
+    {
+     "kind": "exercise",
+     "nameAny": [
+      "스쿼트"
+     ],
+     "reps": 10,
+     "sets": 2
+    }
+   ],
+   "minItems": 3
+  },
+  "note": "Stretching item first (minItems 3 accounts for it); rest 60 s item; then squats."
+ },
+ {
+  "id": "routine_setup-ko-011",
+  "task": "routine_setup",
+  "lang": "ko",
+  "tags": [
+   "mixed",
+   "casual"
+  ],
+  "input": {
+   "text": "Warm up 하고 push-ups 15개 2세트 하고 싶어",
+   "lang": "ko"
+  },
+  "expect": {
+   "items": [
+    {
+     "kind": "exercise",
+     "nameAny": [
+      "push",
+      "푸시",
+      "푸쉬"
+     ],
+     "reps": 15,
+     "sets": 2
+    }
+   ]
+  }
+ },
+ {
+  "id": "routine_setup-ko-012",
+  "task": "routine_setup",
+  "lang": "ko",
+  "tags": [
+   "honorific",
+   "numbers"
+  ],
+  "input": {
+   "text": "상체 15분 정도 해주세요. 푸시업 위주로요",
+   "lang": "ko"
+  },
+  "expect": {
+   "items": [
+    {
+     "kind": "exercise",
+     "nameAny": [
+      "푸시업",
+      "푸쉬업"
+     ]
+    }
+   ],
+   "minItems": 3,
+   "totalMinutes": {
+    "min": 11,
+    "max": 19
+   }
+  }
+ },
+ {
+  "id": "routine_setup-ko-013",
+  "task": "routine_setup",
+  "lang": "ko",
+  "tags": [
+   "ambiguous",
+   "numbers",
+   "honorific"
+  ],
+  "input": {
+   "text": "5시간 동안 쉬지 않고 운동하고 싶어요",
+   "lang": "ko"
+  },
+  "expect": {
+   "items": [],
+   "needsConfirmation": true
+  },
+  "note": "Impossible/over-long request; flagged or clamped (validator rejects >3 h). Model must flag."
+ },
+ {
+  "id": "routine_setup-en-001",
+  "task": "routine_setup",
+  "lang": "en",
+  "tags": [
+   "real",
+   "casual",
+   "numbers"
+  ],
+  "input": {
+   "text": "lower body focus, about 20 minutes",
+   "lang": "en"
+  },
+  "expect": {
+   "items": [
+    {
+     "kind": "exercise",
+     "nameAny": [
+      "squat",
+      "lunge",
+      "bridge",
+      "leg",
+      "calf",
+      "glute"
+     ]
+    }
+   ],
+   "minItems": 3,
+   "totalMinutes": {
+    "min": 15,
+    "max": 25
+   }
+  }
+ },
+ {
+  "id": "routine_setup-en-002",
+  "task": "routine_setup",
+  "lang": "en",
+  "tags": [
+   "real",
+   "casual"
+  ],
+  "input": {
+   "text": "warm up then 3 rounds of squats and pushups, short rests",
+   "lang": "en"
+  },
+  "expect": {
+   "items": [
+    {
+     "kind": "exercise",
+     "nameAny": [
+      "squat"
+     ],
+     "sets": 3,
+     "restSec": 20
+    },
+    {
+     "kind": "exercise",
+     "nameAny": [
+      "push"
+     ],
+     "sets": 3,
+     "restSec": 20
+    }
+   ],
+   "minItems": 3
+  },
+  "note": "Short rests = 20 s per the prompt rules."
+ },
+ {
+  "id": "routine_setup-en-003",
+  "task": "routine_setup",
+  "lang": "en",
+  "tags": [
+   "numbers"
+  ],
+  "input": {
+   "text": "15 squats, 3 sets, 40 seconds rest between sets",
+   "lang": "en"
+  },
+  "expect": {
+   "items": [
+    {
+     "kind": "exercise",
+     "nameAny": [
+      "squat"
+     ],
+     "reps": 15,
+     "sets": 3,
+     "restSec": 40
+    }
+   ]
+  }
+ },
+ {
+  "id": "routine_setup-en-004",
+  "task": "routine_setup",
+  "lang": "en",
+  "tags": [
+   "numbers"
+  ],
+  "input": {
+   "text": "hamstring stretch 30 seconds each leg",
+   "lang": "en"
+  },
+  "expect": {
+   "items": [
+    {
+     "kind": "hold",
+     "nameAny": [
+      "hamstring"
+     ],
+     "holdSec": 30,
+     "perSide": true
+    }
+   ]
+  }
+ },
+ {
+  "id": "routine_setup-en-005",
+  "task": "routine_setup",
+  "lang": "en",
+  "tags": [
+   "numbers"
+  ],
+  "input": {
+   "text": "plank for 60 seconds, 2 sets",
+   "lang": "en"
+  },
+  "expect": {
+   "items": [
+    {
+     "kind": "hold",
+     "nameAny": [
+      "plank"
+     ],
+     "holdSec": 60,
+     "sets": 2
+    }
+   ]
+  }
+ },
+ {
+  "id": "routine_setup-en-006",
+  "task": "routine_setup",
+  "lang": "en",
+  "tags": [
+   "honorific"
+  ],
+  "input": {
+   "text": "Taegeuk 1 twice please",
+   "lang": "en"
+  },
+  "expect": {
+   "items": [
+    {
+     "kind": "poomsae",
+     "repeat": 2
+    }
+   ]
+  }
+ },
+ {
+  "id": "routine_setup-en-007",
+  "task": "routine_setup",
+  "lang": "en",
+  "tags": [
+   "ambiguous",
+   "oos"
+  ],
+  "input": {
+   "text": "Taegeuk 3",
+   "lang": "en"
+  },
+  "expect": {
+   "items": [],
+   "maxItems": 2,
+   "needsConfirmation": true
+  },
+  "note": "Only Taegeuk 1 exists."
+ },
+ {
+  "id": "routine_setup-en-008",
+  "task": "routine_setup",
+  "lang": "en",
+  "tags": [
+   "casual",
+   "numbers"
+  ],
+  "input": {
+   "text": "upper body 15 minutes",
+   "lang": "en"
+  },
+  "expect": {
+   "items": [],
+   "minItems": 3,
+   "totalMinutes": {
+    "min": 11,
+    "max": 19
+   }
+  }
+ },
+ {
+  "id": "routine_setup-en-009",
+  "task": "routine_setup",
+  "lang": "en",
+  "tags": [
+   "ambiguous",
+   "casual"
+  ],
+  "input": {
+   "text": "I want to do something easy",
+   "lang": "en"
+  },
+  "expect": {
+   "items": [],
+   "minItems": 2,
+   "maxItems": 8
+  },
+  "note": "Vague; either a light routine or a question."
+ },
+ {
+  "id": "routine_setup-en-010",
+  "task": "routine_setup",
+  "lang": "en",
+  "tags": [
+   "numbers"
+  ],
+  "input": {
+   "text": "10 pushups, rest 1 minute, then 10 pushups again",
+   "lang": "en"
+  },
+  "expect": {
+   "items": [
+    {
+     "kind": "exercise",
+     "nameAny": [
+      "push"
+     ]
+    },
+    {
+     "kind": "rest",
+     "sec": 60
+    },
+    {
+     "kind": "exercise",
+     "nameAny": [
+      "push"
+     ]
+    }
+   ],
+   "minItems": 3
+  },
+  "note": "Rest item of 60 s between two pushup items (could also be modelled with sets; item expectation lenient on counts)."
+ },
+ {
+  "id": "routine_setup-en-011",
+  "task": "routine_setup",
+  "lang": "en",
+  "tags": [
+   "numbers"
+  ],
+  "input": {
+   "text": "Do squats 12 reps 4 sets slow tempo, 5 seconds per rep, then plank 40 seconds",
+   "lang": "en"
+  },
+  "expect": {
+   "items": [
+    {
+     "kind": "exercise",
+     "nameAny": [
+      "squat"
+     ],
+     "reps": 12,
+     "sets": 4
+    },
+    {
+     "kind": "hold",
+     "nameAny": [
+      "plank"
+     ],
+     "holdSec": 40
+    }
+   ]
+  },
+  "note": "Tempo given; secPerRep 5 not asserted (schema has no field)."
+ },
+ {
+  "id": "routine_setup-en-012",
+  "task": "routine_setup",
+  "lang": "en",
+  "tags": [
+   "numbers",
+   "casual"
+  ],
+  "input": {
+   "text": "lunges 10 each leg 3 sets, calf raises 20 reps 2 sets, glute bridge 15 reps 3 sets, then a 2 minute rest, then plank 30 seconds twice and 20 pushups",
+   "lang": "en"
+  },
+  "expect": {
+   "items": [
+    {
+     "kind": "exercise",
+     "nameAny": [
+      "lunge"
+     ]
+    },
+    {
+     "kind": "exercise",
+     "nameAny": [
+      "calf"
+     ]
+    },
+    {
+     "kind": "exercise",
+     "nameAny": [
+      "bridge"
+     ]
+    },
+    {
+     "kind": "rest",
+     "sec": 120
+    },
+    {
+     "kind": "hold",
+     "nameAny": [
+      "plank"
+     ],
+     "holdSec": 30,
+     "sets": 2
+    },
+    {
+     "kind": "exercise",
+     "nameAny": [
+      "push"
+     ],
+     "reps": 20
+    }
+   ],
+   "minItems": 6
+  },
+  "note": "Over-specified: all given items must appear in order."
+ },
+ {
+  "id": "routine_setup-en-013",
+  "task": "routine_setup",
+  "lang": "en",
+  "tags": [
+   "ambiguous",
+   "numbers"
+  ],
+  "input": {
+   "text": "I want a 5 hour workout",
+   "lang": "en"
+  },
+  "expect": {
+   "items": [],
+   "needsConfirmation": true
+  },
+  "note": "Impossible length; must be flagged."
+ }
+]

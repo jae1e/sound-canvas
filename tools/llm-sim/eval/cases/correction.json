@@ -1,0 +1,596 @@
+[
+ {
+  "id": "correction-ko-001",
+  "task": "correction",
+  "lang": "ko",
+  "tags": [
+   "real",
+   "casual"
+  ],
+  "input": {
+   "note": "오른손 먼저 나가야되는데 자꾸 왼손이 나가요",
+   "lang": "ko",
+   "fixture": "taegeuk1",
+   "practice": {
+    "itemId": "p1",
+    "movementNo": 2
+   }
+  },
+  "expect": {
+   "scope": "movement",
+   "itemId": "p1",
+   "movementNo": 2,
+   "side": "right",
+   "cueKoAny": [
+    "오른손"
+   ]
+  },
+  "note": "Real user note; practiced movement 2 decides the target."
+ },
+ {
+  "id": "correction-ko-002",
+  "task": "correction",
+  "lang": "ko",
+  "tags": [
+   "real",
+   "casual"
+  ],
+  "input": {
+   "note": "오른손 먼저 나가야되는데 자꾸 왼손이 나가요",
+   "lang": "ko",
+   "fixture": "taegeuk1"
+  },
+  "expect": {
+   "scope": "item",
+   "itemId": "p1",
+   "side": "right",
+   "cueKoAny": [
+    "오른손"
+   ]
+  },
+  "note": "Same real note without practice context: names no movement, the only form item is p1 => item scope."
+ },
+ {
+  "id": "correction-ko-003",
+  "task": "correction",
+  "lang": "ko",
+  "tags": [
+   "casual",
+   "numbers"
+  ],
+  "input": {
+   "note": "5번 동작에서 무릎이 안 펴져요",
+   "lang": "ko",
+   "fixture": "taegeuk1"
+  },
+  "expect": {
+   "scope": "movement",
+   "itemId": "p1",
+   "movementNo": 5,
+   "cueKoAny": [
+    "무릎"
+   ]
+  }
+ },
+ {
+  "id": "correction-ko-004",
+  "task": "correction",
+  "lang": "ko",
+  "tags": [
+   "ambiguous",
+   "casual"
+  ],
+  "input": {
+   "note": "아래막기 할 때 팔꿈치가 벌어져요",
+   "lang": "ko",
+   "fixture": "taegeuk1"
+  },
+  "expect": {
+   "scope": "movement",
+   "itemId": "p1",
+   "needsConfirmation": true,
+   "cueKoAny": [
+    "팔꿈치"
+   ]
+  },
+  "note": "Low block matches movements 1,3,5,11,17; no practice => ambiguous. movementNo not asserted."
+ },
+ {
+  "id": "correction-ko-005",
+  "task": "correction",
+  "lang": "ko",
+  "tags": [
+   "casual"
+  ],
+  "input": {
+   "note": "아래막기 할 때 팔꿈치가 벌어져요",
+   "lang": "ko",
+   "fixture": "taegeuk1",
+   "practice": {
+    "itemId": "p1",
+    "movementNo": 3
+   }
+  },
+  "expect": {
+   "scope": "movement",
+   "itemId": "p1",
+   "movementNo": 3,
+   "needsConfirmation": false,
+   "cueKoAny": [
+    "팔꿈치"
+   ]
+  },
+  "note": "Practiced movement 3 is a low block, resolving the ambiguity."
+ },
+ {
+  "id": "correction-ko-006",
+  "task": "correction",
+  "lang": "ko",
+  "tags": [
+   "casual",
+   "ambiguous"
+  ],
+  "input": {
+   "note": "허리를 펴고 하라고 계속 지적받아요",
+   "lang": "ko",
+   "fixture": "taegeuk1"
+  },
+  "expect": {
+   "cueKoAny": [
+    "허리"
+   ],
+   "scope": "item",
+   "itemId": "p1"
+  },
+  "note": "Generic posture note, only one item. Scope item vs routine is debatable; tagged ambiguous would be stricter, but with one item the item is the natural target."
+ },
+ {
+  "id": "correction-ko-007",
+  "task": "correction",
+  "lang": "ko",
+  "tags": [
+   "casual"
+  ],
+  "input": {
+   "note": "스쿼트할 때 무릎이 안으로 모여요",
+   "lang": "ko",
+   "fixture": "mixed"
+  },
+  "expect": {
+   "scope": "item",
+   "itemId": "e1",
+   "cueKoAny": [
+    "무릎"
+   ]
+  }
+ },
+ {
+  "id": "correction-ko-008",
+  "task": "correction",
+  "lang": "ko",
+  "tags": [
+   "honorific"
+  ],
+  "input": {
+   "note": "푸시업할 때 팔꿈치를 몸에 붙여야 해요",
+   "lang": "ko",
+   "fixture": "mixed"
+  },
+  "expect": {
+   "scope": "item",
+   "itemId": "e2",
+   "cueKoAny": [
+    "팔꿈치"
+   ]
+  }
+ },
+ {
+  "id": "correction-ko-009",
+  "task": "correction",
+  "lang": "ko",
+  "tags": [
+   "honorific"
+  ],
+  "input": {
+   "note": "숨을 참지 않게 해주세요",
+   "lang": "ko",
+   "fixture": "mixed"
+  },
+  "expect": {
+   "scope": "routine",
+   "cueKoAny": [
+    "숨"
+   ]
+  },
+  "note": "Applies everywhere."
+ },
+ {
+  "id": "correction-ko-010",
+  "task": "correction",
+  "lang": "ko",
+  "tags": [
+   "casual"
+  ],
+  "input": {
+   "note": "앞차기할 때 왼발이 먼저 나가요. 오른발이어야 해요",
+   "lang": "ko",
+   "fixture": "taegeuk1"
+  },
+  "expect": {
+   "scope": "movement",
+   "itemId": "p1",
+   "cueKoAny": [
+    "오른발"
+   ],
+   "side": "right",
+   "needsConfirmation": true
+  },
+  "note": "Front kick occurs in movements 14 and 16 and no practice => ambiguous. movementNo not asserted."
+ },
+ {
+  "id": "correction-ko-011",
+  "task": "correction",
+  "lang": "ko",
+  "tags": [
+   "casual"
+  ],
+  "input": {
+   "note": "왼손이 너무 낮아요",
+   "lang": "ko",
+   "fixture": "taegeuk1",
+   "practice": {
+    "itemId": "p1",
+    "movementNo": 8
+   }
+  },
+  "expect": {
+   "scope": "movement",
+   "itemId": "p1",
+   "movementNo": 8,
+   "side": "left",
+   "cueKoAny": [
+    "왼손"
+   ]
+  }
+ },
+ {
+  "id": "correction-ko-012",
+  "task": "correction",
+  "lang": "ko",
+  "tags": [
+   "mixed",
+   "casual"
+  ],
+  "input": {
+   "note": "plank 할 때 허리가 처져요",
+   "lang": "ko",
+   "fixture": "mixed"
+  },
+  "expect": {
+   "scope": "item",
+   "itemId": "h2",
+   "cueKoAny": [
+    "허리"
+   ]
+  }
+ },
+ {
+  "id": "correction-ko-013",
+  "task": "correction",
+  "lang": "ko",
+  "tags": [
+   "numbers",
+   "casual"
+  ],
+  "input": {
+   "note": "13번에서 얼굴막기가 너무 낮아요",
+   "lang": "ko",
+   "fixture": "taegeuk1"
+  },
+  "expect": {
+   "scope": "movement",
+   "itemId": "p1",
+   "movementNo": 13,
+   "cueKoAny": [
+    "얼굴막기",
+    "막기",
+    "올려",
+    "높"
+   ]
+  },
+  "note": "Movement 13 is the high block (얼굴막기)."
+ },
+ {
+  "id": "correction-en-001",
+  "task": "correction",
+  "lang": "en",
+  "tags": [
+   "casual"
+  ],
+  "input": {
+   "note": "my left foot steps before my hand on the front kick",
+   "lang": "en",
+   "fixture": "taegeuk1"
+  },
+  "expect": {
+   "scope": "movement",
+   "itemId": "p1",
+   "needsConfirmation": true
+  },
+  "note": "Front kick = movements 14 and 16; no practice => ambiguous."
+ },
+ {
+  "id": "correction-en-002",
+  "task": "correction",
+  "lang": "en",
+  "tags": [
+   "casual"
+  ],
+  "input": {
+   "note": "my left foot steps before my hand on the front kick",
+   "lang": "en",
+   "fixture": "taegeuk1",
+   "practice": {
+    "itemId": "p1",
+    "movementNo": 14
+   }
+  },
+  "expect": {
+   "scope": "movement",
+   "itemId": "p1",
+   "movementNo": 14,
+   "needsConfirmation": false,
+   "cueEnAny": [
+    "hand"
+   ]
+  },
+  "note": "Practice movement 14 is a front kick, resolving ambiguity."
+ },
+ {
+  "id": "correction-en-003",
+  "task": "correction",
+  "lang": "en",
+  "tags": [
+   "casual"
+  ],
+  "input": {
+   "note": "right hand should go first but my left hand keeps going",
+   "lang": "en",
+   "fixture": "taegeuk1",
+   "practice": {
+    "itemId": "p1",
+    "movementNo": 2
+   }
+  },
+  "expect": {
+   "scope": "movement",
+   "itemId": "p1",
+   "movementNo": 2,
+   "side": "right",
+   "cueEnAny": [
+    "right"
+   ]
+  }
+ },
+ {
+  "id": "correction-en-004",
+  "task": "correction",
+  "lang": "en",
+  "tags": [
+   "numbers"
+  ],
+  "input": {
+   "note": "movement 5, my knee does not straighten",
+   "lang": "en",
+   "fixture": "taegeuk1"
+  },
+  "expect": {
+   "scope": "movement",
+   "itemId": "p1",
+   "movementNo": 5,
+   "cueEnAny": [
+    "knee"
+   ]
+  }
+ },
+ {
+  "id": "correction-en-005",
+  "task": "correction",
+  "lang": "en",
+  "tags": [
+   "casual"
+  ],
+  "input": {
+   "note": "don't hold my breath",
+   "lang": "en",
+   "fixture": "mixed"
+  },
+  "expect": {
+   "scope": "routine",
+   "cueEnAny": [
+    "breath",
+    "breathe"
+   ]
+  }
+ },
+ {
+  "id": "correction-en-006",
+  "task": "correction",
+  "lang": "en",
+  "tags": [
+   "casual",
+   "ambiguous"
+  ],
+  "input": {
+   "note": "keep my back straight",
+   "lang": "en",
+   "fixture": "taegeuk1"
+  },
+  "expect": {
+   "scope": "item",
+   "itemId": "p1",
+   "cueEnAny": [
+    "back"
+   ]
+  },
+  "note": "Generic posture, single item => item scope."
+ },
+ {
+  "id": "correction-en-007",
+  "task": "correction",
+  "lang": "en",
+  "tags": [
+   "casual"
+  ],
+  "input": {
+   "note": "my knees cave in on squats",
+   "lang": "en",
+   "fixture": "mixed"
+  },
+  "expect": {
+   "scope": "item",
+   "itemId": "e1",
+   "cueEnAny": [
+    "knee"
+   ]
+  }
+ },
+ {
+  "id": "correction-en-008",
+  "task": "correction",
+  "lang": "en",
+  "tags": [
+   "honorific"
+  ],
+  "input": {
+   "note": "Please remind me to keep my hips level during the plank",
+   "lang": "en",
+   "fixture": "mixed"
+  },
+  "expect": {
+   "scope": "item",
+   "itemId": "h2",
+   "cueEnAny": [
+    "hip"
+   ]
+  }
+ },
+ {
+  "id": "correction-en-009",
+  "task": "correction",
+  "lang": "en",
+  "tags": [
+   "ambiguous",
+   "casual"
+  ],
+  "input": {
+   "note": "low block elbows flare out",
+   "lang": "en",
+   "fixture": "taegeuk1"
+  },
+  "expect": {
+   "scope": "movement",
+   "itemId": "p1",
+   "needsConfirmation": true,
+   "cueEnAny": [
+    "elbow"
+   ]
+  },
+  "note": "Five low blocks; ambiguous."
+ },
+ {
+  "id": "correction-en-010",
+  "task": "correction",
+  "lang": "en",
+  "tags": [
+   "casual"
+  ],
+  "input": {
+   "note": "low block elbows flare out",
+   "lang": "en",
+   "fixture": "taegeuk1",
+   "practice": {
+    "itemId": "p1",
+    "movementNo": 17
+   }
+  },
+  "expect": {
+   "scope": "movement",
+   "itemId": "p1",
+   "movementNo": 17,
+   "needsConfirmation": false,
+   "cueEnAny": [
+    "elbow"
+   ]
+  }
+ },
+ {
+  "id": "correction-en-011",
+  "task": "correction",
+  "lang": "en",
+  "tags": [
+   "mixed",
+   "casual"
+  ],
+  "input": {
+   "note": "스쿼트 때 heels come up",
+   "lang": "en",
+   "fixture": "mixed"
+  },
+  "expect": {
+   "scope": "item",
+   "itemId": "e1",
+   "cueEnAny": [
+    "heel"
+   ]
+  }
+ },
+ {
+  "id": "correction-en-012",
+  "task": "correction",
+  "lang": "en",
+  "tags": [
+   "numbers",
+   "casual"
+  ],
+  "input": {
+   "note": "left shoulder is too high in movement 8",
+   "lang": "en",
+   "fixture": "taegeuk1"
+  },
+  "expect": {
+   "scope": "movement",
+   "itemId": "p1",
+   "movementNo": 8,
+   "side": "left",
+   "cueEnAny": [
+    "shoulder"
+   ]
+  }
+ },
+ {
+  "id": "correction-en-013",
+  "task": "correction",
+  "lang": "en",
+  "tags": [
+   "casual"
+  ],
+  "input": {
+   "note": "on the final punch, kihap louder",
+   "lang": "en",
+   "fixture": "taegeuk1"
+  },
+  "expect": {
+   "scope": "movement",
+   "itemId": "p1",
+   "movementNo": 18,
+   "cueEnAny": [
+    "kihap",
+    "shout",
+    "yell",
+    "loud"
+   ]
+  },
+  "note": "Movement 18 is the final punch with the kihap."
+ }
+]

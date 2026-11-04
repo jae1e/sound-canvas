@@ -40,7 +40,8 @@ import {
 
 import type { EventKind } from '../db/repos/events';
 import type { NewJournalEntry } from '../db/repos/journal';
-import { askLlm } from '../llm/askLlm';
+import { askLlm, isLlmAvailable } from '../llm/askLlm';
+import { CONFIRM_TTL_MS, cancelledMessage, parseYesNo } from '../llm/confirm';
 
 export interface PrepareResult {
   clips: { text: string; durationMs: number; ok: boolean }[];
@@ -154,6 +155,8 @@ export class RoutineController {
   private clipMs = new Map<string, number>();
   private gen = 0;
   private turnSeq = 0;
+  /** An LLM-proposed routine command (for example ending early) waiting for a spoken yes/no; default is to do nothing. */
+  private pendingCommand: { command: RoutineCommand; until: number } | null = null;
   private lastPlayedCue: string | null = null;
   private startedAt = 0;
   private ticker: ReturnType<typeof setInterval> | null = null;
@@ -207,7 +210,18 @@ export class RoutineController {
     this.store.appendEvent('routine', { what: 'parse', text, items: parsed.items.length, unparsed: parsed.unparsed.length });
     if (needsLlm(parsed)) {
       this.store.appendEvent('llm_needed', { heard: text, kind: 'routine_setup', unparsed: parsed.unparsed });
-      void askLlm({ hypotheses: [text], lang: parsed.lang, kind: 'routine_setup', context: parsed.unparsed, recentTurns: [] }).catch(() => undefined);
+      void askLlm({ hypotheses: [text], lang: parsed.lang, kind: 'routine_setup', context: parsed.unparsed, recentTurns: [] })
+        .then((res) => {
+          // The model's routine replaces the draft only if the user has not touched it meanwhile and nothing was lost.
+          if (!res.ok || res.task !== 'routine_setup' || this.s.draft !== parsed) return;
+          const items = res.setup.template.items;
+          if (items.length < parsed.items.length) return;
+          const lang = parsed.lang;
+          const note = t2(lang, 'AI가 해석한 루틴이에요. 확인하고 고쳐 주세요.', 'Interpreted by AI. Please check and edit.');
+          this.set({ draft: { lang, items, unparsed: [], assumed: [note, ...res.setup.assumptions] } });
+          this.store.appendEvent('routine', { what: 'llm_setup', items: items.length });
+        })
+        .catch(() => undefined);
     }
     return parsed;
   }
@@ -489,6 +503,21 @@ export class RoutineController {
       return;
     }
     const row = (reply: string | null) => this.pushTurn(text, reply);
+    const pending = this.pendingCommand;
+    this.pendingCommand = null;
+    if (pending && this.env.now() <= pending.until) {
+      const answer = parseYesNo(text, lang ?? this.lang);
+      if (answer === 'yes') {
+        row(this.exec(pending.command));
+        return;
+      }
+      if (answer === 'no') {
+        const r = cancelledMessage(lang ?? this.lang);
+        this.say(r);
+        row(r);
+        return;
+      }
+    }
     const intent = parseRoutineIntent(text, lang ?? this.lang);
     if (intent?.kind === 'command') {
       row(this.exec(intent.command));
@@ -509,6 +538,35 @@ export class RoutineController {
     }
     this.store.appendEvent('unrecognized', { heard: text, where: 'routine' });
     row(null);
+    if (isLlmAvailable()) this.askRoutineCommand(text, lang ?? this.lang);
+  }
+
+  /** Free-form live utterance the grammar missed: one `command` call. The reply arrives as a later turn; failures stay silent. */
+  private askRoutineCommand(text: string, lang: Lang): void {
+    const run = this.s.run;
+    if (!run) return;
+    const base = this.practiceContext();
+    const currentItem = run.items.find((i) => i.id === base?.itemId)?.name;
+    void askLlm({ hypotheses: [text], lang, kind: 'routine_command', run, ...(currentItem ? { currentItem } : {}), recentTurns: this.s.turns.slice(0, 3).reverse().map((x) => ({ heard: x.heard, reply: x.reply })) })
+      .then((res) => {
+        if (!res.ok || res.task !== 'command' || !this.isActive()) return;
+        const v = res.command;
+        if (v.kind === 'not_command') return;
+        if (v.kind === 'clarify') {
+          this.say(v.question);
+          this.pushTurn(text, v.question);
+          return;
+        }
+        if (v.mapped.domain !== 'routine') return;
+        if (v.needsConfirmation) {
+          this.pendingCommand = { command: v.mapped.command, until: this.env.now() + CONFIRM_TTL_MS };
+          this.say(v.question);
+          this.pushTurn(text, v.question);
+          return;
+        }
+        this.pushTurn(text, this.exec(v.mapped.command));
+      })
+      .catch(() => undefined);
   }
 
   private pushTurn(heard: string, reply: string | null): void {
@@ -536,6 +594,14 @@ export class RoutineController {
     };
   }
 
+  private practiceHint(): { itemId?: string; movementNo?: number } | undefined {
+    const p = this.practiceContext();
+    if (!p) return undefined;
+    const item = this.s.run?.items.find((i) => i.id === p.itemId);
+    const no = item?.kind === 'poomsae' ? item.movements.find((m) => m.id === p.movementId)?.no : undefined;
+    return { ...(p.itemId ? { itemId: p.itemId } : {}), ...(no !== undefined ? { movementNo: no } : {}) };
+  }
+
   /**
    * Attaches a correction note to a movement/item/routine and stores it. Ambiguous targets open the picker
    * (and go to the LLM stub). Works during practice and in the editor (pass `practice: false`).
@@ -549,7 +615,17 @@ export class RoutineController {
     const a = attachCorrection(text, items, lang, opts.practice === false ? undefined : this.practiceContext());
     if (a.target === null) {
       this.store.appendEvent('llm_needed', { heard: text, kind: 'routine_target', candidates: a.candidates });
-      if (run) void askLlm({ hypotheses: [text], lang, kind: 'routine_target', context: a.candidates, recentTurns: [] }).catch(() => undefined);
+      if (run) {
+        void askLlm({ hypotheses: [text], lang, kind: 'routine_target', context: a.candidates, routineItems: items, recentTurns: [], practice: this.practiceHint() })
+          .then((res) => {
+            if (!res.ok || res.task !== 'correction' || res.proposal.needsConfirmation || res.proposal.target.kind !== 'movement') return;
+            const want = res.proposal.target;
+            const pick = this.s.pick;
+            const hit = pick?.text === text ? pick.candidates.find((c) => c.kind === 'movement' && c.movementId === want.movementId) : undefined;
+            if (hit) this.pickTarget(hit);
+          })
+          .catch(() => undefined);
+      }
       this.set({ pick: { text, candidates: a.candidates } });
       const reply = t2(lang, '어느 동작인지 화면에서 골라 주세요.', 'Please pick the movement on screen.');
       if (opts.practice !== false) this.say(reply);

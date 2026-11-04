@@ -1,0 +1,1507 @@
+[
+ {
+  "id": "align-ko-001",
+  "lang": "ko",
+  "task": "align",
+  "tags": [
+   "real",
+   "asr"
+  ],
+  "note": "Real device case: recognizer picked the wrong word; context has no risotto.",
+  "input": {
+   "hypotheses": [
+    "리조트 5분 타이머",
+    "리조또 5분 타이머"
+   ],
+   "lang": "ko",
+   "context": {
+    "mode": "work",
+    "tasks": [
+     "파스타",
+     "샐러드",
+     "설거지"
+    ],
+    "timers": [
+     {
+      "label": "파스타",
+      "remainingSec": 70
+     }
+    ],
+    "items": [],
+    "current": "파스타"
+   }
+  },
+  "expect": {
+   "type": "start_timer",
+   "args": {
+    "label": "리조또",
+    "seconds": 300
+   },
+   "needsConfirmation": true
+  }
+ },
+ {
+  "id": "align-ko-002",
+  "lang": "ko",
+  "task": "align",
+  "tags": [
+   "asr"
+  ],
+  "note": "Hypotheses disagree on the name; context favors ramyeon.",
+  "input": {
+   "hypotheses": [
+    "라멘 3분 타이머",
+    "라면 3분 타이머"
+   ],
+   "lang": "ko",
+   "context": {
+    "mode": "work",
+    "tasks": [
+     "라면",
+     "계란 삶기"
+    ],
+    "timers": [
+     {
+      "label": "라면",
+      "remainingSec": 180
+     }
+    ],
+    "items": []
+   }
+  },
+  "expect": {
+   "type": "start_timer",
+   "args": {
+    "label": "라면",
+    "seconds": 180
+   },
+   "needsConfirmation": true
+  }
+ },
+ {
+  "id": "align-ko-003",
+  "lang": "ko",
+  "task": "align",
+  "tags": [
+   "asr"
+  ],
+  "input": {
+   "hypotheses": [
+    "게란 7분 타이머",
+    "계란 7분 타이머"
+   ],
+   "lang": "ko",
+   "context": {
+    "mode": "work",
+    "tasks": [],
+    "timers": [],
+    "items": []
+   }
+  },
+  "expect": {
+   "type": "start_timer",
+   "args": {
+    "label": "계란",
+    "seconds": 420
+   },
+   "needsConfirmation": true
+  }
+ },
+ {
+  "id": "align-ko-004",
+  "lang": "ko",
+  "task": "align",
+  "tags": [
+   "numbers"
+  ],
+  "note": "Both hypotheses carry the same number.",
+  "input": {
+   "hypotheses": [
+    "찌개 오분 타이머",
+    "찌개 5분 타이머"
+   ],
+   "lang": "ko",
+   "context": {
+    "mode": "work",
+    "tasks": [],
+    "timers": [],
+    "items": []
+   }
+  },
+  "expect": {
+   "type": "start_timer",
+   "args": {
+    "label": "찌개",
+    "seconds": 300
+   },
+   "needsConfirmation": false
+  }
+ },
+ {
+  "id": "align-ko-005",
+  "lang": "ko",
+  "task": "align",
+  "tags": [
+   "numbers",
+   "ambiguous",
+   "asr"
+  ],
+  "note": "Number disagrees (5 vs 9); seconds deliberately not checked.",
+  "input": {
+   "hypotheses": [
+    "찌개 5분 더",
+    "찌개 9분 더"
+   ],
+   "lang": "ko",
+   "context": {
+    "mode": "work",
+    "tasks": [],
+    "timers": [
+     {
+      "label": "찌개",
+      "remainingSec": 420
+     }
+    ],
+    "items": []
+   }
+  },
+  "expect": {
+   "type": "extend_timer",
+   "args": {
+    "target": "찌개"
+   },
+   "needsConfirmation": true
+  }
+ },
+ {
+  "id": "align-ko-006",
+  "lang": "ko",
+  "task": "align",
+  "tags": [
+   "honorific"
+  ],
+  "input": {
+   "hypotheses": [
+    "파스타 타이머 10분 맞춰 주세요"
+   ],
+   "lang": "ko",
+   "context": {
+    "mode": "work",
+    "tasks": [
+     "보고서 쓰기",
+     "이메일 답장",
+     "회의 준비"
+    ],
+    "timers": [],
+    "items": [],
+    "current": "보고서 쓰기"
+   }
+  },
+  "expect": {
+   "type": "start_timer",
+   "args": {
+    "label": "파스타",
+    "seconds": 600
+   },
+   "needsConfirmation": false
+  }
+ },
+ {
+  "id": "align-ko-007",
+  "lang": "ko",
+  "task": "align",
+  "tags": [
+   "hard",
+   "honorific"
+  ],
+  "input": {
+   "hypotheses": [
+    "파스타 타이머 취소해 주세요",
+    "파스타 타이머 취소해 주세요."
+   ],
+   "lang": "ko",
+   "context": {
+    "mode": "work",
+    "tasks": [
+     "파스타",
+     "샐러드",
+     "설거지"
+    ],
+    "timers": [
+     {
+      "label": "파스타",
+      "remainingSec": 70
+     }
+    ],
+    "items": [],
+    "current": "파스타"
+   }
+  },
+  "expect": {
+   "type": "cancel_timer",
+   "args": {
+    "target": "파스타"
+   },
+   "needsConfirmation": true
+  }
+ },
+ {
+  "id": "align-ko-008",
+  "lang": "ko",
+  "task": "align",
+  "tags": [
+   "hard",
+   "casual"
+  ],
+  "input": {
+   "hypotheses": [
+    "오늘은 여기까지 끝낼게",
+    "오늘은 여기까지 끝낼께"
+   ],
+   "lang": "ko",
+   "context": {
+    "mode": "work",
+    "tasks": [
+     "보고서 쓰기",
+     "이메일 답장",
+     "회의 준비"
+    ],
+    "timers": [],
+    "items": [],
+    "current": "보고서 쓰기"
+   }
+  },
+  "expect": {
+   "type": "end_session",
+   "needsConfirmation": true
+  }
+ },
+ {
+  "id": "align-ko-009",
+  "lang": "ko",
+  "task": "align",
+  "tags": [
+   "hard"
+  ],
+  "input": {
+   "hypotheses": [
+    "보고서 쓰기 건너뛰자",
+    "보고서 쓰기 건너 뛰자"
+   ],
+   "lang": "ko",
+   "context": {
+    "mode": "work",
+    "tasks": [
+     "보고서 쓰기",
+     "이메일 답장",
+     "회의 준비"
+    ],
+    "timers": [],
+    "items": [],
+    "current": "보고서 쓰기"
+   }
+  },
+  "expect": {
+   "type": "skip_task",
+   "args": {
+    "target": "보고서 쓰기"
+   },
+   "needsConfirmation": true
+  }
+ },
+ {
+  "id": "align-ko-010",
+  "lang": "ko",
+  "task": "align",
+  "tags": [
+   "casual"
+  ],
+  "note": "Only one open task, so the target is implied.",
+  "input": {
+   "hypotheses": [
+    "다 됐어",
+    "다 됐어요"
+   ],
+   "lang": "ko",
+   "context": {
+    "mode": "work",
+    "tasks": [
+     "청소기 돌리기"
+    ],
+    "timers": [],
+    "items": []
+   }
+  },
+  "expect": {
+   "type": "task_done",
+   "args": {
+    "target": "청소기 돌리기"
+   },
+   "needsConfirmation": false
+  }
+ },
+ {
+  "id": "align-ko-011",
+  "lang": "ko",
+  "task": "align",
+  "tags": [
+   "casual",
+   "numbers"
+  ],
+  "note": "Single timer, obvious target.",
+  "input": {
+   "hypotheses": [
+    "2분 더",
+    "이 분 더"
+   ],
+   "lang": "ko",
+   "context": {
+    "mode": "work",
+    "tasks": [],
+    "timers": [
+     {
+      "label": "찌개",
+      "remainingSec": 420
+     }
+    ],
+    "items": []
+   }
+  },
+  "expect": {
+   "type": "extend_timer",
+   "args": {
+    "seconds": 120
+   },
+   "needsConfirmation": false
+  }
+ },
+ {
+  "id": "align-ko-012",
+  "lang": "ko",
+  "task": "align",
+  "tags": [
+   "casual"
+  ],
+  "input": {
+   "hypotheses": [
+    "조용히 해줘",
+    "조용히 해 줘"
+   ],
+   "lang": "ko",
+   "context": {
+    "mode": "work",
+    "tasks": [
+     "파스타",
+     "샐러드",
+     "설거지"
+    ],
+    "timers": [
+     {
+      "label": "파스타",
+      "remainingSec": 70
+     }
+    ],
+    "items": [],
+    "current": "파스타"
+   }
+  },
+  "expect": {
+   "type": "set_quiet",
+   "args": {
+    "flag": true
+   },
+   "needsConfirmation": false
+  }
+ },
+ {
+  "id": "align-ko-013",
+  "lang": "ko",
+  "task": "align",
+  "tags": [
+   "numbers"
+  ],
+  "input": {
+   "hypotheses": [
+    "10분 동안 조용히 해줘",
+    "십분 동안 조용히 해줘"
+   ],
+   "lang": "ko",
+   "context": {
+    "mode": "work",
+    "tasks": [
+     "파스타",
+     "샐러드",
+     "설거지"
+    ],
+    "timers": [
+     {
+      "label": "파스타",
+      "remainingSec": 70
+     }
+    ],
+    "items": [],
+    "current": "파스타"
+   }
+  },
+  "expect": {
+   "type": "set_quiet",
+   "args": {
+    "flag": true,
+    "seconds": 600
+   },
+   "needsConfirmation": false
+  }
+ },
+ {
+  "id": "align-ko-014",
+  "lang": "ko",
+  "task": "align",
+  "tags": [
+   "casual"
+  ],
+  "input": {
+   "hypotheses": [
+    "할 일에 장보기 추가해줘",
+    "할 일에 장보기 추가해 줘"
+   ],
+   "lang": "ko",
+   "context": {
+    "mode": "work",
+    "tasks": [
+     "보고서 쓰기",
+     "이메일 답장",
+     "회의 준비"
+    ],
+    "timers": [],
+    "items": [],
+    "current": "보고서 쓰기"
+   }
+  },
+  "expect": {
+   "type": "add_task",
+   "args": {
+    "label": "장보기"
+   },
+   "needsConfirmation": false
+  }
+ },
+ {
+  "id": "align-ko-015",
+  "lang": "ko",
+  "task": "align",
+  "tags": [
+   "oos"
+  ],
+  "input": {
+   "hypotheses": [
+    "오늘 날씨 어때",
+    "오늘 날씨 어때요"
+   ],
+   "lang": "ko",
+   "context": {
+    "mode": "work",
+    "tasks": [
+     "파스타",
+     "샐러드",
+     "설거지"
+    ],
+    "timers": [
+     {
+      "label": "파스타",
+      "remainingSec": 70
+     }
+    ],
+    "items": [],
+    "current": "파스타"
+   }
+  },
+  "expect": {
+   "type": "none",
+   "needsConfirmation": false
+  }
+ },
+ {
+  "id": "align-ko-016",
+  "lang": "ko",
+  "task": "align",
+  "tags": [
+   "oos"
+  ],
+  "note": "Unrelated TV speech.",
+  "input": {
+   "hypotheses": [
+    "그래서 범인이 누구였냐면",
+    "그래서 범인이 누구였냐면은"
+   ],
+   "lang": "ko",
+   "context": {
+    "mode": "work",
+    "tasks": [
+     "보고서 쓰기",
+     "이메일 답장",
+     "회의 준비"
+    ],
+    "timers": [],
+    "items": [],
+    "current": "보고서 쓰기"
+   }
+  },
+  "expect": {
+   "type": "none",
+   "needsConfirmation": false
+  }
+ },
+ {
+  "id": "align-ko-017",
+  "lang": "ko",
+  "task": "align",
+  "tags": [
+   "mixed"
+  ],
+  "input": {
+   "hypotheses": [
+    "pasta 타이머 3분"
+   ],
+   "lang": "ko",
+   "context": {
+    "mode": "work",
+    "tasks": [],
+    "timers": [],
+    "items": []
+   }
+  },
+  "expect": {
+   "type": "start_timer",
+   "args": {
+    "label": "pasta",
+    "seconds": 180
+   },
+   "needsConfirmation": false
+  }
+ },
+ {
+  "id": "align-ko-018",
+  "lang": "ko",
+  "task": "align",
+  "tags": [
+   "mixed",
+   "casual"
+  ],
+  "input": {
+   "hypotheses": [
+    "찌개 타이머 pause 해줘",
+    "찌개 타이머 포즈 해줘"
+   ],
+   "lang": "ko",
+   "context": {
+    "mode": "work",
+    "tasks": [],
+    "timers": [
+     {
+      "label": "찌개",
+      "remainingSec": 420
+     }
+    ],
+    "items": []
+   }
+  },
+  "expect": {
+   "type": "pause_timer",
+   "args": {
+    "target": "찌개"
+   },
+   "needsConfirmation": false
+  }
+ },
+ {
+  "id": "align-ko-019",
+  "lang": "ko",
+  "task": "align",
+  "tags": [
+   "casual"
+  ],
+  "input": {
+   "hypotheses": [
+    "다음 동작으로 넘어가",
+    "다음 동작으로 넘어가 줘"
+   ],
+   "lang": "ko",
+   "context": {
+    "mode": "routine",
+    "tasks": [],
+    "timers": [],
+    "items": [
+     "스쿼트",
+     "런지",
+     "플랭크",
+     "푸시업"
+    ],
+    "current": "스쿼트"
+   }
+  },
+  "expect": {
+   "type": "skip",
+   "needsConfirmation": false
+  }
+ },
+ {
+  "id": "align-ko-020",
+  "lang": "ko",
+  "task": "align",
+  "tags": [
+   "asr"
+  ],
+  "note": "Routine; hypotheses disagree on the exercise name.",
+  "input": {
+   "hypotheses": [
+    "스쿼트 대신 런지 할래",
+    "스쿼트 대신 런치 할래"
+   ],
+   "lang": "ko",
+   "context": {
+    "mode": "routine",
+    "tasks": [],
+    "timers": [],
+    "items": [
+     "스쿼트",
+     "런지",
+     "플랭크",
+     "푸시업"
+    ],
+    "current": "스쿼트"
+   }
+  },
+  "expect": {
+   "type": "swap",
+   "args": {
+    "from": "스쿼트",
+    "label": "런지"
+   },
+   "needsConfirmation": true
+  }
+ },
+ {
+  "id": "align-ko-021",
+  "lang": "ko",
+  "task": "align",
+  "tags": [
+   "casual"
+  ],
+  "input": {
+   "hypotheses": [
+    "조금만 천천히 해봐",
+    "조금만 천천히 해 봐"
+   ],
+   "lang": "ko",
+   "context": {
+    "mode": "routine",
+    "tasks": [],
+    "timers": [],
+    "items": [
+     "스쿼트",
+     "런지",
+     "플랭크",
+     "푸시업"
+    ],
+    "current": "스쿼트"
+   }
+  },
+  "expect": {
+   "type": "tempo_slower",
+   "needsConfirmation": false
+  }
+ },
+ {
+  "id": "align-ko-022",
+  "lang": "ko",
+  "task": "align",
+  "tags": [
+   "numbers"
+  ],
+  "input": {
+   "hypotheses": [
+    "오분만 쉬자",
+    "5분만 쉬자"
+   ],
+   "lang": "ko",
+   "context": {
+    "mode": "routine",
+    "tasks": [],
+    "timers": [],
+    "items": [
+     "스쿼트",
+     "런지",
+     "플랭크",
+     "푸시업"
+    ],
+    "current": "스쿼트"
+   }
+  },
+  "expect": {
+   "type": "rest",
+   "args": {
+    "seconds": 300
+   },
+   "needsConfirmation": false
+  }
+ },
+ {
+  "id": "align-en-001",
+  "lang": "en",
+  "task": "align",
+  "tags": [
+   "real",
+   "oos",
+   "asr"
+  ],
+  "note": "Real device case: mis-triggered wake word, not a command.",
+  "input": {
+   "hypotheses": [
+    "Hey Google turn",
+    "Hey Google, turn"
+   ],
+   "lang": "en",
+   "context": {
+    "mode": "work",
+    "tasks": [
+     "pasta",
+     "salad",
+     "dishes"
+    ],
+    "timers": [
+     {
+      "label": "pasta",
+      "remainingSec": 300
+     }
+    ],
+    "items": [],
+    "current": "pasta"
+   }
+  },
+  "expect": {
+   "type": "none",
+   "needsConfirmation": false
+  }
+ },
+ {
+  "id": "align-en-002",
+  "lang": "en",
+  "task": "align",
+  "tags": [
+   "real",
+   "asr"
+  ],
+  "note": "Real device case; hypotheses disagree on the timer name.",
+  "input": {
+   "hypotheses": [
+    "Pasta 3 minutes",
+    "pastor 3 minutes"
+   ],
+   "lang": "en",
+   "context": {
+    "mode": "work",
+    "tasks": [
+     "write report"
+    ],
+    "timers": [],
+    "items": []
+   }
+  },
+  "expect": {
+   "type": "start_timer",
+   "args": {
+    "label": "Pasta",
+    "seconds": 180
+   },
+   "needsConfirmation": true
+  }
+ },
+ {
+  "id": "align-en-003",
+  "lang": "en",
+  "task": "align",
+  "tags": [
+   "asr"
+  ],
+  "input": {
+   "hypotheses": [
+    "start a rice timer for ten minutes",
+    "start a ride timer for ten minutes"
+   ],
+   "lang": "en",
+   "context": {
+    "mode": "work",
+    "tasks": [
+     "write report",
+     "reply to emails",
+     "prep meeting"
+    ],
+    "timers": [],
+    "items": [],
+    "current": "write report"
+   }
+  },
+  "expect": {
+   "type": "start_timer",
+   "args": {
+    "label": "rice",
+    "seconds": 600
+   },
+   "needsConfirmation": true
+  }
+ },
+ {
+  "id": "align-en-004",
+  "lang": "en",
+  "task": "align",
+  "tags": [
+   "numbers",
+   "ambiguous",
+   "asr"
+  ],
+  "note": "Number disagrees (15 vs 50); seconds not checked.",
+  "input": {
+   "hypotheses": [
+    "set a timer for 15 minutes for laundry",
+    "set a timer for 50 minutes for laundry"
+   ],
+   "lang": "en",
+   "context": {
+    "mode": "work",
+    "tasks": [
+     "write report",
+     "reply to emails",
+     "prep meeting"
+    ],
+    "timers": [],
+    "items": [],
+    "current": "write report"
+   }
+  },
+  "expect": {
+   "type": "start_timer",
+   "args": {
+    "label": "laundry"
+   },
+   "needsConfirmation": true
+  }
+ },
+ {
+  "id": "align-en-005",
+  "lang": "en",
+  "task": "align",
+  "tags": [
+   "numbers"
+  ],
+  "input": {
+   "hypotheses": [
+    "add two and a half minutes to the oven",
+    "add two and a half minutes to the oven."
+   ],
+   "lang": "en",
+   "context": {
+    "mode": "work",
+    "tasks": [
+     "laundry",
+     "vacuum"
+    ],
+    "timers": [
+     {
+      "label": "laundry",
+      "remainingSec": 1500
+     },
+     {
+      "label": "oven",
+      "remainingSec": 300
+     }
+    ],
+    "items": []
+   }
+  },
+  "expect": {
+   "type": "extend_timer",
+   "args": {
+    "target": "oven",
+    "seconds": 150
+   },
+   "needsConfirmation": false
+  }
+ },
+ {
+  "id": "align-en-006",
+  "lang": "en",
+  "task": "align",
+  "tags": [
+   "casual"
+  ],
+  "input": {
+   "hypotheses": [
+    "yeah pause the laundry timer",
+    "yeah pause the laundry time"
+   ],
+   "lang": "en",
+   "context": {
+    "mode": "work",
+    "tasks": [
+     "laundry",
+     "vacuum"
+    ],
+    "timers": [
+     {
+      "label": "laundry",
+      "remainingSec": 1500
+     },
+     {
+      "label": "oven",
+      "remainingSec": 300
+     }
+    ],
+    "items": []
+   }
+  },
+  "expect": {
+   "type": "pause_timer",
+   "args": {
+    "target": "laundry"
+   },
+   "needsConfirmation": false
+  }
+ },
+ {
+  "id": "align-en-007",
+  "lang": "en",
+  "task": "align",
+  "tags": [
+   "hard",
+   "asr"
+  ],
+  "input": {
+   "hypotheses": [
+    "cancel the oven timer",
+    "cancel the oven time"
+   ],
+   "lang": "en",
+   "context": {
+    "mode": "work",
+    "tasks": [
+     "laundry",
+     "vacuum"
+    ],
+    "timers": [
+     {
+      "label": "laundry",
+      "remainingSec": 1500
+     },
+     {
+      "label": "oven",
+      "remainingSec": 300
+     }
+    ],
+    "items": []
+   }
+  },
+  "expect": {
+   "type": "cancel_timer",
+   "args": {
+    "target": "oven"
+   },
+   "needsConfirmation": true
+  }
+ },
+ {
+  "id": "align-en-008",
+  "lang": "en",
+  "task": "align",
+  "tags": [
+   "hard"
+  ],
+  "input": {
+   "hypotheses": [
+    "okay that's it for today, end the session",
+    "okay that's it for today end the session"
+   ],
+   "lang": "en",
+   "context": {
+    "mode": "work",
+    "tasks": [
+     "write report",
+     "reply to emails",
+     "prep meeting"
+    ],
+    "timers": [],
+    "items": [],
+    "current": "write report"
+   }
+  },
+  "expect": {
+   "type": "end_session",
+   "needsConfirmation": true
+  }
+ },
+ {
+  "id": "align-en-009",
+  "lang": "en",
+  "task": "align",
+  "tags": [
+   "hard"
+  ],
+  "input": {
+   "hypotheses": [
+    "skip vacuum",
+    "skip the vacuum"
+   ],
+   "lang": "en",
+   "context": {
+    "mode": "work",
+    "tasks": [
+     "fold laundry",
+     "vacuum"
+    ],
+    "timers": [
+     {
+      "label": "oven",
+      "remainingSec": 600
+     },
+     {
+      "label": "rice",
+      "remainingSec": 240
+     }
+    ],
+    "items": []
+   }
+  },
+  "expect": {
+   "type": "skip_task",
+   "args": {
+    "target": "vacuum"
+   },
+   "needsConfirmation": true
+  }
+ },
+ {
+  "id": "align-en-010",
+  "lang": "en",
+  "task": "align",
+  "tags": [
+   "casual"
+  ],
+  "note": "Only one open task.",
+  "input": {
+   "hypotheses": [
+    "I'm done",
+    "I'm done."
+   ],
+   "lang": "en",
+   "context": {
+    "mode": "work",
+    "tasks": [
+     "write report"
+    ],
+    "timers": [],
+    "items": []
+   }
+  },
+  "expect": {
+   "type": "task_done",
+   "args": {
+    "target": "write report"
+   },
+   "needsConfirmation": false
+  }
+ },
+ {
+  "id": "align-en-011",
+  "lang": "en",
+  "task": "align",
+  "tags": [
+   "casual"
+  ],
+  "input": {
+   "hypotheses": [
+    "not yet, still working on it",
+    "not yet still working on it"
+   ],
+   "lang": "en",
+   "context": {
+    "mode": "work",
+    "tasks": [
+     "write report"
+    ],
+    "timers": [],
+    "items": []
+   }
+  },
+  "expect": {
+   "type": "task_not_yet",
+   "args": {
+    "target": "write report"
+   },
+   "needsConfirmation": false
+  }
+ },
+ {
+  "id": "align-en-012",
+  "lang": "en",
+  "task": "align",
+  "tags": [
+   "numbers"
+  ],
+  "note": "Single timer; \"to\" is an ASR slip for \"two\".",
+  "input": {
+   "hypotheses": [
+    "two more minutes",
+    "to more minutes"
+   ],
+   "lang": "en",
+   "context": {
+    "mode": "work",
+    "tasks": [],
+    "timers": [
+     {
+      "label": "oven",
+      "remainingSec": 900
+     }
+    ],
+    "items": []
+   }
+  },
+  "expect": {
+   "type": "extend_timer",
+   "args": {
+    "seconds": 120
+   },
+   "needsConfirmation": false
+  }
+ },
+ {
+  "id": "align-en-013",
+  "lang": "en",
+  "task": "align",
+  "tags": [
+   "asr"
+  ],
+  "input": {
+   "hypotheses": [
+    "be quiet for five minutes",
+    "be quite for five minutes"
+   ],
+   "lang": "en",
+   "context": {
+    "mode": "work",
+    "tasks": [
+     "write report",
+     "reply to emails",
+     "prep meeting"
+    ],
+    "timers": [],
+    "items": [],
+    "current": "write report"
+   }
+  },
+  "expect": {
+   "type": "set_quiet",
+   "args": {
+    "flag": true,
+    "seconds": 300
+   },
+   "needsConfirmation": false
+  }
+ },
+ {
+  "id": "align-en-014",
+  "lang": "en",
+  "task": "align",
+  "tags": [
+   "casual"
+  ],
+  "input": {
+   "hypotheses": [
+    "turn quiet mode off",
+    "turn quiet mode of"
+   ],
+   "lang": "en",
+   "context": {
+    "mode": "work",
+    "tasks": [
+     "write report",
+     "reply to emails",
+     "prep meeting"
+    ],
+    "timers": [],
+    "items": [],
+    "current": "write report"
+   }
+  },
+  "expect": {
+   "type": "set_quiet",
+   "args": {
+    "flag": false
+   },
+   "needsConfirmation": false
+  }
+ },
+ {
+  "id": "align-en-015",
+  "lang": "en",
+  "task": "align",
+  "tags": [
+   "casual"
+  ],
+  "input": {
+   "hypotheses": [
+    "add buy milk to my list",
+    "add buy milk to my lists"
+   ],
+   "lang": "en",
+   "context": {
+    "mode": "work",
+    "tasks": [
+     "write report",
+     "reply to emails",
+     "prep meeting"
+    ],
+    "timers": [],
+    "items": [],
+    "current": "write report"
+   }
+  },
+  "expect": {
+   "type": "add_task",
+   "args": {
+    "label": "buy milk"
+   },
+   "needsConfirmation": false
+  }
+ },
+ {
+  "id": "align-en-016",
+  "lang": "en",
+  "task": "align",
+  "tags": [],
+  "input": {
+   "hypotheses": [
+    "add a step, check the oven",
+    "add a step check the oven"
+   ],
+   "lang": "en",
+   "context": {
+    "mode": "work",
+    "tasks": [
+     "chop onions",
+     "saute"
+    ],
+    "timers": [],
+    "items": [],
+    "current": "chop onions"
+   }
+  },
+  "expect": {
+   "type": "add_step",
+   "args": {
+    "label": "check the oven"
+   },
+   "needsConfirmation": false
+  }
+ },
+ {
+  "id": "align-en-017",
+  "lang": "en",
+  "task": "align",
+  "tags": [
+   "oos"
+  ],
+  "input": {
+   "hypotheses": [
+    "what's the capital of france",
+    "what's the capital of France?"
+   ],
+   "lang": "en",
+   "context": {
+    "mode": "work",
+    "tasks": [
+     "pasta",
+     "salad",
+     "dishes"
+    ],
+    "timers": [
+     {
+      "label": "pasta",
+      "remainingSec": 300
+     }
+    ],
+    "items": [],
+    "current": "pasta"
+   }
+  },
+  "expect": {
+   "type": "none",
+   "needsConfirmation": false
+  }
+ },
+ {
+  "id": "align-en-018",
+  "lang": "en",
+  "task": "align",
+  "tags": [
+   "oos"
+  ],
+  "note": "Unrelated TV speech.",
+  "input": {
+   "hypotheses": [
+    "and that's why the stock market closed lower today",
+    "and that's why the stock market close lower today"
+   ],
+   "lang": "en",
+   "context": {
+    "mode": "work",
+    "tasks": [
+     "pasta",
+     "salad",
+     "dishes"
+    ],
+    "timers": [
+     {
+      "label": "pasta",
+      "remainingSec": 300
+     }
+    ],
+    "items": [],
+    "current": "pasta"
+   }
+  },
+  "expect": {
+   "type": "none",
+   "needsConfirmation": false
+  }
+ },
+ {
+  "id": "align-en-019",
+  "lang": "en",
+  "task": "align",
+  "tags": [
+   "mixed"
+  ],
+  "note": "Hypotheses disagree on script of the name (라면 vs ramen).",
+  "input": {
+   "hypotheses": [
+    "set 라면 timer for 4 minutes",
+    "set ramen timer for 4 minutes"
+   ],
+   "lang": "en",
+   "context": {
+    "mode": "work",
+    "tasks": [
+     "write report",
+     "reply to emails",
+     "prep meeting"
+    ],
+    "timers": [],
+    "items": [],
+    "current": "write report"
+   }
+  },
+  "expect": {
+   "type": "start_timer",
+   "args": {
+    "label": "라면",
+    "seconds": 240
+   },
+   "needsConfirmation": true
+  }
+ },
+ {
+  "id": "align-en-020",
+  "lang": "en",
+  "task": "align",
+  "tags": [
+   "numbers",
+   "ambiguous"
+  ],
+  "note": "Number disagrees; count not checked.",
+  "input": {
+   "hypotheses": [
+    "add 5 reps",
+    "add 15 reps"
+   ],
+   "lang": "en",
+   "context": {
+    "mode": "routine",
+    "tasks": [],
+    "timers": [],
+    "items": [
+     "squat",
+     "lunge",
+     "plank",
+     "push-up"
+    ],
+    "current": "lunge"
+   }
+  },
+  "expect": {
+   "type": "more_reps",
+   "needsConfirmation": true
+  }
+ },
+ {
+  "id": "align-en-021",
+  "lang": "en",
+  "task": "align",
+  "tags": [
+   "casual"
+  ],
+  "input": {
+   "hypotheses": [
+    "go back one",
+    "go back"
+   ],
+   "lang": "en",
+   "context": {
+    "mode": "routine",
+    "tasks": [],
+    "timers": [],
+    "items": [
+     "squat",
+     "lunge",
+     "plank",
+     "push-up"
+    ],
+    "current": "lunge"
+   }
+  },
+  "expect": {
+   "type": "back",
+   "needsConfirmation": false
+  }
+ },
+ {
+  "id": "align-en-022",
+  "lang": "en",
+  "task": "align",
+  "tags": [
+   "hard"
+  ],
+  "input": {
+   "hypotheses": [
+    "end workout",
+    "end the workout"
+   ],
+   "lang": "en",
+   "context": {
+    "mode": "routine",
+    "tasks": [],
+    "timers": [],
+    "items": [
+     "squat",
+     "lunge",
+     "plank",
+     "push-up"
+    ],
+    "current": "lunge"
+   }
+  },
+  "expect": {
+   "type": "end",
+   "needsConfirmation": true
+  }
+ }
+]

@@ -5,6 +5,7 @@ import { ActivityIndicator, Text, View } from 'react-native';
 
 import { useDatabaseMigrations } from '../src/db/client';
 import { useTranslation } from '../src/i18n';
+import { configureLlm } from '../src/llm/setup';
 import { useSettings } from '../src/settings/store';
 import { colors, shared } from '../src/theme';
 import { restoreWorkSession } from '../src/work/bootstrap';
@@ -17,6 +18,7 @@ export default function RootLayout() {
   useEffect(() => {
     if (!success) return;
     useSettings.getState().load();
+    configureLlm();
     restoreWorkSession();
   }, [success]);
 

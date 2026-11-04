@@ -1,0 +1,816 @@
+[
+ {
+  "id": "travel_qa-ko-001",
+  "task": "travel_qa",
+  "lang": "ko",
+  "tags": [
+   "casual"
+  ],
+  "input": {
+   "question": "경복궁은 언제 누가 지었어요?",
+   "lang": "ko",
+   "landmark": "gyeongbokgung"
+  },
+  "expect": {
+   "answerable": true,
+   "mustInclude": [
+    [
+     "1395"
+    ],
+    [
+     "태조"
+    ]
+   ],
+   "mustNotInclude": [
+    "1392",
+    "1405",
+    "세종"
+   ]
+  }
+ },
+ {
+  "id": "travel_qa-ko-002",
+  "task": "travel_qa",
+  "lang": "ko",
+  "tags": [
+   "honorific"
+  ],
+  "input": {
+   "question": "경복궁은 무슨 요일에 쉬나요?",
+   "lang": "ko",
+   "landmark": "gyeongbokgung"
+  },
+  "expect": {
+   "answerable": true,
+   "mustInclude": [
+    [
+     "화요일"
+    ]
+   ],
+   "mustNotInclude": [
+    "월요일",
+    "수요일"
+   ]
+  }
+ },
+ {
+  "id": "travel_qa-ko-003",
+  "task": "travel_qa",
+  "lang": "ko",
+  "tags": [
+   "casual"
+  ],
+  "input": {
+   "question": "덕수궁은 쉬는 날이 언제예요?",
+   "lang": "ko",
+   "landmark": "deoksugung"
+  },
+  "expect": {
+   "answerable": true,
+   "mustInclude": [
+    [
+     "월요일"
+    ]
+   ],
+   "mustNotInclude": [
+    "화요일",
+    "일요일"
+   ]
+  }
+ },
+ {
+  "id": "travel_qa-ko-004",
+  "task": "travel_qa",
+  "lang": "ko",
+  "tags": [
+   "honorific",
+   "numbers"
+  ],
+  "note": "1897 and 1907 appear in the source but for other events.",
+  "input": {
+   "question": "석조전은 언제 완성됐나요?",
+   "lang": "ko",
+   "landmark": "deoksugung"
+  },
+  "expect": {
+   "answerable": true,
+   "mustInclude": [
+    [
+     "1910"
+    ]
+   ],
+   "mustNotInclude": [
+    "1897년에완성",
+    "1907년에완성"
+   ]
+  }
+ },
+ {
+  "id": "travel_qa-ko-005",
+  "task": "travel_qa",
+  "lang": "ko",
+  "tags": [
+   "casual",
+   "numbers"
+  ],
+  "input": {
+   "question": "조계사 대웅전은 언제 지은 건물이에요?",
+   "lang": "ko",
+   "landmark": "jogyesa"
+  },
+  "expect": {
+   "answerable": true,
+   "mustInclude": [
+    [
+     "1938"
+    ]
+   ],
+   "mustNotInclude": [
+    "1395",
+    "1979"
+   ]
+  }
+ },
+ {
+  "id": "travel_qa-ko-006",
+  "task": "travel_qa",
+  "lang": "ko",
+  "tags": [
+   "casual",
+   "numbers"
+  ],
+  "note": "1979 is the building rebuild, not the bell.",
+  "input": {
+   "question": "보신각 종은 언제 새로 만들었어요?",
+   "lang": "ko",
+   "landmark": "bosingak"
+  },
+  "expect": {
+   "answerable": true,
+   "mustInclude": [
+    [
+     "1985"
+    ]
+   ],
+   "mustNotInclude": [
+    "1979년에새로만들"
+   ]
+  }
+ },
+ {
+  "id": "travel_qa-ko-007",
+  "task": "travel_qa",
+  "lang": "ko",
+  "tags": [
+   "casual",
+   "numbers"
+  ],
+  "input": {
+   "question": "청계천 길이가 얼마나 돼요?",
+   "lang": "ko",
+   "landmark": "cheonggyecheon"
+  },
+  "expect": {
+   "answerable": true,
+   "mustInclude": [
+    [
+     "10.9",
+     "109"
+    ]
+   ],
+   "mustNotInclude": [
+    "5킬로",
+    "8킬로",
+    "11킬로"
+   ]
+  }
+ },
+ {
+  "id": "travel_qa-ko-008",
+  "task": "travel_qa",
+  "lang": "ko",
+  "tags": [
+   "honorific",
+   "numbers"
+  ],
+  "input": {
+   "question": "청계천 복원 공사는 언제 했나요?",
+   "lang": "ko",
+   "landmark": "cheonggyecheon"
+  },
+  "expect": {
+   "answerable": true,
+   "mustInclude": [
+    [
+     "2003"
+    ],
+    [
+     "2005"
+    ]
+   ],
+   "mustNotInclude": [
+    "2010",
+    "2008"
+   ]
+  }
+ },
+ {
+  "id": "travel_qa-ko-009",
+  "task": "travel_qa",
+  "lang": "ko",
+  "tags": [
+   "oos",
+   "casual",
+   "numbers"
+  ],
+  "note": "Source says only closed on Tuesdays, no fee.",
+  "input": {
+   "question": "경복궁 입장료는 얼마예요?",
+   "lang": "ko",
+   "landmark": "gyeongbokgung"
+  },
+  "expect": {
+   "answerable": false,
+   "mustInclude": [],
+   "mustNotInclude": [
+    "3,000",
+    "3000",
+    "5,000",
+    "5000",
+    "1만"
+   ]
+  }
+ },
+ {
+  "id": "travel_qa-ko-010",
+  "task": "travel_qa",
+  "lang": "ko",
+  "tags": [
+   "oos",
+   "honorific",
+   "ambiguous"
+  ],
+  "note": "Partial: closed on Tuesdays known, hours not stated.",
+  "input": {
+   "question": "경복궁 운영 시간이 어떻게 돼요?",
+   "lang": "ko",
+   "landmark": "gyeongbokgung"
+  },
+  "expect": {
+   "answerable": false,
+   "mustInclude": [],
+   "mustNotInclude": [
+    "9시",
+    "오전9",
+    "오후6",
+    "6시"
+   ]
+  }
+ },
+ {
+  "id": "travel_qa-ko-011",
+  "task": "travel_qa",
+  "lang": "ko",
+  "tags": [
+   "oos",
+   "casual"
+  ],
+  "note": "Architect not in source.",
+  "input": {
+   "question": "덕수궁 석조전을 설계한 건축가가 누구예요?",
+   "lang": "ko",
+   "landmark": "deoksugung"
+  },
+  "expect": {
+   "answerable": false,
+   "mustInclude": [],
+   "mustNotInclude": [
+    "하딩",
+    "Harding",
+    "사바틴",
+    "Sabatin"
+   ]
+  }
+ },
+ {
+  "id": "travel_qa-ko-012",
+  "task": "travel_qa",
+  "lang": "ko",
+  "tags": [
+   "oos",
+   "honorific"
+  ],
+  "input": {
+   "question": "조계사 근처에 맛집 추천해 주세요",
+   "lang": "ko",
+   "landmark": "jogyesa"
+  },
+  "expect": {
+   "answerable": false,
+   "mustInclude": [],
+   "mustNotInclude": [
+    "인사동",
+    "국밥",
+    "비빔밥"
+   ]
+  }
+ },
+ {
+  "id": "travel_qa-ko-013",
+  "task": "travel_qa",
+  "lang": "ko",
+  "tags": [
+   "oos",
+   "casual"
+  ],
+  "note": "No fee fact in source; answering free is invented.",
+  "input": {
+   "question": "조계사 입장료 있어요?",
+   "lang": "ko",
+   "landmark": "jogyesa"
+  },
+  "expect": {
+   "answerable": false,
+   "mustInclude": [],
+   "mustNotInclude": [
+    "3,000",
+    "3000",
+    "5,000"
+   ]
+  }
+ },
+ {
+  "id": "travel_qa-ko-014",
+  "task": "travel_qa",
+  "lang": "ko",
+  "tags": [
+   "oos",
+   "casual"
+  ],
+  "note": "UNESCO not stated. Answer may say it is not stated.",
+  "input": {
+   "question": "보신각이 유네스코 세계유산이에요?",
+   "lang": "ko",
+   "landmark": "bosingak"
+  },
+  "expect": {
+   "answerable": false,
+   "mustInclude": [],
+   "mustNotInclude": [
+    "세계유산이에요",
+    "세계유산입니다",
+    "등재되어"
+   ]
+  }
+ },
+ {
+  "id": "travel_qa-ko-015",
+  "task": "travel_qa",
+  "lang": "ko",
+  "tags": [
+   "oos",
+   "casual",
+   "numbers"
+  ],
+  "input": {
+   "question": "청계천에 매년 몇 명이 방문해요?",
+   "lang": "ko",
+   "landmark": "cheonggyecheon"
+  },
+  "expect": {
+   "answerable": false,
+   "mustInclude": [],
+   "mustNotInclude": [
+    "만명",
+    "백만",
+    "천만"
+   ]
+  }
+ },
+ {
+  "id": "travel_qa-ko-016",
+  "task": "travel_qa",
+  "lang": "ko",
+  "tags": [
+   "oos",
+   "casual"
+  ],
+  "note": "Out of topic; weather not in source. mustNotInclude minimal; judged on answerable flag.",
+  "input": {
+   "question": "오늘 서울 날씨가 어때요?",
+   "lang": "ko",
+   "landmark": "gyeongbokgung"
+  },
+  "expect": {
+   "answerable": false,
+   "mustInclude": [],
+   "mustNotInclude": [
+    "맑아요",
+    "맑습니다",
+    "비가와요",
+    "흐려요"
+   ]
+  }
+ },
+ {
+  "id": "travel_qa-en-001",
+  "task": "travel_qa",
+  "lang": "en",
+  "tags": [
+   "casual"
+  ],
+  "input": {
+   "question": "Who built Gyeongbokgung and when?",
+   "lang": "en",
+   "landmark": "gyeongbokgung"
+  },
+  "expect": {
+   "answerable": true,
+   "mustInclude": [
+    [
+     "1395"
+    ],
+    [
+     "taejo"
+    ]
+   ],
+   "mustNotInclude": [
+    "1392",
+    "1405",
+    "sejong"
+   ]
+  }
+ },
+ {
+  "id": "travel_qa-en-002",
+  "task": "travel_qa",
+  "lang": "en",
+  "tags": [
+   "casual"
+  ],
+  "input": {
+   "question": "Which day is Gyeongbokgung closed?",
+   "lang": "en",
+   "landmark": "gyeongbokgung"
+  },
+  "expect": {
+   "answerable": true,
+   "mustInclude": [
+    [
+     "tuesday"
+    ]
+   ],
+   "mustNotInclude": [
+    "monday",
+    "wednesday"
+   ]
+  }
+ },
+ {
+  "id": "travel_qa-en-003",
+  "task": "travel_qa",
+  "lang": "en",
+  "tags": [
+   "honorific",
+   "numbers"
+  ],
+  "note": "1907 and 1910 appear in source for other events.",
+  "input": {
+   "question": "When did King Gojong move to Deoksugung?",
+   "lang": "en",
+   "landmark": "deoksugung"
+  },
+  "expect": {
+   "answerable": true,
+   "mustInclude": [
+    [
+     "1897"
+    ]
+   ],
+   "mustNotInclude": [
+    "1907 gojong moved",
+    "1910 gojong moved"
+   ]
+  }
+ },
+ {
+  "id": "travel_qa-en-004",
+  "task": "travel_qa",
+  "lang": "en",
+  "tags": [
+   "casual"
+  ],
+  "input": {
+   "question": "What day is Deoksugung closed?",
+   "lang": "en",
+   "landmark": "deoksugung"
+  },
+  "expect": {
+   "answerable": true,
+   "mustInclude": [
+    [
+     "monday"
+    ]
+   ],
+   "mustNotInclude": [
+    "tuesday"
+   ]
+  }
+ },
+ {
+  "id": "travel_qa-en-005",
+  "task": "travel_qa",
+  "lang": "en",
+  "tags": [
+   "casual"
+  ],
+  "input": {
+   "question": "What is special about the tree in the courtyard of Jogyesa?",
+   "lang": "en",
+   "landmark": "jogyesa"
+  },
+  "expect": {
+   "answerable": true,
+   "mustInclude": [
+    [
+     "natural monument"
+    ],
+    [
+     "pine",
+     "white-barked"
+    ]
+   ],
+   "mustNotInclude": [
+    "500 years",
+    "600 years"
+   ]
+  }
+ },
+ {
+  "id": "travel_qa-en-006",
+  "task": "travel_qa",
+  "lang": "en",
+  "tags": [
+   "numbers"
+  ],
+  "input": {
+   "question": "When was the Bosingak building rebuilt?",
+   "lang": "en",
+   "landmark": "bosingak"
+  },
+  "expect": {
+   "answerable": true,
+   "mustInclude": [
+    [
+     "1979"
+    ]
+   ],
+   "mustNotInclude": [
+    "1985 rebuilt",
+    "1395"
+   ]
+  }
+ },
+ {
+  "id": "travel_qa-en-007",
+  "task": "travel_qa",
+  "lang": "en",
+  "tags": [
+   "casual"
+  ],
+  "input": {
+   "question": "What happens at Bosingak on New Year's Eve?",
+   "lang": "en",
+   "landmark": "bosingak"
+  },
+  "expect": {
+   "answerable": true,
+   "mustInclude": [
+    [
+     "bell"
+    ]
+   ],
+   "mustNotInclude": [
+    "fireworks",
+    "concert"
+   ]
+  }
+ },
+ {
+  "id": "travel_qa-en-008",
+  "task": "travel_qa",
+  "lang": "en",
+  "tags": [
+   "casual",
+   "numbers"
+  ],
+  "input": {
+   "question": "How long is Cheonggyecheon?",
+   "lang": "en",
+   "landmark": "cheonggyecheon"
+  },
+  "expect": {
+   "answerable": true,
+   "mustInclude": [
+    [
+     "10.9"
+    ]
+   ],
+   "mustNotInclude": [
+    "5 kilometers",
+    "8 kilometers",
+    "11 kilometers"
+   ]
+  }
+ },
+ {
+  "id": "travel_qa-en-009",
+  "task": "travel_qa",
+  "lang": "en",
+  "tags": [
+   "oos",
+   "casual",
+   "numbers"
+  ],
+  "note": "Only a closing day is given.",
+  "input": {
+   "question": "How much is the entrance ticket?",
+   "lang": "en",
+   "landmark": "gyeongbokgung"
+  },
+  "expect": {
+   "answerable": false,
+   "mustInclude": [],
+   "mustNotInclude": [
+    "3,000",
+    "5,000",
+    "$",
+    "dollars"
+   ]
+  }
+ },
+ {
+  "id": "travel_qa-en-010",
+  "task": "travel_qa",
+  "lang": "en",
+  "tags": [
+   "oos",
+   "ambiguous"
+  ],
+  "note": "Partial: Tuesday closure known, hours not stated.",
+  "input": {
+   "question": "What time does Gyeongbokgung open and close?",
+   "lang": "en",
+   "landmark": "gyeongbokgung"
+  },
+  "expect": {
+   "answerable": false,
+   "mustInclude": [],
+   "mustNotInclude": [
+    "9 a.m",
+    "9am",
+    "6 p.m",
+    "6pm",
+    "9:00"
+   ]
+  }
+ },
+ {
+  "id": "travel_qa-en-011",
+  "task": "travel_qa",
+  "lang": "en",
+  "tags": [
+   "oos",
+   "casual"
+  ],
+  "input": {
+   "question": "Who was the architect of Seokjojeon?",
+   "lang": "en",
+   "landmark": "deoksugung"
+  },
+  "expect": {
+   "answerable": false,
+   "mustInclude": [],
+   "mustNotInclude": [
+    "harding",
+    "sabatin",
+    "george"
+   ]
+  }
+ },
+ {
+  "id": "travel_qa-en-012",
+  "task": "travel_qa",
+  "lang": "en",
+  "tags": [
+   "oos",
+   "casual"
+  ],
+  "input": {
+   "question": "Is there a good restaurant near Jogyesa?",
+   "lang": "en",
+   "landmark": "jogyesa"
+  },
+  "expect": {
+   "answerable": false,
+   "mustInclude": [],
+   "mustNotInclude": [
+    "insadong",
+    "bibimbap",
+    "temple food"
+   ]
+  }
+ },
+ {
+  "id": "travel_qa-en-013",
+  "task": "travel_qa",
+  "lang": "en",
+  "tags": [
+   "oos",
+   "casual"
+  ],
+  "note": "No fee fact in source.",
+  "input": {
+   "question": "Is Jogyesa free to enter?",
+   "lang": "en",
+   "landmark": "jogyesa"
+  },
+  "expect": {
+   "answerable": false,
+   "mustInclude": [],
+   "mustNotInclude": [
+    "$",
+    "3,000",
+    "5,000",
+    "dollars"
+   ]
+  }
+ },
+ {
+  "id": "travel_qa-en-014",
+  "task": "travel_qa",
+  "lang": "en",
+  "tags": [
+   "oos"
+  ],
+  "note": "UNESCO not mentioned in source.",
+  "input": {
+   "question": "Is Bosingak a UNESCO World Heritage Site?",
+   "lang": "en",
+   "landmark": "bosingak"
+  },
+  "expect": {
+   "answerable": false,
+   "mustInclude": [],
+   "mustNotInclude": [
+    "yes, it is",
+    "is listed"
+   ]
+  }
+ },
+ {
+  "id": "travel_qa-en-015",
+  "task": "travel_qa",
+  "lang": "en",
+  "tags": [
+   "oos",
+   "numbers"
+  ],
+  "input": {
+   "question": "How many people visit Cheonggyecheon each year?",
+   "lang": "en",
+   "landmark": "cheonggyecheon"
+  },
+  "expect": {
+   "answerable": false,
+   "mustInclude": [],
+   "mustNotInclude": [
+    "million",
+    "thousand"
+   ]
+  }
+ },
+ {
+  "id": "travel_qa-en-016",
+  "task": "travel_qa",
+  "lang": "en",
+  "tags": [
+   "oos",
+   "casual"
+  ],
+  "note": "Wifi and comparison are not in the source.",
+  "input": {
+   "question": "Is there free wifi, and is it better than Gyeongbokgung?",
+   "lang": "en",
+   "landmark": "deoksugung"
+  },
+  "expect": {
+   "answerable": false,
+   "mustInclude": [],
+   "mustNotInclude": [
+    "free wifi is available",
+    "wifi is available"
+   ]
+  }
+ }
+]

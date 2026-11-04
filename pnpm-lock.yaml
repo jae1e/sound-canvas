@@ -168,6 +168,9 @@ importers:
 
   apps/mobile:
     dependencies:
+      '@vlc/llm':
+        specifier: workspace:*
+        version: link:../../packages/llm
       '@vlc/session-engine':
         specifier: workspace:*
         version: link:../../packages/session-engine

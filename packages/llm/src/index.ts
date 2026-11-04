@@ -10,3 +10,4 @@ export { commandTask, commandInput, type CommandInput, type CommandResult } from
 export { routineSetupTask, routineSetupInput, type RoutineSetupInput, type RoutineSetupResult } from './tasks/routine-setup';
 export { correctionTask, correctionInput, correctionItems, type CorrectionInput, type CorrectionProposal } from './tasks/correction';
 export { travelQaTask, travelQaInput, notInSource, type TravelQaInput, type TravelQaResult, type Grounding } from './tasks/travel-qa';
+export * from './routing';

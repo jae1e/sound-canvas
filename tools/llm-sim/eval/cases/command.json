@@ -1,0 +1,1407 @@
+[
+ {
+  "id": "command-ko-001",
+  "lang": "ko",
+  "task": "command",
+  "tags": [
+   "numbers"
+  ],
+  "input": {
+   "utterance": "열 개 더 해줘",
+   "lang": "ko",
+   "context": {
+    "mode": "routine",
+    "tasks": [],
+    "timers": [],
+    "items": [
+     "스쿼트",
+     "런지",
+     "플랭크",
+     "푸시업"
+    ],
+    "current": "스쿼트"
+   }
+  },
+  "expect": {
+   "kind": "action",
+   "type": "more_reps",
+   "args": {
+    "count": 10
+   }
+  }
+ },
+ {
+  "id": "command-ko-002",
+  "lang": "ko",
+  "task": "command",
+  "tags": [
+   "numbers",
+   "honorific"
+  ],
+  "input": {
+   "utterance": "쉬는 시간 30초로 해 주세요",
+   "lang": "ko",
+   "context": {
+    "mode": "routine",
+    "tasks": [],
+    "timers": [],
+    "items": [
+     "스쿼트",
+     "런지",
+     "플랭크",
+     "푸시업"
+    ],
+    "current": "스쿼트"
+   }
+  },
+  "expect": {
+   "kind": "action",
+   "type": "rest",
+   "args": {
+    "seconds": 30
+   }
+  }
+ },
+ {
+  "id": "command-ko-003",
+  "lang": "ko",
+  "task": "command",
+  "tags": [
+   "casual"
+  ],
+  "input": {
+   "utterance": "스쿼트 대신 런지 할래",
+   "lang": "ko",
+   "context": {
+    "mode": "routine",
+    "tasks": [],
+    "timers": [],
+    "items": [
+     "스쿼트",
+     "런지",
+     "플랭크",
+     "푸시업"
+    ],
+    "current": "스쿼트"
+   }
+  },
+  "expect": {
+   "kind": "action",
+   "type": "swap",
+   "args": {
+    "from": "스쿼트",
+    "label": "런지"
+   }
+  }
+ },
+ {
+  "id": "command-ko-004",
+  "lang": "ko",
+  "task": "command",
+  "tags": [
+   "numbers"
+  ],
+  "input": {
+   "utterance": "7번 동작부터 다시 할게",
+   "lang": "ko",
+   "context": {
+    "mode": "routine",
+    "tasks": [],
+    "timers": [],
+    "items": [
+     "태극 1장"
+    ],
+    "current": "태극 1장"
+   }
+  },
+  "expect": {
+   "kind": "action",
+   "type": "repeat_from",
+   "args": {
+    "count": 7
+   }
+  }
+ },
+ {
+  "id": "command-ko-005",
+  "lang": "ko",
+  "task": "command",
+  "tags": [
+   "casual"
+  ],
+  "input": {
+   "utterance": "너무 빨라, 좀 천천히",
+   "lang": "ko",
+   "context": {
+    "mode": "routine",
+    "tasks": [],
+    "timers": [],
+    "items": [
+     "스쿼트",
+     "런지",
+     "플랭크",
+     "푸시업"
+    ],
+    "current": "스쿼트"
+   }
+  },
+  "expect": {
+   "kind": "action",
+   "type": "tempo_slower"
+  }
+ },
+ {
+  "id": "command-ko-006",
+  "lang": "ko",
+  "task": "command",
+  "tags": [
+   "hard",
+   "casual"
+  ],
+  "input": {
+   "utterance": "이거 건너뛸래",
+   "lang": "ko",
+   "context": {
+    "mode": "routine",
+    "tasks": [],
+    "timers": [],
+    "items": [
+     "스쿼트",
+     "런지",
+     "플랭크",
+     "푸시업"
+    ],
+    "current": "스쿼트"
+   }
+  },
+  "expect": {
+   "kind": "action",
+   "type": "skip"
+  }
+ },
+ {
+  "id": "command-ko-007",
+  "lang": "ko",
+  "task": "command",
+  "tags": [
+   "hard",
+   "honorific"
+  ],
+  "input": {
+   "utterance": "운동 그만할게요",
+   "lang": "ko",
+   "context": {
+    "mode": "routine",
+    "tasks": [],
+    "timers": [],
+    "items": [
+     "스쿼트",
+     "런지",
+     "플랭크",
+     "푸시업"
+    ],
+    "current": "스쿼트"
+   }
+  },
+  "expect": {
+   "kind": "action",
+   "type": "end"
+  }
+ },
+ {
+  "id": "command-ko-008",
+  "lang": "ko",
+  "task": "command",
+  "tags": [
+   "casual"
+  ],
+  "input": {
+   "utterance": "라면 3분 타이머 맞춰줘",
+   "lang": "ko",
+   "context": {
+    "mode": "work",
+    "tasks": [],
+    "timers": [],
+    "items": []
+   }
+  },
+  "expect": {
+   "kind": "action",
+   "type": "start_timer",
+   "args": {
+    "label": "라면",
+    "seconds": 180
+   }
+  }
+ },
+ {
+  "id": "command-ko-009",
+  "lang": "ko",
+  "task": "command",
+  "tags": [
+   "ambiguous",
+   "numbers"
+  ],
+  "input": {
+   "utterance": "2분 더",
+   "lang": "ko",
+   "context": {
+    "mode": "work",
+    "tasks": [
+     "빨래 널기",
+     "청소기 돌리기"
+    ],
+    "timers": [
+     {
+      "label": "찌개",
+      "remainingSec": 600
+     },
+     {
+      "label": "달걀",
+      "remainingSec": 240
+     }
+    ],
+    "items": []
+   }
+  },
+  "expect": {
+   "kind": "clarify"
+  }
+ },
+ {
+  "id": "command-ko-010",
+  "lang": "ko",
+  "task": "command",
+  "tags": [
+   "honorific",
+   "numbers"
+  ],
+  "input": {
+   "utterance": "달걀 타이머 2분 더 늘려 주세요",
+   "lang": "ko",
+   "context": {
+    "mode": "work",
+    "tasks": [
+     "빨래 널기",
+     "청소기 돌리기"
+    ],
+    "timers": [
+     {
+      "label": "찌개",
+      "remainingSec": 600
+     },
+     {
+      "label": "달걀",
+      "remainingSec": 240
+     }
+    ],
+    "items": []
+   }
+  },
+  "expect": {
+   "kind": "action",
+   "type": "extend_timer",
+   "args": {
+    "target": "달걀",
+    "seconds": 120
+   }
+  }
+ },
+ {
+  "id": "command-ko-011",
+  "lang": "ko",
+  "task": "command",
+  "tags": [
+   "casual"
+  ],
+  "input": {
+   "utterance": "찌개 타이머 다시 시작해줘",
+   "lang": "ko",
+   "context": {
+    "mode": "work",
+    "tasks": [
+     "빨래 널기",
+     "청소기 돌리기"
+    ],
+    "timers": [
+     {
+      "label": "찌개",
+      "remainingSec": 600
+     },
+     {
+      "label": "달걀",
+      "remainingSec": 240
+     }
+    ],
+    "items": []
+   }
+  },
+  "expect": {
+   "kind": "action",
+   "type": "resume_timer",
+   "args": {
+    "target": "찌개"
+   }
+  }
+ },
+ {
+  "id": "command-ko-012",
+  "lang": "ko",
+  "task": "command",
+  "tags": [
+   "hard",
+   "ambiguous"
+  ],
+  "input": {
+   "utterance": "타이머 취소",
+   "lang": "ko",
+   "context": {
+    "mode": "work",
+    "tasks": [
+     "빨래 널기",
+     "청소기 돌리기"
+    ],
+    "timers": [
+     {
+      "label": "찌개",
+      "remainingSec": 600
+     },
+     {
+      "label": "달걀",
+      "remainingSec": 240
+     }
+    ],
+    "items": []
+   }
+  },
+  "expect": {
+   "kind": "clarify"
+  }
+ },
+ {
+  "id": "command-ko-013",
+  "lang": "ko",
+  "task": "command",
+  "tags": [
+   "hard",
+   "honorific"
+  ],
+  "input": {
+   "utterance": "달걀 타이머 취소해 주세요",
+   "lang": "ko",
+   "context": {
+    "mode": "work",
+    "tasks": [
+     "빨래 널기",
+     "청소기 돌리기"
+    ],
+    "timers": [
+     {
+      "label": "찌개",
+      "remainingSec": 600
+     },
+     {
+      "label": "달걀",
+      "remainingSec": 240
+     }
+    ],
+    "items": []
+   }
+  },
+  "expect": {
+   "kind": "action",
+   "type": "cancel_timer",
+   "args": {
+    "target": "달걀"
+   }
+  }
+ },
+ {
+  "id": "command-ko-014",
+  "lang": "ko",
+  "task": "command",
+  "tags": [
+   "ambiguous",
+   "casual"
+  ],
+  "input": {
+   "utterance": "다 됐어",
+   "lang": "ko",
+   "context": {
+    "mode": "work",
+    "tasks": [
+     "보고서 쓰기",
+     "이메일 답장",
+     "회의 준비"
+    ],
+    "timers": [],
+    "items": [],
+    "current": "보고서 쓰기"
+   }
+  },
+  "expect": {
+   "kind": "clarify"
+  }
+ },
+ {
+  "id": "command-ko-015",
+  "lang": "ko",
+  "task": "command",
+  "tags": [
+   "casual"
+  ],
+  "input": {
+   "utterance": "보고서 쓰기 끝냈어",
+   "lang": "ko",
+   "context": {
+    "mode": "work",
+    "tasks": [
+     "보고서 쓰기",
+     "이메일 답장",
+     "회의 준비"
+    ],
+    "timers": [],
+    "items": [],
+    "current": "보고서 쓰기"
+   }
+  },
+  "expect": {
+   "kind": "action",
+   "type": "task_done",
+   "args": {
+    "target": "보고서 쓰기"
+   }
+  }
+ },
+ {
+  "id": "command-ko-016",
+  "lang": "ko",
+  "task": "command",
+  "tags": [
+   "hard",
+   "honorific"
+  ],
+  "input": {
+   "utterance": "회의 준비는 건너뛸게요",
+   "lang": "ko",
+   "context": {
+    "mode": "work",
+    "tasks": [
+     "보고서 쓰기",
+     "이메일 답장",
+     "회의 준비"
+    ],
+    "timers": [],
+    "items": [],
+    "current": "보고서 쓰기"
+   }
+  },
+  "expect": {
+   "kind": "action",
+   "type": "skip_task",
+   "args": {
+    "target": "회의 준비"
+   }
+  }
+ },
+ {
+  "id": "command-ko-017",
+  "lang": "ko",
+  "task": "command",
+  "tags": [
+   "casual"
+  ],
+  "input": {
+   "utterance": "할 일에 우유 사기 추가해줘",
+   "lang": "ko",
+   "context": {
+    "mode": "work",
+    "tasks": [
+     "보고서 쓰기",
+     "이메일 답장",
+     "회의 준비"
+    ],
+    "timers": [],
+    "items": [],
+    "current": "보고서 쓰기"
+   }
+  },
+  "expect": {
+   "kind": "action",
+   "type": "add_task",
+   "args": {
+    "label": "우유 사기"
+   }
+  }
+ },
+ {
+  "id": "command-ko-018",
+  "lang": "ko",
+  "task": "command",
+  "tags": [
+   "numbers",
+   "casual"
+  ],
+  "input": {
+   "utterance": "20분 동안 조용히 해줘",
+   "lang": "ko",
+   "context": {
+    "mode": "work",
+    "tasks": [
+     "보고서 쓰기",
+     "이메일 답장",
+     "회의 준비"
+    ],
+    "timers": [],
+    "items": [],
+    "current": "보고서 쓰기"
+   }
+  },
+  "expect": {
+   "kind": "action",
+   "type": "set_quiet",
+   "args": {
+    "flag": true,
+    "seconds": 1200
+   }
+  }
+ },
+ {
+  "id": "command-ko-019",
+  "lang": "ko",
+  "task": "command",
+  "tags": [
+   "ambiguous",
+   "casual"
+  ],
+  "note": "Indirect request: could mean pausing the session or something else, so asking is the defensible answer.",
+  "input": {
+   "utterance": "너무 힘들어요 쉬고 싶어요",
+   "lang": "ko",
+   "context": {
+    "mode": "work",
+    "tasks": [
+     "보고서 쓰기",
+     "이메일 답장",
+     "회의 준비"
+    ],
+    "timers": [],
+    "items": [],
+    "current": "보고서 쓰기"
+   }
+  },
+  "expect": {
+   "kind": "clarify"
+  }
+ },
+ {
+  "id": "command-ko-020",
+  "lang": "ko",
+  "task": "command",
+  "tags": [
+   "hard",
+   "casual"
+  ],
+  "input": {
+   "utterance": "오늘은 이만 끝낼게",
+   "lang": "ko",
+   "context": {
+    "mode": "work",
+    "tasks": [
+     "보고서 쓰기",
+     "이메일 답장",
+     "회의 준비"
+    ],
+    "timers": [],
+    "items": [],
+    "current": "보고서 쓰기"
+   }
+  },
+  "expect": {
+   "kind": "action",
+   "type": "end_session"
+  }
+ },
+ {
+  "id": "command-ko-021",
+  "lang": "ko",
+  "task": "command",
+  "tags": [
+   "honorific"
+  ],
+  "input": {
+   "utterance": "잠깐 일시정지 해주세요",
+   "lang": "ko",
+   "context": {
+    "mode": "work",
+    "tasks": [],
+    "timers": [],
+    "items": []
+   }
+  },
+  "expect": {
+   "kind": "action",
+   "type": "pause_session"
+  }
+ },
+ {
+  "id": "command-ko-022",
+  "lang": "ko",
+  "task": "command",
+  "tags": [
+   "oos"
+  ],
+  "note": "Advice request the assistant cannot act on.",
+  "input": {
+   "utterance": "오늘 저녁 뭐 먹을까?",
+   "lang": "ko",
+   "context": {
+    "mode": "work",
+    "tasks": [],
+    "timers": [],
+    "items": []
+   }
+  },
+  "expect": {
+   "kind": "not_command"
+  }
+ },
+ {
+  "id": "command-ko-023",
+  "lang": "ko",
+  "task": "command",
+  "tags": [
+   "oos",
+   "casual"
+  ],
+  "input": {
+   "utterance": "아 배고프다",
+   "lang": "ko",
+   "context": {
+    "mode": "work",
+    "tasks": [
+     "파스타",
+     "샐러드",
+     "설거지"
+    ],
+    "timers": [
+     {
+      "label": "파스타",
+      "remainingSec": 70
+     }
+    ],
+    "items": [],
+    "current": "파스타"
+   }
+  },
+  "expect": {
+   "kind": "not_command"
+  }
+ },
+ {
+  "id": "command-en-001",
+  "lang": "en",
+  "task": "command",
+  "tags": [
+   "numbers"
+  ],
+  "input": {
+   "utterance": "do twelve more",
+   "lang": "en",
+   "context": {
+    "mode": "routine",
+    "tasks": [],
+    "timers": [],
+    "items": [
+     "squat",
+     "lunge",
+     "plank",
+     "push-up"
+    ],
+    "current": "lunge"
+   }
+  },
+  "expect": {
+   "kind": "action",
+   "type": "more_reps",
+   "args": {
+    "count": 12
+   }
+  }
+ },
+ {
+  "id": "command-en-002",
+  "lang": "en",
+  "task": "command",
+  "tags": [
+   "casual"
+  ],
+  "input": {
+   "utterance": "one less set",
+   "lang": "en",
+   "context": {
+    "mode": "routine",
+    "tasks": [],
+    "timers": [],
+    "items": [
+     "squat",
+     "lunge",
+     "plank",
+     "push-up"
+    ],
+    "current": "lunge"
+   }
+  },
+  "expect": {
+   "kind": "action",
+   "type": "sets_remove"
+  }
+ },
+ {
+  "id": "command-en-003",
+  "lang": "en",
+  "task": "command",
+  "tags": [
+   "numbers"
+  ],
+  "input": {
+   "utterance": "rest for a minute and a half",
+   "lang": "en",
+   "context": {
+    "mode": "routine",
+    "tasks": [],
+    "timers": [],
+    "items": [
+     "squat",
+     "lunge",
+     "plank",
+     "push-up"
+    ],
+    "current": "lunge"
+   }
+  },
+  "expect": {
+   "kind": "action",
+   "type": "rest",
+   "args": {
+    "seconds": 90
+   }
+  }
+ },
+ {
+  "id": "command-en-004",
+  "lang": "en",
+  "task": "command",
+  "tags": [],
+  "input": {
+   "utterance": "swap the push-up for a plank",
+   "lang": "en",
+   "context": {
+    "mode": "routine",
+    "tasks": [],
+    "timers": [],
+    "items": [
+     "squat",
+     "lunge",
+     "plank",
+     "push-up"
+    ],
+    "current": "lunge"
+   }
+  },
+  "expect": {
+   "kind": "action",
+   "type": "swap",
+   "args": {
+    "from": "push-up",
+    "label": "plank"
+   }
+  }
+ },
+ {
+  "id": "command-en-005",
+  "lang": "en",
+  "task": "command",
+  "tags": [
+   "ambiguous"
+  ],
+  "input": {
+   "utterance": "swap",
+   "lang": "en",
+   "context": {
+    "mode": "routine",
+    "tasks": [],
+    "timers": [],
+    "items": [
+     "squat",
+     "lunge",
+     "plank",
+     "push-up"
+    ],
+    "current": "lunge"
+   }
+  },
+  "expect": {
+   "kind": "clarify"
+  }
+ },
+ {
+  "id": "command-en-006",
+  "lang": "en",
+  "task": "command",
+  "tags": [
+   "casual"
+  ],
+  "input": {
+   "utterance": "what's next",
+   "lang": "en",
+   "context": {
+    "mode": "routine",
+    "tasks": [],
+    "timers": [],
+    "items": [
+     "squat",
+     "lunge",
+     "plank",
+     "push-up"
+    ],
+    "current": "lunge"
+   }
+  },
+  "expect": {
+   "kind": "action",
+   "type": "query_next"
+  }
+ },
+ {
+  "id": "command-en-007",
+  "lang": "en",
+  "task": "command",
+  "tags": [
+   "casual"
+  ],
+  "input": {
+   "utterance": "go back to the previous one",
+   "lang": "en",
+   "context": {
+    "mode": "routine",
+    "tasks": [],
+    "timers": [],
+    "items": [
+     "squat",
+     "lunge",
+     "plank",
+     "push-up"
+    ],
+    "current": "lunge"
+   }
+  },
+  "expect": {
+   "kind": "action",
+   "type": "back"
+  }
+ },
+ {
+  "id": "command-en-008",
+  "lang": "en",
+  "task": "command",
+  "tags": [
+   "casual",
+   "numbers"
+  ],
+  "input": {
+   "utterance": "set a pasta timer for ten minutes",
+   "lang": "en",
+   "context": {
+    "mode": "work",
+    "tasks": [
+     "write report",
+     "reply to emails",
+     "prep meeting"
+    ],
+    "timers": [],
+    "items": [],
+    "current": "write report"
+   }
+  },
+  "expect": {
+   "kind": "action",
+   "type": "start_timer",
+   "args": {
+    "label": "pasta",
+    "seconds": 600
+   }
+  }
+ },
+ {
+  "id": "command-en-009",
+  "lang": "en",
+  "task": "command",
+  "tags": [
+   "ambiguous",
+   "numbers"
+  ],
+  "input": {
+   "utterance": "add 2 more minutes",
+   "lang": "en",
+   "context": {
+    "mode": "work",
+    "tasks": [
+     "fold laundry",
+     "vacuum"
+    ],
+    "timers": [
+     {
+      "label": "oven",
+      "remainingSec": 600
+     },
+     {
+      "label": "rice",
+      "remainingSec": 240
+     }
+    ],
+    "items": []
+   }
+  },
+  "expect": {
+   "kind": "clarify"
+  }
+ },
+ {
+  "id": "command-en-010",
+  "lang": "en",
+  "task": "command",
+  "tags": [
+   "numbers"
+  ],
+  "input": {
+   "utterance": "give the rice another 90 seconds",
+   "lang": "en",
+   "context": {
+    "mode": "work",
+    "tasks": [
+     "fold laundry",
+     "vacuum"
+    ],
+    "timers": [
+     {
+      "label": "oven",
+      "remainingSec": 600
+     },
+     {
+      "label": "rice",
+      "remainingSec": 240
+     }
+    ],
+    "items": []
+   }
+  },
+  "expect": {
+   "kind": "action",
+   "type": "extend_timer",
+   "args": {
+    "target": "rice",
+    "seconds": 90
+   }
+  }
+ },
+ {
+  "id": "command-en-011",
+  "lang": "en",
+  "task": "command",
+  "tags": [],
+  "input": {
+   "utterance": "pause the oven timer",
+   "lang": "en",
+   "context": {
+    "mode": "work",
+    "tasks": [
+     "fold laundry",
+     "vacuum"
+    ],
+    "timers": [
+     {
+      "label": "oven",
+      "remainingSec": 600
+     },
+     {
+      "label": "rice",
+      "remainingSec": 240
+     }
+    ],
+    "items": []
+   }
+  },
+  "expect": {
+   "kind": "action",
+   "type": "pause_timer",
+   "args": {
+    "target": "oven"
+   }
+  }
+ },
+ {
+  "id": "command-en-012",
+  "lang": "en",
+  "task": "command",
+  "tags": [
+   "hard",
+   "ambiguous"
+  ],
+  "input": {
+   "utterance": "cancel the timer",
+   "lang": "en",
+   "context": {
+    "mode": "work",
+    "tasks": [
+     "fold laundry",
+     "vacuum"
+    ],
+    "timers": [
+     {
+      "label": "oven",
+      "remainingSec": 600
+     },
+     {
+      "label": "rice",
+      "remainingSec": 240
+     }
+    ],
+    "items": []
+   }
+  },
+  "expect": {
+   "kind": "clarify"
+  }
+ },
+ {
+  "id": "command-en-013",
+  "lang": "en",
+  "task": "command",
+  "tags": [
+   "hard",
+   "casual"
+  ],
+  "input": {
+   "utterance": "kill the rice timer",
+   "lang": "en",
+   "context": {
+    "mode": "work",
+    "tasks": [
+     "fold laundry",
+     "vacuum"
+    ],
+    "timers": [
+     {
+      "label": "oven",
+      "remainingSec": 600
+     },
+     {
+      "label": "rice",
+      "remainingSec": 240
+     }
+    ],
+    "items": []
+   }
+  },
+  "expect": {
+   "kind": "action",
+   "type": "cancel_timer",
+   "args": {
+    "target": "rice"
+   }
+  }
+ },
+ {
+  "id": "command-en-014",
+  "lang": "en",
+  "task": "command",
+  "tags": [
+   "ambiguous",
+   "casual"
+  ],
+  "input": {
+   "utterance": "I'm done",
+   "lang": "en",
+   "context": {
+    "mode": "work",
+    "tasks": [
+     "write report",
+     "reply to emails",
+     "prep meeting"
+    ],
+    "timers": [],
+    "items": [],
+    "current": "write report"
+   }
+  },
+  "expect": {
+   "kind": "clarify"
+  }
+ },
+ {
+  "id": "command-en-015",
+  "lang": "en",
+  "task": "command",
+  "tags": [],
+  "input": {
+   "utterance": "finished the report",
+   "lang": "en",
+   "context": {
+    "mode": "work",
+    "tasks": [
+     "write report",
+     "reply to emails",
+     "prep meeting"
+    ],
+    "timers": [],
+    "items": [],
+    "current": "write report"
+   }
+  },
+  "expect": {
+   "kind": "action",
+   "type": "task_done",
+   "args": {
+    "target": "write report"
+   }
+  }
+ },
+ {
+  "id": "command-en-016",
+  "lang": "en",
+  "task": "command",
+  "tags": [
+   "casual"
+  ],
+  "input": {
+   "utterance": "haven't done the emails yet",
+   "lang": "en",
+   "context": {
+    "mode": "work",
+    "tasks": [
+     "write report",
+     "reply to emails",
+     "prep meeting"
+    ],
+    "timers": [],
+    "items": [],
+    "current": "write report"
+   }
+  },
+  "expect": {
+   "kind": "action",
+   "type": "task_not_yet",
+   "args": {
+    "target": "reply to emails"
+   }
+  }
+ },
+ {
+  "id": "command-en-017",
+  "lang": "en",
+  "task": "command",
+  "tags": [
+   "hard"
+  ],
+  "input": {
+   "utterance": "skip prep meeting",
+   "lang": "en",
+   "context": {
+    "mode": "work",
+    "tasks": [
+     "write report",
+     "reply to emails",
+     "prep meeting"
+    ],
+    "timers": [],
+    "items": [],
+    "current": "write report"
+   }
+  },
+  "expect": {
+   "kind": "action",
+   "type": "skip_task",
+   "args": {
+    "target": "prep meeting"
+   }
+  }
+ },
+ {
+  "id": "command-en-018",
+  "lang": "en",
+  "task": "command",
+  "tags": [
+   "casual"
+  ],
+  "input": {
+   "utterance": "next step",
+   "lang": "en",
+   "context": {
+    "mode": "work",
+    "tasks": [
+     "chop onions",
+     "saute"
+    ],
+    "timers": [],
+    "items": [],
+    "current": "chop onions"
+   }
+  },
+  "expect": {
+   "kind": "action",
+   "type": "next_step"
+  }
+ },
+ {
+  "id": "command-en-019",
+  "lang": "en",
+  "task": "command",
+  "tags": [
+   "casual"
+  ],
+  "input": {
+   "utterance": "add buy milk to the list",
+   "lang": "en",
+   "context": {
+    "mode": "work",
+    "tasks": [
+     "write report",
+     "reply to emails",
+     "prep meeting"
+    ],
+    "timers": [],
+    "items": [],
+    "current": "write report"
+   }
+  },
+  "expect": {
+   "kind": "action",
+   "type": "add_task",
+   "args": {
+    "label": "buy milk"
+   }
+  }
+ },
+ {
+  "id": "command-en-020",
+  "lang": "en",
+  "task": "command",
+  "tags": [
+   "casual"
+  ],
+  "input": {
+   "utterance": "shh, quiet mode please",
+   "lang": "en",
+   "context": {
+    "mode": "work",
+    "tasks": [
+     "write report",
+     "reply to emails",
+     "prep meeting"
+    ],
+    "timers": [],
+    "items": [],
+    "current": "write report"
+   }
+  },
+  "expect": {
+   "kind": "action",
+   "type": "set_quiet",
+   "args": {
+    "flag": true
+   }
+  }
+ },
+ {
+  "id": "command-en-021",
+  "lang": "en",
+  "task": "command",
+  "tags": [
+   "hard"
+  ],
+  "input": {
+   "utterance": "end the session now",
+   "lang": "en",
+   "context": {
+    "mode": "work",
+    "tasks": [
+     "write report",
+     "reply to emails",
+     "prep meeting"
+    ],
+    "timers": [],
+    "items": [],
+    "current": "write report"
+   }
+  },
+  "expect": {
+   "kind": "action",
+   "type": "end_session"
+  }
+ },
+ {
+  "id": "command-en-022",
+  "lang": "en",
+  "task": "command",
+  "tags": [
+   "oos"
+  ],
+  "note": "Advice request the assistant cannot act on.",
+  "input": {
+   "utterance": "what should I cook for dinner?",
+   "lang": "en",
+   "context": {
+    "mode": "work",
+    "tasks": [
+     "pasta",
+     "salad",
+     "dishes"
+    ],
+    "timers": [
+     {
+      "label": "pasta",
+      "remainingSec": 300
+     }
+    ],
+    "items": [],
+    "current": "pasta"
+   }
+  },
+  "expect": {
+   "kind": "not_command"
+  }
+ },
+ {
+  "id": "command-en-023",
+  "lang": "en",
+  "task": "command",
+  "tags": [
+   "oos",
+   "casual"
+  ],
+  "input": {
+   "utterance": "man, I love this song",
+   "lang": "en",
+   "context": {
+    "mode": "work",
+    "tasks": [
+     "pasta",
+     "salad",
+     "dishes"
+    ],
+    "timers": [
+     {
+      "label": "pasta",
+      "remainingSec": 300
+     }
+    ],
+    "items": [],
+    "current": "pasta"
+   }
+  },
+  "expect": {
+   "kind": "not_command"
+  }
+ }
+]

@@ -3,7 +3,7 @@ import { builtinRoutines, type Correction, type Lang, type RoutineTemplate } fro
 
 import { RoutineController, type RoutineNativePort, type RoutineStorePort } from './controller';
 
-vi.mock('../llm/askLlm', () => ({ askLlm: vi.fn(async () => ({ ok: false, reason: 'not_implemented' })) }));
+vi.mock('../llm/askLlm', () => ({ askLlm: vi.fn(async () => ({ ok: false, reason: 'not_implemented' })), isLlmAvailable: () => false }));
 import { askLlm } from '../llm/askLlm';
 
 interface Scheduled {

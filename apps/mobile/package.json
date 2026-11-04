@@ -3,6 +3,7 @@
   "version": "1.0.0",
   "main": "expo-router/entry",
   "dependencies": {
+    "@vlc/llm": "workspace:*",
     "@vlc/session-engine": "workspace:*",
     "@vlc/travel": "workspace:*",
     "@vlc/voice-analysis": "workspace:*",

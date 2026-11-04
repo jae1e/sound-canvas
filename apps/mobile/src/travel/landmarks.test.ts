@@ -145,3 +145,26 @@ describe('landmark voice flow (fixtures)', () => {
     expect(list[0]!.distanceM).toBeLessThan(1500);
   });
 });
+
+describe('landmark Q&A through the LLM tier', () => {
+  it('answers an uncovered question from the source text, and stays unhandled when the LLM is off or fails', async () => {
+    const { setLlmTransport } = await import('../llm/askLlm');
+    const { ctl, spoken } = setup();
+    await ctl.handleUtterance('주변 유적지');
+    await ctl.handleUtterance('첫 번째 거 알려줘');
+    ctl['narrationToken']++;
+    const before = spoken.length;
+    // No transport: the utterance is not ours.
+    expect(await ctl.handleUtterance('그때 왕은 누구였어요?')).toBe(false);
+    setLlmTransport({ name: 'fake', call: async () => ({ text: JSON.stringify({ answerable: false, answer: '', quote: '' }), promptTokens: 1, completionTokens: 1, ms: 1 }) });
+    try {
+      expect(await ctl.handleUtterance('그때 왕은 누구였어요?')).toBe(true);
+      expect(spoken.length).toBe(before + 1);
+      expect(spoken[spoken.length - 1]).toMatch(/자료에는 그 내용이 나와 있지 않아요/);
+      setLlmTransport({ name: 'down', call: async () => { throw new Error('offline'); } });
+      expect(await ctl.handleUtterance('그때 왕은 누구였어요?')).toBe(false);
+    } finally {
+      setLlmTransport(null);
+    }
+  });
+});

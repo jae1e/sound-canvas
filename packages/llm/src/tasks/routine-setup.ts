@@ -57,6 +57,7 @@ Rules:
 - "targetMinutes": the total time the user asked for (0 if none). If given, pick reps/sets/rests so the total is close to it (an exercise rep takes secPerRep seconds, plus rest between sets).
 - A focus ("하체 위주", "upper body", "core") with no exercises named: choose 4-6 matching exercises.
 - "warm up" / "cool down" / "스트레칭" -> a hold or short exercise item (for example 30-60 s).
+- "assumptions": at most 3 short strings. Keep the whole answer compact.
 - needsConfirmation=true with a short "question" in the user's language ONLY if something essential is impossible to guess; otherwise false and "".
 
 Example: "warm up then 3 rounds of squats and pushups, short rests"
@@ -65,7 +66,7 @@ Example: "warm up then 3 rounds of squats and pushups, short rests"
 export const routineSetupTask: Task<z.output<typeof routineSetupInput>, RoutineSetupResult> = {
   name: 'routine_setup',
   inputSchema: routineSetupInput,
-  maxTokens: 700,
+  maxTokens: 1000,
   buildPrompt: (input) => ({ system: SYSTEM, user: `language: ${input.lang}\ntext: ${input.text}` }),
   outputSchema: () => jsonSchemaOf(out),
   validate(raw, input) {

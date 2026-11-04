@@ -28,7 +28,9 @@ import {
 
 import type { EventKind } from '../db/repos/events';
 import type { NewJournalEntry } from '../db/repos/journal';
-import { askLlm } from '../llm/askLlm';
+import { askLlm, isLlmAvailable, type LlmResult } from '../llm/askLlm';
+import { CONFIRM_TTL_MS, cancelledMessage, parseYesNo, retryMessage } from '../llm/confirm';
+import { routeUtterance, type Route } from '@vlc/llm';
 import { summaryOf } from './view';
 import type { WorkSummary } from './summary';
 
@@ -131,6 +133,8 @@ export class WorkController {
   private ticker: ReturnType<typeof setInterval> | null = null;
   /** When the user first asked to end by voice; a second request within the window confirms it. */
   private endRequestedAt: number | null = null;
+  /** An LLM-proposed action waiting for a spoken yes/no. Bounded by CONFIRM_TTL_MS; the default is to do nothing. */
+  private pendingLlm: { action: Action; question: string; until: number } | null = null;
   private listeners = new Set<(s: ControllerState) => void>();
   private summaryListeners = new Set<(s: WorkSummary) => void>();
 
@@ -361,6 +365,22 @@ export class WorkController {
     const s = this.session;
     if (!s || s.status === 'ended') return null;
     const now = this.env.now();
+    if (kind === 'turn') {
+      const pending = this.pendingLlm;
+      this.pendingLlm = null;
+      if (pending && now <= pending.until) {
+        const answer = parseYesNo(hyps[0] ?? '', lang);
+        if (answer === 'yes') return this.finishLlmAction(s, hyps, lang, pending.action, now);
+        if (answer === 'no') return this.finishSynthetic(s, hyps, lang, 'rejected', cancelledMessage(s.lang), now);
+      }
+      if (isLlmAvailable()) {
+        const route = routeUtterance(s, hyps, lang);
+        if (route.path === 'llm') {
+          this.startLlmTurn(s, hyps, lang, route, now);
+          return null;
+        }
+      }
+    }
     const result = handleUtterance(s, hyps, lang, { now, newId: this.env.newId });
     const heard = result.chosen?.text ?? hyps[0] ?? '';
     let reply = result.reply;
@@ -419,6 +439,81 @@ export class WorkController {
     }
 
     return this.finishTurn(hyps, lang, kind, result, heard, reply, now);
+  }
+
+  // -------------------------------------------------------------------- LLM tier
+
+  /**
+   * Asks the `align` task (n-best + session context). The deterministic result is only computed again if the call fails, so a
+   * slow or offline network costs one spoken "please say it again" at most, never a wrong action.
+   */
+  private startLlmTurn(s: Session, hyps: string[], lang: Lang, route: Route, t0: number): void {
+    this.store.appendEvent('llm_needed', { heard: hyps[0] ?? '', hypotheses: hyps, lang, why: route.why, step: s.currentTaskId ?? null });
+    void askLlm({ hypotheses: hyps, lang, session: s, now: t0, kind: 'align', recentTurns: this.turns.slice(0, 3).reverse().map((t) => ({ heard: t.heard, reply: t.reply })) })
+      .then((res) => this.onLlmDone(s, hyps, lang, route, res, t0))
+      .catch(() => this.onLlmDone(s, hyps, lang, route, { ok: false, reason: 'error' }, t0));
+  }
+
+  private onLlmDone(s0: Session, hyps: string[], lang: Lang, route: Route, res: LlmResult, t0: number): void {
+    const cur = this.session;
+    if (!cur || cur.status === 'ended') return;
+    const now = this.env.now();
+    this.store.appendEvent('utterance', { heard: hyps[0] ?? '', outcome: 'llm', task: 'align', ok: res.ok, ms: now - t0, ...(res.ok ? {} : { reason: res.reason }) });
+    if (!res.ok || res.task !== 'align') {
+      // Clean fallback: disagreement between hypotheses falls back to the deterministic choice; anything else asks to repeat.
+      if (route.why === 'hypotheses_disagree') {
+        const det = handleUtterance(cur, hyps, lang, { now, newId: this.env.newId });
+        if (det.outcome === 'applied' || det.outcome === 'answered') {
+          this.commitVoiceResult(cur, hyps, lang, det, now);
+          return;
+        }
+      }
+      this.finishSynthetic(cur, hyps, lang, 'no_intent', retryMessage(cur.lang), now);
+      return;
+    }
+    const a = res.align;
+    if (!a.mapped || a.mapped.domain !== 'work') {
+      this.store.appendEvent('unrecognized', { heard: hyps[0] ?? '', hypotheses: hyps, via: 'llm' });
+      this.finishSynthetic(cur, hyps, lang, 'no_intent', null, now);
+      return;
+    }
+    if (a.needsConfirmation) {
+      this.pendingLlm = { action: a.mapped.action, question: a.confirmQuestion, until: now + CONFIRM_TTL_MS };
+      this.finishSynthetic(cur, hyps, lang, 'rejected', a.confirmQuestion, now);
+      return;
+    }
+    this.finishLlmAction(cur, hyps, lang, a.mapped.action, now, s0.revision);
+  }
+
+  /** Applies a validated LLM action through the engine (source `llm`, stale-checked) and speaks the engine's acknowledgement. */
+  private finishLlmAction(s: Session, hyps: string[], lang: Lang, action: Action, now: number, expectedRevision?: number): TurnResult | null {
+    const before = this.session ?? s;
+    const r = this.commit(action, 'llm', { expectedRevision });
+    if (!r.ok) {
+      this.finishSynthetic(before, hyps, lang, 'rejected', r.said || retryMessage(before.lang), now);
+      return null;
+    }
+    const after = this.session!;
+    const result: TurnResult = { session: after, chosen: { text: hyps[0] ?? '', index: 0, reason: 'top' }, intent: { kind: 'action', action }, outcome: 'applied', reply: r.said || null };
+    return this.finishTurn(hyps, lang, 'turn', result, hyps[0] ?? '', result.reply, now);
+  }
+
+  /** Records a turn that has no engine result of its own (a question, a retry request, a cancel). */
+  private finishSynthetic(s: Session, hyps: string[], lang: Lang, outcome: TurnResult['outcome'], reply: string | null, now: number): TurnResult {
+    const result: TurnResult = { session: s, chosen: { text: hyps[0] ?? '', index: 0, reason: 'top' }, intent: null, outcome, reply };
+    return this.finishTurn(hyps, lang, 'turn', result, hyps[0] ?? '', reply, now);
+  }
+
+  /** Commits a deterministic result that was computed after an LLM failure. */
+  private commitVoiceResult(prev: Session, hyps: string[], lang: Lang, result: TurnResult, now: number): void {
+    if (result.outcome === 'applied') {
+      this.pushUndo({ session: prev, voice: true });
+      this.session = result.session;
+      this.persist();
+      this.syncCues();
+      this.store.appendEvent('action', { source: 'voice', intent: result.intent, heard: result.chosen?.text ?? '', revision: result.session.revision });
+    }
+    this.finishTurn(hyps, lang, 'turn', result, result.chosen?.text ?? hyps[0] ?? '', result.reply, now);
   }
 
   private finishTurn(
@@ -645,10 +740,10 @@ export class WorkController {
   private commit(
     action: Action,
     source: ActionEnvelope['source'],
-    opts: { undoable?: boolean } = {},
+    opts: { undoable?: boolean; expectedRevision?: number } = {},
   ): { ok: boolean; said: string; changes: Change[] } {
     const s = this.requireSession();
-    const r = apply(s, { action, source }, { now: this.env.now(), newId: this.env.newId });
+    const r = apply(s, { action, source, ...(opts.expectedRevision !== undefined ? { expectedRevision: opts.expectedRevision } : {}) }, { now: this.env.now(), newId: this.env.newId });
     if (!r.ok) return { ok: false, said: describeRejection(r.reason, r.candidates, s.lang), changes: [] };
     if (r.session !== s) {
       if (opts.undoable !== false) this.pushUndo({ session: s, voice: false });

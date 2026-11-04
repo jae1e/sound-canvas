@@ -28,6 +28,8 @@ import {
   type WalkRoute,
   type WhereAmI,
 } from '@vlc/travel';
+import { looksLikeQuestion } from '@vlc/session-engine';
+import { askLlm, isLlmAvailable } from '../llm/askLlm';
 import type { TravelClient } from './client';
 
 /**
@@ -327,7 +329,7 @@ export class TravelController {
       return true;
     }
     const intent = parseTravelIntent(t);
-    if (!intent) return false;
+    if (!intent) return this.askAboutLandmark(t);
     // A bare "stop" or "more" is only ours while a landmark conversation exists; otherwise let other handlers have it.
     if (intent.type === 'stop_narration' && !this.state.narrating) return false;
     if (intent.type === 'landmark_followup' && !intent.ref && !this.lastLandmark) return false;
@@ -394,6 +396,23 @@ export class TravelController {
     const script = composeLandmarkNarration(l.name, detail, this.lang);
     this.usedSentences = script.used;
     if (speak) this.playChunks(script.chunks);
+  }
+
+  /**
+   * A question about the landmark being discussed that the grammar does not cover ("그때 왕은 누구였어요?"). The `travel_qa`
+   * task answers from the loaded source text only; on any failure the utterance stays unhandled and falls through.
+   */
+  private async askAboutLandmark(text: string): Promise<boolean> {
+    const l = this.lastLandmark;
+    const lang: Lang = /[가-힣]/.test(text) ? 'ko' : 'en';
+    if (!l || !isLlmAvailable() || !looksLikeQuestion(text, lang)) return false;
+    const detail = await this.loadDetail(l);
+    if (!detail) return true;
+    const sourceText = [detail.overview, ...detail.facts.map((f) => f.value)].join(' ').slice(0, 6000);
+    const res = await askLlm({ hypotheses: [text], lang, kind: 'travel_qa', travel: { landmarkName: l.name, sourceText }, recentTurns: [] });
+    if (!res.ok || res.task !== 'travel_qa') return false;
+    this.speak(res.reply, lang);
+    return true;
   }
 
   private async followup(topic: Parameters<typeof composeLandmarkFollowup>[2], ref: Parameters<typeof resolveLandmarkRef>[0] | undefined): Promise<boolean> {
