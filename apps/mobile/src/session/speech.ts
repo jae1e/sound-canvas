@@ -1,6 +1,7 @@
 import type { Lang } from '@vlc/session-engine';
 
 import VlcSessionService from '../../modules/vlc-session-service';
+import { say, type SayOptions } from '../speech/sessionSpeech';
 
 let spokenLang: Lang | null = null;
 
@@ -14,7 +15,7 @@ export function noteSessionSpeechLanguage(lang: Lang | null): void {
  * platform fallback and the user's output routing (earbuds by default; the phone speaker only if the user chose it).
  * Without a running session nothing is played and false is returned; callers show the text on screen instead.
  */
-export function speakThroughSession(text: string, lang: Lang): boolean {
+export function speakThroughSession(text: string, lang: Lang, opts: Omit<SayOptions, 'lang'> = {}): boolean {
   if (!text.trim()) return false;
   try {
     if (VlcSessionService.getSessionState() !== 'running') return false;
@@ -22,8 +23,7 @@ export function speakThroughSession(text: string, lang: Lang): boolean {
       VlcSessionService.setSpeechLanguage(lang);
       spokenLang = lang;
     }
-    VlcSessionService.speak(text, 'high', null);
-    return true;
+    return say(text, { ...opts, lang });
   } catch {
     return false;
   }

@@ -7,6 +7,7 @@ import { appendEvent } from '../db/repos/events';
 import { saveSession } from '../db/repos/sessions';
 import { useSettings } from '../settings/store';
 import { applySpeechSettings, runningSessionMode, startNativeSession } from '../work/native';
+import { onSessionStarted, onSessionStopped, say } from '../speech/sessionSpeech';
 import { workController } from '../work/instance';
 import { useWorkSummary } from '../work/summary';
 import { ModeSessionManager, type ManagedMode, type ModeKey, type ModeNativePort, type ModeSessionState, type StartResult } from './modeSession';
@@ -23,11 +24,12 @@ const nativePort: ModeNativePort = {
     noteSessionSpeechLanguage(lang);
   },
   async stop() {
+    onSessionStopped();
     await VlcSessionService.stopSession();
     noteSessionSpeechLanguage(null);
   },
   isRunning: () => runningSessionMode() !== null,
-  speak: (text, priority) => void VlcSessionService.speak(text, priority, null),
+  speak: (text, priority) => void say(text, { priority }),
   holdStt: (hold) => VlcSessionService.holdStt(hold),
 };
 

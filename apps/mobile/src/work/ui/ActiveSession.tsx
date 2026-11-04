@@ -6,6 +6,7 @@ import { currentStep, isQuiet, type Session } from '@vlc/session-engine';
 import { Banner, Button, Card } from '../../components/ui';
 import { useTranslation } from '../../i18n';
 import { useSettings } from '../../settings/store';
+import { VoiceNotice } from '../../speech/VoiceNotice';
 import { colors, shared, space } from '../../theme';
 import { workController, useWork } from '../instance';
 import { clock, deriveView } from '../view';
@@ -48,6 +49,7 @@ export function ActiveSession({ session }: { session: Session }) {
 
   return (
     <ScrollView style={shared.screen} contentContainerStyle={shared.content} keyboardShouldPersistTaps="handled">
+      <VoiceNotice />
       {missed.map((m) => (
         <Card key={m.key} style={{ borderColor: colors.warnText, borderWidth: 1 }}>
           <Text style={[shared.h2, { color: colors.warnText }]}>{t('work.session.missed')}</Text>

@@ -8,6 +8,7 @@ import { useAudioRoute } from '../../src/audio/useAudioRoute';
 import { Button, Card, Chip } from '../../src/components/ui';
 import { useTranslation } from '../../src/i18n';
 import { LANGUAGE_SETTINGS, NUDGE_LEVELS, TTS_ENGINES, type AppSettings } from '../../src/settings/schema';
+import { EarconSection } from '../../src/settings/components/EarconSection';
 import { ModelSection } from '../../src/settings/components/ModelSection';
 import { Stepper } from '../../src/settings/components/Stepper';
 import { VoicePreview } from '../../src/settings/components/VoicePreview';
@@ -82,6 +83,8 @@ export default function SettingsScreen() {
         <Text style={shared.muted}>{t('settings.voice.steps.hint')}</Text>
         <VoicePreview voice={settings.ttsVoice} steps={settings.ttsSteps} language={language} text={t('settings.voice.preview.text')} />
       </Card>
+
+      <EarconSection />
 
       <Card>
         <Text style={shared.h2}>{t('settings.output.title')}</Text>

@@ -13,6 +13,7 @@ import {
   initialCueState,
   parseTravelIntent,
   planCues,
+  routeCueFragments,
   resolvePlaceRef,
   turnPhrase,
   formatDistance,
@@ -28,17 +29,33 @@ import {
   type WalkRoute,
   type WhereAmI,
 } from '@vlc/travel';
+import { earconForNavCue, navStaleAfterMs, type EarconName } from '@vlc/session-engine';
+
 import type { TravelClient } from './client';
 
 /**
  * Speaks one piece of text. It may return a promise that settles when playback ends; without one, the controller paces
  * narration chunks by estimated speaking time.
  */
-export type SpeakFn = (text: string, lang: Lang) => void | Promise<unknown>;
+export type SpeakFn = (text: string, lang: Lang, extras?: SpeakExtras) => void | Promise<unknown>;
+
+/** How a cue behaves when the session voice cannot start it at once (see `planCue` in @vlc/session-engine). */
+export type SpeakExtras = {
+  /** Cached fragments that make up the text (distance + direction). */
+  parts?: string[];
+  /** Tone to play first. */
+  earcon?: EarconName | null;
+  /** Epoch ms after which the cue is no longer true. */
+  staleAtMs?: number;
+};
+
+export type PrewarmItem = { text: string; lang: Lang; order?: number; priority?: 'urgent' | 'soon' | 'normal' | 'background' };
 
 export type ControllerOptions = {
   /** Flushes queued and current speech (the native `stopSpeaking`). Called when narration is stopped or interrupted. */
   onStopSpeech?: () => void;
+  /** Called the moment spoken text becomes known (route fetched, landmark list received), to synthesize it in advance. */
+  onPrewarm?: (items: PrewarmItem[]) => void;
   /** Injectable for tests. */
   sleep?: (ms: number) => Promise<void>;
 };
@@ -150,10 +167,10 @@ export class TravelController {
     this.listeners.forEach((l) => l());
   }
   /** Speak a single reply. Anything being narrated is cancelled first so the two never overlap. */
-  private speak(text: string, lang: Lang = this.lang) {
+  private speak(text: string, lang: Lang = this.lang, extras?: SpeakExtras) {
     this.cancelNarration();
     this.set({ lastSpoken: text });
-    void this.onSpeak(text, lang);
+    void this.onSpeak(text, lang, extras);
   }
 
   /** Cancels remaining narration chunks and flushes queued speech. Safe to call when nothing is playing. */
@@ -173,6 +190,8 @@ export class TravelController {
     this.cancelNarration();
     const token = this.narrationToken;
     this.set({ narrating: true, lastSpoken: chunks.join(' ') });
+    // Later sentences synthesize while the first plays; the first sentence goes first.
+    this.opts.onPrewarm?.(chunks.map((text, order) => ({ text, lang, order, priority: 'soon' as const })));
     this.narrationRun = (async () => {
       for (const chunk of chunks) {
         if (token !== this.narrationToken) return;
@@ -201,7 +220,12 @@ export class TravelController {
     this.cueState = planned.state;
     const patch: Partial<TravelState> = { progress };
     for (const cue of planned.cues) {
-      this.speak(cue.text[this.lang]);
+      const staleKind = cue.kind === 'approach' ? 'approach' : cue.kind === 'now' ? 'now' : 'other';
+      this.speak(cue.text[this.lang], this.lang, {
+        parts: cue.parts?.[this.lang],
+        earcon: earconForNavCue(cue.kind, cue.turn),
+        staleAtMs: navStaleAfterMs(this.now(), cue.distanceM ?? null, progress.paceMps, staleKind),
+      });
       if (cue.kind === 'off_route') patch.awaitingReroute = true;
       if (cue.kind === 'arrived') {
         patch.navigating = false;
@@ -266,6 +290,11 @@ export class TravelController {
     try {
       const route = await this.client.walkRoute({ from: pos, to: place });
       this.set({ route, busy: false, navigating: false, progress: null });
+      // Route known: every turn instruction and approach cue can be synthesized now, as cached fragments.
+      this.opts.onPrewarm?.([
+        ...routeCueFragments(route, this.lang).map((text) => ({ text, lang: this.lang, priority: 'soon' as const })),
+        { text: composeRoutePreview(route, place.name, this.lang), lang: this.lang, priority: 'normal' as const },
+      ]);
       if (speak) this.speak(composeRoutePreview(route, place.name, this.lang));
       return route;
     } catch {
@@ -354,6 +383,7 @@ export class TravelController {
       this.lastLandmark = answer.landmarks[0];
       this.usedSentences = [];
       this.set({ landmarks: answer.landmarks, landmarkSearched: true, selectedLandmark: null, narration: null, busy: false });
+      this.opts.onPrewarm?.(answer.chunks.map((text, order) => ({ text, lang: this.lang, order, priority: 'soon' as const })));
       if (speak) this.playChunks(answer.chunks);
       return answer.landmarks;
     } catch {

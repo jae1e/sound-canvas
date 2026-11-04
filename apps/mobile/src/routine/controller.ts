@@ -67,6 +67,8 @@ export interface RoutineNativePort {
   start(lang: Lang): Promise<void>;
   stop(): Promise<void>;
   speak(text: string): void;
+  /** Queue phrases for background synthesis in the session voice as soon as their text is known. */
+  prewarm?(items: { text: string; lang: Lang; priority?: 'urgent' | 'soon' | 'normal' | 'background' }[]): void;
   stopSpeaking(): void;
   prepare(clips: { text: string; lang: Lang }[], onProgress: (done: number, total: number) => void): Promise<PrepareResult>;
   schedule(segmentId: string, startEpochMs: number, beats: { offsetMs: number; text: string; lang: Lang; tag: string }[]): void;
@@ -345,11 +347,11 @@ export class RoutineController {
       for (const c of r.clips) if (c.ok) this.clipMs.set(c.text, c.durationMs);
       this.store.appendEvent('routine', { what: 'prepared', engine: r.engine, total: phrases.length, failed: r.failed.length });
       if (r.failed.length > 0) {
-        this.set({ notice: t2(run.lang, `${r.failed.length}개 문구는 미리 만들지 못해 실시간 음성으로 말해요.`, `${r.failed.length} phrases could not be pre-made and will use live speech.`) });
+        this.set({ notice: t2(run.lang, `${r.failed.length}개 문구는 미리 만들지 못했어요. 그 자리에서는 알림음이 나와요.`, `${r.failed.length} phrases could not be pre-made; a tone will play in their place.`) });
       }
     } catch (e) {
       this.store.appendEvent('error', { where: 'routine_prepare', message: String(e) });
-      this.set({ notice: t2(run.lang, '미리 음성을 만들지 못했어요. 실시간 음성으로 진행해요.', 'Could not pre-make the voice clips; using live speech.') });
+      this.set({ notice: t2(run.lang, '미리 음성을 만들지 못했어요. 문구 대신 알림음이 나와요.', 'Could not pre-make the voice clips; tones will play in place of phrases.') });
     }
   }
 
@@ -435,6 +437,11 @@ export class RoutineController {
     this.say(r.reply);
     if (!r.ok) return r.reply;
     this.set({ run: r.state });
+    // An edit mid-session (swap, skip, repeat...) can introduce item names the cache has not seen: queue them now.
+    if (r.replan) {
+      const fresh = this.phrasesFor(r.state, this.s.level).filter((p) => !this.clipMs.has(p));
+      if (fresh.length > 0) this.native.prewarm?.(fresh.map((text) => ({ text, lang: r.state.lang, priority: 'soon' as const })));
+    }
     if (command.kind === 'end') {
       this.finishRun(true);
     } else if (command.kind === 'pause') {
@@ -589,6 +596,8 @@ export class RoutineController {
       taskLabel: c.movementNo !== undefined ? `${tpl.name} · ${t2(lang, `${c.movementNo}번 동작`, `movement ${c.movementNo}`)}` : tpl.name,
       createdAt: c.createdAt,
     });
+    // The new cue text is known now: start synthesizing it before the next unit boundary needs it.
+    this.native.prewarm?.([{ text: c.cue, lang, priority: 'soon' }]);
     const reply = t2(lang, `${where}에 메모했어요. 다음부터 "${c.cue.replace(/!$/, '')}" 하고 알려드릴게요.`, `Noted for ${where}. I will cue "${c.cue.replace(/!$/, '')}" from now on.`);
     if (speak) this.say(reply);
     // Future pacing picks the new cue up at the next unit boundary without disturbing the rhythm.

@@ -9,5 +9,8 @@ export default {
   'micPaused': 'Microphone is used for recording; voice commands resume after the take',
   'blocked': '{{mode}} is using the voice session. End it before starting another mode.',
   'open': 'Open {{mode}}',
+  'voice.notice.fallback': 'Supertonic voice is not available, so the phone voice is used for this whole session.',
+  'voice.notice.switched': 'The voice engine had a problem. The phone voice is used for the rest of this session.',
+  'voice.notice.reloading': 'Reloading the voice. Tones play until it is back.',
   'error': 'Could not start the session',
 } as Record<string, string>;

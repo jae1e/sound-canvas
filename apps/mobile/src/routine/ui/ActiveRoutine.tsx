@@ -5,6 +5,7 @@ import { PACING_LEVELS } from '../../settings/schema';
 import { Banner, Button, Card, Chip } from '../../components/ui';
 import { useTranslation } from '../../i18n';
 import { useSettings } from '../../settings/store';
+import { VoiceNotice } from '../../speech/VoiceNotice';
 import { colors, shared, space } from '../../theme';
 import { routineController, useRoutine } from '../instance';
 import { deriveRoutineView } from '../view';
@@ -44,6 +45,7 @@ export function ActiveRoutine() {
 
   return (
     <ScrollView style={shared.screen} contentContainerStyle={shared.content} keyboardShouldPersistTaps="handled">
+      <VoiceNotice />
       {paused ? <Banner kind="warn" text={t('routine.active.paused')} /> : null}
       {s.notice ? <Banner kind="warn" text={`${t('routine.active.notice')}: ${s.notice}`} /> : null}
 

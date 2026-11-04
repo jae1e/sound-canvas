@@ -6,6 +6,7 @@ export const LANGUAGE_SETTINGS = ['auto', 'ko', 'en'] as const;
 export const TTS_ENGINES = ['auto', 'platform', 'supertonic'] as const;
 export const OUTPUT_ROUTES = ['auto', 'speaker'] as const;
 export const PACING_LEVELS = ['full', 'short', 'count'] as const;
+export const EARCON_VIBRATION = ['navigation', 'all', 'off'] as const;
 export const NUDGE_LEVELS = ['quiet', 'normal', 'chatty'] as const satisfies readonly NudgeLevel[];
 
 export const settingsSchema = z.object({
@@ -23,6 +24,10 @@ export const settingsSchema = z.object({
   /** Suggest a break after a long focus block (Work Partner). Off by default. */
   focusBreakEnabled: z.boolean().default(false),
   focusBreakMinutes: z.number().int().min(5).max(240).default(50),
+  /** Earcon loudness relative to speech, percent. */
+  earconVolume: z.number().int().min(10).max(100).default(70),
+  /** Vibrate with earcons: only in Travel Guide navigation (default), in every mode, or never. */
+  earconVibration: z.enum(EARCON_VIBRATION).default('navigation'),
   /** Routine voice pacing: `full` (name + count), `short`, or `count` only. */
   pacingLevel: z.enum(PACING_LEVELS).default('full'),
 });

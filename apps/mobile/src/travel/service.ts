@@ -8,12 +8,14 @@ import { listPlaces, savePlace, saveRoute } from '../db/repos/travel';
 import type { EndedSession, ModeHandler } from '../session/modeSession';
 import { newId } from '../session/instance';
 import { speakThroughSession } from '../session/speech';
+import { prewarm } from '../speech/sessionSpeech';
 import { createTravelClient } from './client';
 import { TravelController } from './controller';
 import { WalkLog, walkSummaryText } from './walkLog';
 
 /** The app-wide Travel Guide controller. It speaks only through the running native session. */
-export const travelController = new TravelController(createTravelClient(), (text, lang) => void speakThroughSession(text, lang), 'ko', Date.now, {
+export const travelController = new TravelController(createTravelClient(), (text, lang, extras) => void speakThroughSession(text, lang, { parts: extras?.parts, earcon: extras?.earcon, staleAtMs: extras?.staleAtMs }), 'ko', Date.now, {
+  onPrewarm: (items) => prewarm(items),
   // "멈춰" / "stop" during landmark narration: drop queued chunks and the one being spoken.
   onStopSpeech: () => {
     try {
