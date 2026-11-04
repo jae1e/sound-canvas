@@ -228,14 +228,20 @@ TTS evaluation results (2026-11-03, Galaxy S25, Android 17, QCY HT08 earbuds ove
 | Engine | Result |
 | --- | --- |
 | Supertonic 3 int8 (ko, en) | Works. Load 0.4–0.8 s. RTF ≈ 0.35 on the phone. First audio ≈ 1.75–1.86 s for a ~5 s sentence, because generation is not streamed; the first chunk arrives only after the whole utterance is generated. |
-| Google platform TTS (ko, en) | Works. First audio 0.1–0.35 s. Kept as the **low-latency fallback** (for example, if Supertonic is not downloaded yet or fails). |
+| Google platform TTS (ko, en) | Works. First audio 0.1–0.35 s. Kept as the **whole-session voice when Supertonic is unavailable** (not downloaded or fails to load), never mixed into a Supertonic session (see "One voice per session" below). |
 | Samsung TTS (`com.samsung.SMT`) | Blocked for third-party apps ("not allowed to bind to private engine"); silently falls back to Google. |
 | ML Kit GenAI TTS | No ko-KR voices on this device; en-US voices are only downloadable. Dropped. |
 | MOSS-TTS-Nano | Rejected by the user after listening (poor Korean, English not liked; 763 MB). |
 | Kitten nano, Kokoro | Not adopted; testing stopped by the user once Supertonic was selected. |
 
 Implications:
-- Supertonic latency needs work for timer cues and navigation prompts: synthesize sentence by sentence; pre-generate predictable cue phrases while idle (such as "N minutes left" and turn instructions) and cache the PCM; and start with Google TTS when a cue must play immediately and no cached audio exists.
+- Supertonic latency needs work for timer cues and navigation prompts: synthesize sentence by sentence; pre-generate predictable cue phrases while idle (such as "N minutes left" and turn instructions) and cache the PCM.
+- **One voice per session (decided by the user, 2026-11-04).** Falling back to Google platform TTS for an urgent cue whose audio is not cached was proposed and rejected. The user said: "이런게 있으면 경고음을 발생시키는게 낫지 갑자기 말투가 바뀌면 어색한 경험을 만들어서 안좋을 것 같아요." (If this happens, a warning tone is better; a sudden change of voice makes the experience awkward.) The earlier line "start with Google TTS when a cue must play immediately and no cached audio exists" is therefore removed. Policy:
+  - The session voice is chosen once at session start: Supertonic when its model is downloaded and loads, otherwise platform TTS for the whole session, with a visible notice on the session screen. The clip cache holds only the session voice's clips; a failed clip is retried with the same engine and never filled by another.
+  - Text is synthesized as soon as it is known (timer set, route fetched or rerouted, routine edited, landmark list received, fixed system phrases at session start) through a prioritized background queue; phrases are composed from cached fragments (distance + unit + direction) where possible.
+  - When a phrase is due and not ready, an **earcon** (natively generated PCM tone, about 150-400 ms, media usage, system route, optional vibration) plays instead of another voice. The phrase is spoken in the session voice as soon as it is ready unless it went stale (`staleAfter`). Log events: `earcon_played`, `speech_late`, `speech_dropped_stale`.
+  - If the session voice crashes or unloads mid-session, it is reloaded once (earcons meanwhile). If that fails, the platform voice announces once that the voice will change for the rest of the session, then takes over (`voice_switched`). This is the only allowed mid-session switch.
+  - Google platform TTS remains the whole-session voice only when Supertonic is not available at session start (not downloaded, failed to load, or chosen by the user in Settings).
 - Lab audio must follow the system route (Bluetooth earbuds when connected) on the media stream so the volume keys work. Never force the phone loudspeaker in tests.
 
 STT cloud fallback candidate (checked 2026-11-03): **Soniox** real-time STT, cloud only, streamed over WebSocket. It costs **$0.12/hour** real-time and $0.10/hour async, with no free tier stated ([pricing](https://soniox.com/pricing)). Its Korean page claims automatic Korean–English code-switching detection, but publishes no latency or accuracy numbers ([soniox.com/korea](https://soniox.com/korea)) [VC]. For comparison, that page lists RTZR at ₩1,000/h and CLOVA Speech at ₩1,200/h. The user prefers free system/on-device STT. Soniox becomes the cloud tier only if on-device accuracy proves insufficient. It would be VAD-gated, with keys issued through the Cloudflare Worker proxy and never shipped in the app.
