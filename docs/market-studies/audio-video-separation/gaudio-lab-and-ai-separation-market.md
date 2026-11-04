@@ -236,6 +236,25 @@ Run a Dolphin-class model and the incumbents' isolators on 10–20 messy real cl
   These are vendor claims taken from secondary write-ups. The primary model card was not read ([braindetox](https://braindetox.kr/en/posts/nvidia_nemotron_3_5_transcribe_korean_asr.html), [datanorth](https://datanorth.ai/news/nvidia-nemotron-3-5-transcribe)).
 - **What it means.** Transcription and diarization are now free, strong building blocks, which supports selling a job rather than a model. Competitors can use them too.
 
+**Financial targets (user decision, 2026-11-04).** The targets are **$500K profit in year 1 and $1–2M profit in year 2**. They replace the earlier "a few hundred thousand is enough". The working assumptions behind the arithmetic below are all estimates:
+- "Profit" means revenue minus direct costs (compute, payments, tools, ads) and excludes the founders' pay.
+- Direct costs are 20–30% of revenue.
+- Revenue starts after a 2–3 month MVP, and MRR then ramps roughly linearly.
+
+What the targets imply:
+- **Year-1 revenue:** about $650–750K.
+- **MRR needed by month 12:** about $110–150K, which is about $1.3–1.8M exit ARR. Starting revenue in month 3 instead of month 1 pushes it to the top of that range.
+- **Paying users at month 12:** about 9,000–12,000 at $12 per month, or about 4,500–6,000 at $25 per month.
+- **Year 2:** $1–2M profit needs about $1.4–2.7M revenue, which means growing to about $2.5–3.5M exit ARR.
+
+This is hit territory for a new self-serve product, not a typical indie ramp. An idea qualifies only if it has all of these:
+- A large reachable audience, such as general video creators or consumers, not a single profession.
+- A distribution engine: SEO, app stores, or shareable before-and-after results.
+- A visible "wow" result.
+- An MVP buildable from existing models within about 3 months.
+
+Narrow niches, such as wedding videographers alone, qualify only as a beachhead with a clear path into the wider market.
+
 **Unit cost (estimate).**
 - Using a third-party API first, for example Music.ai cinematic stems at $0.05/min, costs about $3 per audio hour.
 - Self-hosting later costs roughly $0.005–0.5 per audio hour (see the run-cost section), but needs model weights that are cleared for commercial use.
