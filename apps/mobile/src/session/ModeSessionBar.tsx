@@ -4,6 +4,7 @@ import { StyleSheet, Text, View } from 'react-native';
 
 import { Banner, Button } from '../components/ui';
 import { useTranslation } from '../i18n';
+import { VoiceNotice } from '../speech/VoiceNotice';
 import { colors, shared, space } from '../theme';
 import { endModeSession, startModeSession, useActiveMode, useModeSession } from './instance';
 import type { ManagedMode, ModeKey } from './modeSession';
@@ -47,6 +48,7 @@ export function ModeSessionBar({ mode }: { mode: ManagedMode }) {
           </View>
           <Button label={t('session.end')} kind="danger" onPress={() => void endModeSession()} />
         </View>
+        <VoiceNotice />
       </View>
     );
   }

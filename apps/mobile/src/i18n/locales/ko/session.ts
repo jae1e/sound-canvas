@@ -9,5 +9,8 @@ export default {
   'micPaused': '녹음에 마이크를 쓰는 중이에요. 테이크가 끝나면 음성 명령이 다시 켜져요',
   'blocked': '{{mode}}이(가) 음성 세션을 쓰고 있어요. 다른 모드를 시작하려면 먼저 종료하세요.',
   'open': '{{mode}} 열기',
+  'voice.notice.fallback': 'Supertonic 목소리를 쓸 수 없어서 이번 세션 내내 휴대폰 기본 목소리로 안내해요.',
+  'voice.notice.switched': '음성 엔진에 문제가 생겨서 이번 세션의 남은 시간은 휴대폰 기본 목소리로 안내해요.',
+  'voice.notice.reloading': '목소리를 다시 불러오는 중이에요. 그동안은 알림음이 나와요.',
   'error': '세션을 시작하지 못했어요',
 } as Record<string, string>;

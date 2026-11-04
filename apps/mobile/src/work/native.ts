@@ -3,6 +3,8 @@ import type { Lang } from '@vlc/session-engine';
 
 import VlcSessionService from '../../modules/vlc-session-service';
 import type { AppSettings } from '../settings/schema';
+import { applyEarconSettings } from '../speech/earconSettings';
+import { onSessionStarted, onSessionStopped, prewarm, say } from '../speech/sessionSpeech';
 import type { NativePort } from './controller';
 
 const REQUIRED: Permission = 'android.permission.RECORD_AUDIO';
@@ -45,6 +47,8 @@ export async function startNativeSession(lang: Lang, mode: SessionModeName): Pro
     sttEngine: 'platform',
     mode,
   });
+  // Fixed system phrases start synthesizing in the session voice right away.
+  onSessionStarted(lang);
 }
 
 /** Applies the speech settings to the native session. Nothing here makes a sound. */
@@ -52,6 +56,7 @@ export function applySpeechSettings(settings: AppSettings, lang: Lang): void {
   try {
     VlcSessionService.setSessionTts({ engine: settings.ttsEngine, voice: settings.ttsVoice, steps: settings.ttsSteps });
     VlcSessionService.setSpeechLanguage(lang);
+    applyEarconSettings(settings);
     // Only an explicit user choice ever selects the phone speaker; the default is the system route.
     void VlcSessionService.setSpeechOutput(settings.outputRoute);
   } catch {
@@ -76,11 +81,12 @@ export function createNativePort(getSettings: () => AppSettings): NativePort {
     },
 
     async stop() {
+      onSessionStopped();
       await VlcSessionService.stopSession();
     },
 
-    speak(text, priority) {
-      VlcSessionService.speak(text, priority, null);
+    speak(text, priority, opts) {
+      say(text, { priority, earcon: opts?.earcon, staleAtMs: opts?.staleAtMs, cueId: opts?.cueId });
     },
 
     stopSpeaking() {
@@ -89,6 +95,8 @@ export function createNativePort(getSettings: () => AppSettings): NativePort {
 
     scheduleCue(id, atEpochMs, fallbackText) {
       VlcSessionService.scheduleCue(id, atEpochMs, fallbackText);
+      // The text is known now: synthesize it in the background so the cue plays from cache when it is due.
+      prewarm([{ text: fallbackText, needByMs: atEpochMs }]);
     },
 
     cancelCue(id) {

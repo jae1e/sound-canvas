@@ -7,6 +7,7 @@ import android.os.Bundle
 import android.os.SystemClock
 import android.speech.tts.TextToSpeech
 import android.speech.tts.UtteranceProgressListener
+import expo.modules.vlcsessionservice.audio.EarconPlayer
 import expo.modules.vlcsessionservice.audio.SpeechOutput
 import expo.modules.vlcsessionservice.log.DiagLog
 import expo.modules.vlcsessionservice.log.chainText
@@ -22,8 +23,17 @@ import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicInteger
 import java.util.concurrent.atomic.AtomicLong
 
+/** Per-utterance options: an earcon to play now while the voice is not ready, and when the phrase stops being true. */
+data class SpeakOpts(val earcon: String? = null, val staleAtEpochMs: Long = 0L)
+
 /**
- * Session speech output: Supertonic (sherpa-onnx, in-process) when configured and loaded, else Android TextToSpeech.
+ * Session speech output with ONE voice per session. [init] chooses the voice once: Supertonic (sherpa-onnx, in-process)
+ * when wanted and its model is downloaded, else Android TextToSpeech for the whole session. Nothing mixes engines:
+ *  - a cue whose audio is not ready gets an earcon (when the caller asked for one), then speech in the session voice as
+ *    soon as it is ready, unless it went stale (`speech_late`, `speech_dropped_stale`);
+ *  - if the Supertonic engine fails (error outcome, load failure) it is reloaded once, with earcons in the meantime; if
+ *    that fails too, the platform voice announces the change once and takes over for the rest of the session
+ *    (`voice_switched`). That is the only allowed mid-session switch.
  * Android TextToSpeech wrapper living inside the foreground service.
  * `onStart` of UtteranceProgressListener is our "audible start" proxy (the engine has begun
  * to synthesise/play; real acoustic output can lag by tens of ms).
@@ -42,6 +52,10 @@ class TtsController(
     val requestedRt: Long,
     @Volatile var engine: String,
     @Volatile var started: Boolean = false,
+    val earcon: String? = null,
+    val staleAtEpochMs: Long = 0L,
+    @Volatile var earconPlayed: Boolean = false,
+    @Volatile var attempts: Int = 0,
   )
 
   // ---- Supertonic path state (guarded by stLock) ----
@@ -50,8 +64,26 @@ class TtsController(
   private val stQueue = ArrayDeque<String>()
   private var stCurrent: String? = null
   private var shutdownFlag = false
-  @Volatile private var loadFailed = false
-  @Volatile private var lastEngine: String? = null
+
+  // ---- session voice (chosen once in init) ----
+  /** "supertonic" or "platform"; changes only through [switchToPlatform]. */
+  @Volatile var sessionVoice: String = "platform"
+    private set
+  @Volatile var sessionSid: Int = 0
+    private set
+  @Volatile var sessionSteps: Int = 8
+    private set
+  /** Why the session voice is the platform voice although Supertonic was wanted ("model_missing", ...), else null. */
+  @Volatile var degradedReason: String? = null
+    private set
+  @Volatile var voiceSwitched = false
+    private set
+  @Volatile private var reloadsUsed = 0
+  @Volatile private var spokeInSupertonic = false
+  /** Set by the service; plays the earcon of a cue whose speech is not ready. */
+  @Volatile var earcons: EarconPlayer? = null
+  /** Called whenever the session voice state changes (start decision, reload, switch). */
+  @Volatile var onVoiceEvent: ((Map<String, Any?>) -> Unit)? = null
 
   private val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
   private var tts: TextToSpeech? = null
@@ -74,6 +106,19 @@ class TtsController(
 
   fun init(language: String) {
     locale = localeFor(language)
+    // The voice is decided here, once. Later setSessionTts changes apply to the next session.
+    sessionSid = SessionTts.voice
+    sessionSteps = SessionTts.steps
+    val wants = SessionTts.wantsSupertonic()
+    if (wants && SessionTts.modelReady(context)) {
+      sessionVoice = "supertonic"
+      degradedReason = null
+    } else {
+      sessionVoice = "platform"
+      degradedReason = if (wants) "model_missing" else null
+    }
+    log.log("session_voice_chosen", voiceInfo())
+    onVoiceEvent?.invoke(voiceInfo())
     ensureSupertonic()
     tts = TextToSpeech(context) { status ->
       synchronized(queuedBeforeReady) {
@@ -112,20 +157,39 @@ class TtsController(
     }
   }
 
+  fun voiceInfo(): Map<String, Any?> = mapOf(
+    "voice" to sessionVoice,
+    "degraded" to (degradedReason != null),
+    "reason" to degradedReason,
+    "switched" to voiceSwitched,
+    "reloadsUsed" to reloadsUsed,
+    "loaded" to (synchronized(stLock) { stEngine != null }),
+    "reloading" to (sessionVoice == "supertonic" && reloadsUsed > 0 && synchronized(stLock) { stEngine == null }),
+    "voiceId" to sessionSid,
+    "steps" to sessionSteps,
+  )
+
+  /** The user has heard the Supertonic voice (live or cached clip), so a later change of voice must be announced. */
+  fun noteSupertonicHeard() {
+    if (sessionVoice == "supertonic") spokeInSupertonic = true
+  }
+
   /** @param priority "high"/"cue" flush the queue; anything else appends. */
-  fun speak(text: String, priority: String, cueId: String?, source: String): String {
+  fun speak(text: String, priority: String, cueId: String?, source: String, opts: SpeakOpts = SpeakOpts()): String {
     val id = "u${seq.incrementAndGet()}"
     val requestedRt = SystemClock.elapsedRealtime()
     val flush = priority == "high" || priority == "cue"
-    if (stEngine == null && !loadFailed) ensureSupertonic()
-    // Appended items stay on the engine of whatever is still queued so two engines never overlap.
-    val engine = if (!flush && activeCount.get() > 0 && lastEngine != null) lastEngine!!
-    else if (SessionTts.wantsSupertonic() && stEngine != null) "supertonic" else "platform"
-    lastEngine = engine
-    pending[id] = Pending(text, cueId, source, requestedRt, engine)
+    if (sessionVoice == "supertonic" && stEngine == null) ensureSupertonic()
+    val engine = sessionVoice // one voice per session: never chosen per utterance
+    val p = Pending(text, cueId, source, requestedRt, engine, earcon = if (engine == "supertonic") opts.earcon else null, staleAtEpochMs = opts.staleAtEpochMs)
+    pending[id] = p
     if (activeCount.incrementAndGet() == 1) onActiveChanged?.invoke(true)
-    log.log("tts_request", mapOf("utteranceId" to id, "priority" to priority, "cueId" to cueId, "source" to source, "chars" to text.length, "engine" to engine))
-    if (engine == "supertonic") speakSupertonic(id, flush) else {
+    log.log("tts_request", mapOf("utteranceId" to id, "priority" to priority, "cueId" to cueId, "source" to source, "chars" to text.length, "engine" to engine, "earcon" to p.earcon, "staleAtEpochMs" to opts.staleAtEpochMs))
+    if (engine == "supertonic") {
+      // Synthesis takes about 1.8 s and is not streamed: mask it with the earcon, then speak when ready.
+      p.earcon?.let { name -> p.earconPlayed = earcons?.play(name, "speech:${cueId ?: source}") == true }
+      speakSupertonic(id, flush)
+    } else {
       if (flush) stClear()
       speakPlatform(id, text, flush)
     }
@@ -161,18 +225,21 @@ class TtsController(
 
   // ---- Supertonic path ----------------------------------------------------------------------------
 
-  /** Loads the Supertonic engine in the background if wanted and the model is downloaded. Never blocks the caller. */
+  /** Loads the Supertonic engine in the background if it is the session voice. Never blocks the caller. */
   fun ensureSupertonic() {
-    if (!SessionTts.wantsSupertonic()) return
+    if (sessionVoice != "supertonic") return
     if (!SessionTts.modelReady(context)) {
-      SessionTts.lastError = "Model ${SessionTts.SUPERTONIC_SET} is not downloaded; using platform TTS"
+      SessionTts.lastError = "Model ${SessionTts.SUPERTONIC_SET} is not downloaded"
       return
     }
+    startLoad()
+  }
+
+  private fun startLoad() {
     synchronized(stLock) {
       if (shutdownFlag || stEngine != null || SessionTts.loading) return
       SessionTts.loading = true
     }
-    loadFailed = false
     Thread({
       val e = SherpaTtsEngine(context, "supertonic", "Supertonic 3", SherpaTtsEngine.Kind.SUPERTONIC)
       val r = try { e.prepare(locale) } catch (t: Throwable) { mapOf("ok" to false, "error" to t.chainText()) }
@@ -185,14 +252,57 @@ class TtsController(
           SessionTts.loaded = true
           SessionTts.lastError = null
         } else {
-          loadFailed = true
           SessionTts.lastError = (r["error"] ?: "prepare failed").toString()
           discard = true
         }
       }
-      log.log("tts_session_supertonic_load", mapOf("ok" to !discard, "result" to r.filterKeys { it != "modelLang" }))
-      if (discard) try { e.release() } catch (_: Throwable) {}
+      log.log("tts_session_supertonic_load", mapOf("ok" to !discard, "reloads" to reloadsUsed, "result" to r.filterKeys { it != "modelLang" }))
+      if (discard) {
+        try { e.release() } catch (_: Throwable) {}
+        if (!shutdownFlag) onEngineLost("load_failed:${SessionTts.lastError}")
+      } else {
+        onVoiceEvent?.invoke(voiceInfo())
+        synchronized(stLock) { pumpLocked() } // queued cues waited for the engine
+      }
     }, "vlc-st-load").start()
+  }
+
+  /**
+   * The Supertonic engine is gone (load failed, error outcome, unloaded). Reload it once; the cues that need it wait
+   * behind their earcons. After the second loss, switch the whole session to the platform voice.
+   */
+  private fun onEngineLost(reason: String) {
+    if (sessionVoice != "supertonic" || shutdownFlag) return
+    val old = synchronized(stLock) { stEngine.also { stEngine = null } }
+    SessionTts.loaded = false
+    if (old != null) Thread({ try { old.release() } catch (_: Throwable) {} }, "vlc-st-release").start()
+    log.log("voice_engine_lost", mapOf("reason" to reason, "reloadsUsed" to reloadsUsed, "spokeInSupertonic" to spokeInSupertonic))
+    if (reloadsUsed < 1) {
+      reloadsUsed++
+      log.log("voice_reload", mapOf("reason" to reason))
+      onVoiceEvent?.invoke(voiceInfo())
+      startLoad()
+    } else {
+      switchToPlatform(reason, announce = spokeInSupertonic)
+    }
+  }
+
+  /** The one allowed mid-session switch. Announces it once in the new voice when the user had already heard Supertonic. */
+  private fun switchToPlatform(reason: String, announce: Boolean) {
+    val waiting: List<String>
+    synchronized(stLock) {
+      sessionVoice = "platform"
+      voiceSwitched = announce
+      degradedReason = if (announce) "voice_switched" else "load_failed"
+      waiting = stQueue.toList()
+      stQueue.clear()
+      stCurrent = null
+    }
+    log.log("voice_switched", mapOf("from" to "supertonic", "to" to "platform", "reason" to reason, "announced" to announce, "queued" to waiting.size))
+    onVoiceEvent?.invoke(voiceInfo())
+    waiting.forEach { id -> pending[id]?.let { p -> p.engine = "platform" } }
+    if (announce) speak(VOICE_SWITCH_MESSAGES[if (locale.language == "en") "en" else "ko"]!!, "normal", null, "voice_switch")
+    waiting.forEach { id -> pending[id]?.let { speakPlatform(id, it.text, false) } }
   }
 
   /** Stops the Supertonic engine and forgets queued items; their `pending` entries are the caller's to finish. */
@@ -220,18 +330,17 @@ class TtsController(
 
   private fun pumpLocked() {
     while (stCurrent == null) {
-      val id = stQueue.removeFirstOrNull() ?: return
-      val p = pending[id] ?: continue
-      val eng = stEngine
-      if (eng == null) {
-        stCurrent = null
-        fallbackToPlatform(id, "engine_released")
-        continue
-      }
+      val id = stQueue.firstOrNull() ?: return
+      val p = pending[id]
+      if (p == null) { stQueue.removeFirst(); continue }
+      if (isStale(p)) { stQueue.removeFirst(); dropStale(id, p, "queue"); continue }
+      val eng = stEngine ?: return // loading or reloading: the load thread pumps again; the cue's earcon already played
+      stQueue.removeFirst()
       stCurrent = id
+      p.attempts++
       try {
         requestFocus(SpeechOutput.trackUsage())
-        val req = SpeakRequest(id, p.text, locale, SessionTts.voice.toString(), p.requestedRt, mapOf("steps" to SessionTts.steps))
+        val req = SpeakRequest(id, p.text, locale, sessionSid.toString(), p.requestedRt, mapOf("steps" to sessionSteps, "staleAtEpochMs" to p.staleAtEpochMs))
         eng.speak(req, object : SpeakCallback {
           override fun onFirstAudio(rt: Long, routed: AudioDeviceInfo?, info: Map<String, Any?>) {
             if (stCurrent == id) markStarted(id, rt, routed)
@@ -242,34 +351,40 @@ class TtsController(
       } catch (t: Throwable) {
         stCurrent = null
         SessionTts.lastError = t.chainText()
-        fallbackToPlatform(id, t.chainText())
+        requeueOrFail(id, p)
+        Thread({ onEngineLost("speak_threw:${t.chainText()}") }, "vlc-st-lost").start()
+        return
       }
     }
   }
 
+  private fun isStale(p: Pending) = p.staleAtEpochMs > 0 && System.currentTimeMillis() > p.staleAtEpochMs
+
+  private fun dropStale(id: String, p: Pending, stage: String) {
+    log.log("speech_dropped_stale", mapOf("utteranceId" to id, "cueId" to p.cueId, "text" to p.text, "stage" to stage, "lateMs" to System.currentTimeMillis() - p.staleAtEpochMs, "afterRequestMs" to SystemClock.elapsedRealtime() - p.requestedRt, "earconPlayed" to p.earconPlayed))
+    finish(id, "dropped_stale")
+  }
+
+  /** A failed utterance goes back to the front of the Supertonic queue once (same engine, after the reload); then it is dropped. */
+  private fun requeueOrFail(id: String, p: Pending) {
+    if (p.attempts < 2) synchronized(stLock) { stQueue.addFirst(id) } else finish(id, "error")
+  }
+
   private fun onStFinished(id: String, outcome: String) {
+    val p = pending[id]
     synchronized(stLock) {
       if (stCurrent != id) return // flushed/stopped by us; already reconciled
       stCurrent = null
     }
     if (outcome.startsWith("error")) {
       SessionTts.lastError = outcome
-      // The rest of the queue moves to platform too so the two engines never overlap.
-      val rest = synchronized(stLock) { stQueue.toList().also { stQueue.clear() } }
-      fallbackToPlatform(id, outcome)
-      rest.forEach { fallbackToPlatform(it, "queue_after_error") }
+      if (p != null) requeueOrFail(id, p)
+      // Reload happens off this callback thread (release() waits for generation to leave).
+      Thread({ onEngineLost(outcome) }, "vlc-st-lost").start()
       return
     }
-    finish(id, outcome)
+    if (outcome == "dropped_stale" && p != null) dropStale(id, p, "generated") else finish(id, outcome)
     synchronized(stLock) { pumpLocked() }
-  }
-
-  private fun fallbackToPlatform(id: String, reason: String) {
-    val p = pending[id] ?: return
-    log.log("tts_engine_fallback", mapOf("utteranceId" to id, "from" to "supertonic", "to" to "platform", "reason" to reason))
-    p.engine = "platform"
-    lastEngine = "platform"
-    speakPlatform(id, p.text, false)
   }
 
   private fun markStarted(id: String, rt: Long, routed: AudioDeviceInfo?) {
@@ -277,6 +392,10 @@ class TtsController(
     if (p.started) return
     p.started = true
     lastActivityRt.set(rt)
+    if (p.engine == "supertonic") spokeInSupertonic = true
+    if (p.earconPlayed || p.staleAtEpochMs > 0) {
+      log.log("speech_late", mapOf("utteranceId" to id, "cueId" to p.cueId, "lateMs" to rt - p.requestedRt, "earconPlayed" to p.earconPlayed, "earcon" to p.earcon))
+    }
     log.log("tts_start", mapOf("utteranceId" to id, "cueId" to p.cueId, "speakToStartMs" to rt - p.requestedRt, "engine" to p.engine))
     // Logs `speech_output_route` + emits `speechOutputRoute`: where this utterance is actually going.
     val usage = if (p.engine == "supertonic") SpeechOutput.trackUsage() else currentUsage()
@@ -301,6 +420,7 @@ class TtsController(
   fun shutdown() {
     stop("shutdown")
     val e = synchronized(stLock) { shutdownFlag = true; stEngine.also { stEngine = null } }
+    earcons = null
     SessionTts.loaded = false
     // release() waits for native generation to leave; keep that off the caller (may be the main thread).
     if (e != null) Thread({ try { e.release() } catch (_: Throwable) {} }, "vlc-st-release").start()
@@ -410,6 +530,12 @@ class TtsController(
   }
 
   companion object {
+    /** Spoken once, in the platform voice, when the Supertonic voice is lost for good mid-session. */
+    val VOICE_SWITCH_MESSAGES = mapOf(
+      "ko" to "음성 엔진에 문제가 생겨서, 지금부터 목소리가 바뀌어요.",
+      "en" to "The voice engine had a problem, so my voice will change for the rest of this session.",
+    )
+
     fun localeFor(language: String): Locale = if (language.startsWith("en")) Locale.US else Locale.KOREA
   }
 }

@@ -4,6 +4,7 @@ import VlcSessionService from '../../modules/vlc-session-service';
 import { startNativeSession } from '../work/native';
 import { applySpeechSettings } from '../work/native';
 import type { AppSettings } from '../settings/schema';
+import { onSessionStopped, prewarm, say } from '../speech/sessionSpeech';
 import type { RoutineNativePort } from './controller';
 
 /**
@@ -24,9 +25,11 @@ export function createRoutineNativePort(getSettings: () => AppSettings): Routine
       applySpeechSettings(getSettings(), lang);
     },
     async stop() {
+      onSessionStopped();
       await VlcSessionService.stopSession();
     },
-    speak: (text) => void VlcSessionService.speak(text, 'high', null),
+    speak: (text) => void say(text, { priority: 'high' }),
+    prewarm: (items) => prewarm(items),
     stopSpeaking: () => VlcSessionService.stopSpeaking(),
     async prepare(clips, onProgress) {
       const sub = VlcSessionService.addListener('pacePrepareProgress', (e) => onProgress(e.done, e.total));

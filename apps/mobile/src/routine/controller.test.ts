@@ -83,7 +83,7 @@ describe('start', () => {
     await f.c.start(tpl('routine-taegeuk-1', 'en'));
     expect(f.calls.started).toBe(1);
     expect(f.c.state().phase).toBe('running');
-    expect(f.c.state().notice).toMatch(/live speech/);
+    expect(f.c.state().notice).toMatch(/tones will play/);
     expect(f.calls.scheduled.length).toBeGreaterThan(0);
   });
 

@@ -91,6 +91,33 @@ export type SessionTtsStatus = {
   active: SessionTtsEngine;
   lastError: string | null;
 };
+export type EarconName = 'attention' | 'timer_done' | 'turn_left' | 'turn_right' | 'arrived' | 'warning' | 'tick';
+/** A cue to speak in the one session voice. */
+export type SpeakCueSpec = {
+  text: string;
+  lang: 'ko' | 'en';
+  /** Fragments of `text`; played from cached clips (short gaps) when the whole text has no clip. */
+  parts?: string[];
+  priority: PriorityName;
+  cueId?: string | null;
+  /** Played at once when the session voice cannot start the phrase immediately. */
+  earcon?: EarconName | null;
+  /** Epoch ms after which the phrase is no longer true; it is then dropped, not spoken late. */
+  staleAtEpochMs?: number;
+};
+export type SpeakCuePath = 'clip' | 'compose' | 'earcon_speech' | 'live' | 'dropped_stale' | 'skipped' | 'no_session';
+export type SessionVoiceInfo = {
+  /** The session voice, chosen once at start; null without a session. */
+  voice: 'supertonic' | 'platform' | null;
+  /** Supertonic was wanted but the phone voice is used (show a notice). */
+  degraded: boolean;
+  reason: string | null;
+  /** The voice changed mid-session after an engine failure and a failed reload. */
+  switched: boolean;
+  reloadsUsed?: number;
+  loaded?: boolean;
+  reloading?: boolean;
+};
 export type CueDueEvent = {
   id: string;
   atEpochMs: number;
@@ -293,8 +320,8 @@ export type PaceBeatEvent = {
   index: number;
   tag: string | null;
   text: string;
-  /** 'cache' = native clip; 'live_tts' = clip missing, spoken through the live TTS path. */
-  source: 'cache' | 'live_tts';
+  /** 'cache' = native clip; 'earcon' = clip missing, a tick was played instead (no other voice is ever used). */
+  source: 'cache' | 'earcon';
   scheduledOffsetMs: number;
   /** Uptime right after play() returned minus the scheduled uptime. */
   driftMs: number;
@@ -348,6 +375,7 @@ export type VlcSessionServiceModuleEvents = {
   partialTranscript: (e: PartialTranscriptEvent) => void;
   finalTranscript: (e: FinalTranscriptEvent) => void;
   echoSuppressed: (e: EchoSuppressedEvent) => void;
+  sessionVoice: (e: SessionVoiceInfo) => void;
   ttsStart: (e: TtsStartEvent) => void;
   ttsDone: (e: TtsDoneEvent) => void;
   cueDue: (e: CueDueEvent) => void;

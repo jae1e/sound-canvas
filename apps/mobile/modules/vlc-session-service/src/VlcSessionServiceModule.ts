@@ -13,6 +13,10 @@ import type {
   RouteState,
   SessionTtsConfig,
   SessionTtsStatus,
+  SessionVoiceInfo,
+  SpeakCuePath,
+  SpeakCueSpec,
+  EarconName,
   SessionOptions,
   SessionStateName,
   SpeechOutputMode,
@@ -46,6 +50,20 @@ declare class VlcSessionServiceNative extends NativeModule<VlcSessionServiceModu
 
   /** Synchronous (no queue hop). Returns the utterance id, or null if skipped. */
   speak(text: string, priority: PriorityName, cueId: string | null): string | null;
+  /**
+   * Speaks a cue in the one session voice: stale -> dropped; cached clip or cached fragments -> played from memory;
+   * otherwise live, behind `earcon` when the voice is Supertonic. Never switches to another voice.
+   */
+  speakCue(spec: SpeakCueSpec): { path: SpeakCuePath; utteranceId?: string };
+  /** For each text, whether the session voice has a cached clip for it. */
+  clipsCached(texts: string[], lang: 'ko' | 'en'): boolean[];
+  /** The session voice decision and state ({ voice: null } without a session). */
+  getSessionVoice(): SessionVoiceInfo;
+  /** Plays one earcon now. Only call this from a user action (preview) or a real cue; follows the system route. */
+  playEarcon(name: EarconName, vibrate: boolean): boolean;
+  /** volume 0..1 relative to speech; vibrate is the default for earcons the service plays. */
+  setEarconSettings(volume: number, vibrate: boolean): void;
+  earconNames(): EarconName[];
   /** Synchronous, plays nothing. Engine selection for session speech; applies to later utterances. Values are clamped. */
   setSessionTts(config: SessionTtsConfig): void;
   /** Works with or without a running session. */

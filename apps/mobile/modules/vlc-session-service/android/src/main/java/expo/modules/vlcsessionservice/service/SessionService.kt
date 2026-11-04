@@ -22,6 +22,7 @@ import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
 import expo.modules.vlcsessionservice.audio.AudioCapture
 import expo.modules.vlcsessionservice.audio.AudioRouting
+import expo.modules.vlcsessionservice.audio.EarconPlayer
 import expo.modules.vlcsessionservice.audio.PacingPlayer
 import expo.modules.vlcsessionservice.location.LocationTracker
 import expo.modules.vlcsessionservice.log.BatteryMonitor
@@ -29,6 +30,7 @@ import expo.modules.vlcsessionservice.log.DiagLog
 import expo.modules.vlcsessionservice.speech.ModelCatalog
 import expo.modules.vlcsessionservice.speech.ModelManager
 import expo.modules.vlcsessionservice.speech.PacingCache
+import expo.modules.vlcsessionservice.speech.SpeakOpts
 import expo.modules.vlcsessionservice.speech.SpeechPipeline
 import expo.modules.vlcsessionservice.speech.TtsController
 
@@ -56,8 +58,12 @@ class SessionService : Service() {
     private set
   var pacing: PacingPlayer? = null
     private set
+  var earcons: EarconPlayer? = null
+    private set
   @Volatile private var ttsSpeaking = false
   @Volatile private var paceSpeaking = false
+  @Volatile private var earconSpeaking = false
+  private val cueSeq = java.util.concurrent.atomic.AtomicInteger()
   private var location: LocationTracker? = null
   private var battery: BatteryMonitor? = null
   @Volatile private var bargeIn = false
@@ -124,16 +130,24 @@ class SessionService : Service() {
 
       val t = TtsController(this, log, emit) { _, cueId, rt, source -> if (cueId != null) cues?.audible(cueId, rt, source) }
       tts = t
+      val ec = EarconPlayer(this, log) { playing -> earconSpeaking = playing; updateSttHalfDuplex() }
+      earcons = ec
+      t.earcons = ec
+      t.onVoiceEvent = { info -> emit("sessionVoice", info) }
       t.setCommunicationUsage(r.inCommunicationMode())
       t.init(cfg.language)
       t.onActiveChanged = { speaking -> ttsSpeaking = speaking; updateSttHalfDuplex() }
 
-      cues = CueScheduler(this, log, emit) { text, cueId -> speak(text, "cue", cueId, "native_fallback") }
+      // JS did not answer a due cue in time: speak it natively, in the session voice, behind a timer earcon if not cached.
+      cues = CueScheduler(this, log, emit) { text, cueId ->
+        speakCue(CueSpec(text, cfg.language, null, "cue", cueId, "native_fallback", "timer_done", 0L))
+      }
       val pc = PacingCache(this, log, t)
       pacingCache = pc
       pacing = PacingPlayer(
         this, log, emit, pc,
-        speakLive = { text -> speak(text, "normal", null, "pace_fallback") },
+        onMissing = { text, tag -> onPaceClipMissing(text, tag) },
+        onPlayed = { t.noteSupertonicHeard() },
         onSpeaking = { speaking -> paceSpeaking = speaking; updateSttHalfDuplex() },
       )
 
@@ -230,7 +244,7 @@ class SessionService : Service() {
 
   /** Half-duplex hook: STT stays paused while either live TTS or a pacing clip is audible. */
   private fun updateSttHalfDuplex() {
-    sessionStt?.onTtsActive(ttsSpeaking || paceSpeaking)
+    sessionStt?.onTtsActive(ttsSpeaking || paceSpeaking || earconSpeaking)
   }
 
   fun setBargeIn(enabled: Boolean) {
@@ -238,15 +252,67 @@ class SessionService : Service() {
     log.log("barge_in_setting", mapOf("enabled" to enabled))
   }
 
-  /** Never throws; returns the utterance id, or null when skipped. */
-  fun speak(text: String, priority: String, cueId: String?, source: String): String? {
-    val t = tts ?: return null
-    if (cueId != null && source != "native_fallback" && cues?.fallbackTookOver(cueId) == true) {
-      log.log("cue_js_speak_skipped", mapOf("id" to cueId, "reason" to "native fallback already speaking"))
-      return null
+  /** A cue to say now, with how to behave when its audio is not ready. */
+  class CueSpec(
+    val text: String,
+    val lang: String,
+    /** Fragments that make up [text]; played from cached clips (with short gaps) when the whole phrase is not cached. */
+    val parts: List<String>?,
+    val priority: String,
+    val cueId: String?,
+    val source: String,
+    /** Earcon to play at once when the session voice (Supertonic) cannot start this phrase immediately; null for none. */
+    val earcon: String?,
+    /** Epoch ms after which the phrase is no longer true; 0 for never. */
+    val staleAtEpochMs: Long,
+  )
+
+  /** Compatibility entry point for plain `speak` calls (no earcon, no staleness). Never throws; returns the utterance id, or null. */
+  fun speak(text: String, priority: String, cueId: String?, source: String): String? =
+    speakCue(CueSpec(text, SessionRuntime.config.language, null, priority, cueId, source, null, 0L))["utteranceId"] as String?
+
+  /**
+   * One path for every spoken cue, in the ONE session voice:
+   *  1. stale at request time: dropped (`speech_dropped_stale`);
+   *  2. whole phrase cached: played from memory; else all [CueSpec.parts] cached: composed and played;
+   *  3. otherwise the session voice speaks it live. With Supertonic (about 1.8 s, not streamed) the earcon plays first and
+   *     the speech follows when ready unless it went stale. The platform voice answers fast and needs no earcon.
+   * There is no switch to another voice here; see TtsController for the single allowed switch.
+   */
+  fun speakCue(spec: CueSpec): Map<String, Any?> {
+    val t = tts ?: return mapOf("path" to "no_session")
+    if (spec.cueId != null && spec.source != "native_fallback" && cues?.fallbackTookOver(spec.cueId) == true) {
+      log.log("cue_js_speak_skipped", mapOf("id" to spec.cueId, "reason" to "native fallback already speaking"))
+      return mapOf("path" to "skipped")
+    }
+    val now = System.currentTimeMillis()
+    if (spec.staleAtEpochMs > 0 && now > spec.staleAtEpochMs) {
+      log.log("speech_dropped_stale", mapOf("cueId" to spec.cueId, "text" to spec.text, "stage" to "request", "lateMs" to now - spec.staleAtEpochMs))
+      return mapOf("path" to "dropped_stale")
     }
     t.setCommunicationUsage(routing?.inCommunicationMode() == true)
-    return t.speak(text, priority, cueId, source)
+    val cache = pacingCache
+    val player = pacing
+    if (cache != null && player != null) {
+      val full = cache.hasClip(spec.text, spec.lang)
+      val frags = spec.parts?.takeIf { it.size > 1 }
+      val composable = !full && frags != null && frags.all { cache.hasClip(it, spec.lang) }
+      if (full || composable) {
+        if (spec.priority == "high" || spec.priority == "cue") t.stop("clip_cue")
+        player.playNow("cue-${cueSeq.incrementAndGet()}", if (full) listOf(spec.text) else frags!!, spec.lang, spec.cueId)
+        spec.cueId?.let { cues?.audible(it, SystemClock.elapsedRealtime(), "clip") }
+        log.log("cue_clip", mapOf("cueId" to spec.cueId, "text" to spec.text, "composed" to !full, "source" to spec.source))
+        return mapOf("path" to if (full) "clip" else "compose")
+      }
+    }
+    val id = t.speak(spec.text, spec.priority, spec.cueId, spec.source, SpeakOpts(spec.earcon, spec.staleAtEpochMs))
+    return mapOf("path" to if (spec.earcon != null && t.sessionVoice == "supertonic") "earcon_speech" else "live", "utteranceId" to id)
+  }
+
+  /** A pacing beat had no cached clip: a late count is no longer true, so play a tick instead of switching voice. */
+  private fun onPaceClipMissing(text: String, tag: String?) {
+    log.log("speech_dropped_stale", mapOf("text" to text, "tag" to tag, "stage" to "pace_clip_missing"))
+    earcons?.play("tick", "pace_clip_missing")
   }
 
   private fun fail(code: String, message: String) {
@@ -274,6 +340,7 @@ class SessionService : Service() {
     safe("stt_session") { sessionStt?.release(); sessionStt = null }
     safe("capture") { capture?.stop(); capture = null }
     safe("cues") { cues?.shutdown(); cues = null }
+    safe("earcons") { earcons?.shutdown(); earcons = null }
     safe("pacing") { pacing?.shutdown(); pacing = null; pacingCache = null }
     safe("tts") { tts?.shutdown(); tts = null }
     safe("routing") { routing?.unregister(); routing?.clear(); routing = null }

@@ -32,7 +32,7 @@ Open Work Partner > "Workout, stretching and poomsae". Unit tests cover the rout
 - [ ] Squats: counts "하나, 둘, 셋..." on a steady 3 s beat, rest announcements ("휴식 30초", "다음 세트", "3, 2, 1"), then "다음: 푸시업...". Plank: "10초 남았어요", "3, 2, 1".
 - [ ] Lock the screen mid-set: counting continues without gaps. Music from another app ducks (does not stop) while counting and recovers afterwards.
 - [ ] Earbuds connected: counts play in the earbuds, not the phone speaker. Disconnect: it follows the system route.
-- [ ] Settings > Diagnostics > Share log: look for `pace_beat` lines (field `driftMs` = play start minus scheduled time) and one `pace_segment` per set (mean, p95, max). Expected: median under about 30 ms, p95 under 60 ms on the handler path; Bluetooth adds a constant output latency that this number does not include. Note any `pace_clip_missing` (those beats used live TTS).
+- [ ] Settings > Diagnostics > Share log: look for `pace_beat` lines (field `driftMs` = play start minus scheduled time) and one `pace_segment` per set (mean, p95, max). Expected: median under about 30 ms, p95 under 60 ms on the handler path; Bluetooth adds a constant output latency that this number does not include. Note any `pace_clip_missing` (those beats played a tick earcon; no other voice is used).
 - [ ] While a count plays, speech recognition is paused (log `stt_paused_for_tts`); say `멈춰` / `stop` between counts: pacing pauses. Say it exactly during a number: it may be missed (half-duplex gap rule, below). The on-screen Pause button always works.
 
 **Voice changes during a session (ko and en)**
@@ -72,6 +72,20 @@ Mock mode (no `expo.extra.travel` in `app.json`, the default): the screen shows 
 - [ ] Restart the app: practice blocks, takes (with notes) and their WAV files are still there.
 - [ ] Live pitch ("monitor") pauses session STT while on and resumes it when turned off.
 - [ ] Speech-mode blocks: speaking rate and pauses come from audio energy. Filler-word counts need a transcript, which is not available while the mic is held for the take (see gaps below).
+
+## One voice and earcons (added 2026-11-04, untested on a device)
+
+Nothing here may play unless you tap it or a real cue is due. Use earbuds; the phone speaker is never forced.
+
+- [ ] Settings > Alert tones: tap each tone chip once. Seven distinct short tones play on the earbuds (message coming, timer done, turn left falling, turn right rising, arrived, warning low and pulsed, thinking tick). The volume keys change their loudness; the Tone volume stepper changes them relative to speech. With vibration set to Always, the phone vibrates with each tone except the tick.
+- [ ] Start a Work Partner session with Supertonic downloaded. No banner. Say "set a timer for 2 minutes called rice". Wait about 30 s, then check Diagnostics: `pace_prepare` shows the timer text synthesized (engine supertonic). When the timer ends, the phrase plays at once from cache (log `cue_clip`), with no earcon.
+- [ ] Set a timer for 20 seconds and stop the session's clip cache first (Diagnostics > clear pacing cache) so nothing is ready: at the due time a timer tone plays, then the phrase is spoken in the **same voice** about 2 s later (`earcon_played`, `speech_late` with lateMs). The voice never changes.
+- [ ] Same with a 1-minute pre-warning: if it is spoken more than 20 s late it is dropped (`speech_dropped_stale`), not said.
+- [ ] Delete the Supertonic model (Settings > Voice), start a session: the session screen shows the notice that the phone voice is used for this whole session, and every phrase uses the phone voice. No tones are needed because the phone voice is fast.
+- [ ] Travel Guide: fetch a route, wait a few seconds, walk (or replay a fix log). Turn cues play as composed fragments ("50미터 앞에서" + "우회전하세요"; `cue_clip` with composed=true). Force a miss by clearing the cache: a left or right turn tone plays first, then the cue only if you have not passed the turn.
+- [ ] Routine: edit during practice ("note: ..."). The new cue text appears in the `pace_prepare` log before the next unit; a clip that cannot be made plays a tick, never a phone-voice count.
+- [ ] Voice failure (cannot be forced from the UI; check the log after any engine error): expect `voice_engine_lost`, `voice_reload`, tones in the meantime, then either speech resumes in the same voice or the phone voice announces once "음성 엔진에 문제가 생겨서, 지금부터 목소리가 바뀌어요." and the banner changes (`voice_switched`).
+- [ ] Grep the log for `tts_engine_fallback` and `pace_clip_fallback`: neither may appear any more.
 
 ## Known gaps to keep in mind while testing
 

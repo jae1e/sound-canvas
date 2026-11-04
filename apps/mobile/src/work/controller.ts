@@ -15,6 +15,7 @@ import {
   type ActionEnvelope,
   type Change,
   type DueEvent,
+  type EarconName,
   type Lang,
   type NudgeLevel,
   type PlanTemplate,
@@ -36,12 +37,19 @@ import { summaryOf } from './view';
 import type { WorkSummary } from './summary';
 
 /** The native foreground session as the controller sees it. Implemented over the Expo module; faked in tests. */
+/** Extra behaviour for a spoken cue: a tone to play when the voice is not ready, and when the phrase goes stale. */
+export interface SpeakCueOptions {
+  earcon?: EarconName | null;
+  staleAtMs?: number;
+  cueId?: string | null;
+}
+
 export interface NativePort {
   isRunning(): boolean;
   start(lang: Lang): Promise<void>;
   stop(): Promise<void>;
   /** 'high' flushes whatever is being said; 'normal' queues. */
-  speak(text: string, priority: 'high' | 'normal'): void;
+  speak(text: string, priority: 'high' | 'normal', opts?: SpeakCueOptions): void;
   stopSpeaking(): void;
   /** Throws when no native session is running. */
   scheduleCue(id: string, atEpochMs: number, fallbackText: string): void;
@@ -105,6 +113,9 @@ interface Snapshot {
 const MAX_UNDO = 20;
 const MAX_TURNS = 40;
 const DUE_TOLERANCE_MS = 400;
+/** How long a pre-warning ("1 minute left") stays true after its due time; a timer-end announcement stays true longer. */
+const CUE_STALE_MS = 20_000;
+const TIMER_END_STALE_MS = 120_000;
 const END_CONFIRM_MS = 20_000;
 
 export interface PlanStepInput {
@@ -649,7 +660,7 @@ export class WorkController {
     if (planned?.derived) {
       // A derived cue (halfway) has no engine event. Say it only if it is still valid and not suppressed.
       const stillPlanned = this.session && planCues(this.session, this.lang, this.level).some((c) => c.id === id);
-      if (stillPlanned) this.say(planned.text, 'normal');
+      if (stillPlanned) this.say(planned.text, 'normal', { earcon: 'timer_done', staleAtMs: planned.atEpochMs + CUE_STALE_MS, cueId: id });
     } else {
       this.processDue(DUE_TOLERANCE_MS);
     }
@@ -679,7 +690,13 @@ export class WorkController {
       const r = this.commit({ type: 'handle_due', key: ev.key, outcome: silent || ev.stale ? 'expired' : 'delivered' }, 'system', { undoable: false });
       if (!r.ok) continue;
       this.store.appendEvent('cue', { key: ev.key, kind: ev.kind, spoken: !!text, stale: ev.stale });
-      if (text) this.say(text, nudge ? 'normal' : 'high');
+      if (text) {
+        this.say(text, nudge ? 'normal' : 'high', {
+          earcon: ev.kind === 'timer_milestone' || nudge ? 'attention' : 'timer_done',
+          staleAtMs: ev.dueAt + (ev.kind === 'timer_milestone' || nudge ? CUE_STALE_MS : TIMER_END_STALE_MS),
+          cueId: ev.key,
+        });
+      }
     }
     if (this.missed.length > 0) {
       this.missed = [];
@@ -758,10 +775,10 @@ export class WorkController {
     return { ok: true, said: describeChanges(r.changes, s.lang), changes: r.changes };
   }
 
-  private say(text: string, priority: 'high' | 'normal'): void {
+  private say(text: string, priority: 'high' | 'normal', opts?: SpeakCueOptions): void {
     if (!text || !this.native.isRunning()) return;
     try {
-      this.native.speak(text, priority);
+      this.native.speak(text, priority, opts);
     } catch (e) {
       this.store.appendEvent('error', { where: 'speak', message: String(e) });
     }

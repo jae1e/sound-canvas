@@ -11,6 +11,9 @@ import expo.modules.kotlin.exception.CodedException
 import expo.modules.kotlin.modules.Module
 import expo.modules.kotlin.modules.ModuleDefinition
 import expo.modules.vlcsessionservice.audio.AudioRouting
+import expo.modules.vlcsessionservice.audio.EarconPlayer
+import expo.modules.vlcsessionservice.audio.EarconSettings
+import expo.modules.vlcsessionservice.audio.Earcons
 import expo.modules.vlcsessionservice.audio.PacingPlayer
 import expo.modules.vlcsessionservice.audio.SpeechOutput
 import expo.modules.vlcsessionservice.log.DiagLog
@@ -41,7 +44,7 @@ class VlcSessionServiceModule : Module() {
     Events(
       "sessionState", "sessionError", "pipelineState", "sessionSttEngine", "audioLevel",
       "speechStart", "partialTranscript", "finalTranscript", "echoSuppressed",
-      "ttsStart", "ttsDone",
+      "ttsStart", "ttsDone", "sessionVoice",
       "cueDue", "cueAudible",
       "pacePrepareProgress", "paceBeat", "paceSegmentDone",
       "location", "locationGap",
@@ -126,6 +129,46 @@ class VlcSessionServiceModule : Module() {
       val svc = SessionRuntime.service ?: throw CodedException("NO_SESSION", "Start a session first", null)
       svc.speak(text, priority, cueId, "js")
     }
+    /**
+     * Speaks a cue in the one session voice (see SessionService.speakCue). Fields: text, lang, parts?, priority, cueId?,
+     * earcon?, staleAtEpochMs?. Returns { path, utteranceId? }.
+     */
+    Function("speakCue") { spec: Map<String, Any?> ->
+      val svc = SessionRuntime.service ?: throw CodedException("NO_SESSION", "Start a session first", null)
+      svc.speakCue(
+        SessionService.CueSpec(
+          text = spec["text"] as? String ?: "",
+          lang = spec["lang"] as? String ?: "ko",
+          parts = (spec["parts"] as? List<*>)?.filterIsInstance<String>(),
+          priority = spec["priority"] as? String ?: "normal",
+          cueId = spec["cueId"] as? String,
+          source = "js",
+          earcon = (spec["earcon"] as? String)?.takeIf { Earcons.isKnown(it) },
+          staleAtEpochMs = (spec["staleAtEpochMs"] as? Number)?.toLong() ?: 0L,
+        ),
+      )
+    }
+    /** For each text, whether a clip of the session voice is cached. False for all without a session. */
+    Function("clipsCached") { texts: List<String>, lang: String ->
+      val cache = SessionRuntime.service?.pacingCache
+      texts.map { cache?.hasClip(it, lang) == true }
+    }
+    /** The session voice decision and state; { voice: null } without a session. */
+    Function("getSessionVoice") {
+      SessionRuntime.service?.tts?.voiceInfo() ?: mapOf("voice" to null, "degraded" to false, "reason" to null, "switched" to false)
+    }
+    /** Plays one earcon now (preview, or a cue the app wants as a tone). Follows the system route. Plays only when called. */
+    Function("playEarcon") { name: String, vibrate: Boolean ->
+      if (!Earcons.isKnown(name)) return@Function false
+      (SessionRuntime.service?.earcons ?: previewPlayer).play(name, "js", vibrate)
+    }
+    /** volume: 0..1 relative loudness; vibrate: default for earcons played by the service. */
+    Function("setEarconSettings") { volume: Double, vibrate: Boolean ->
+      EarconSettings.volume = volume.toFloat().coerceIn(0f, 1f)
+      EarconSettings.vibrate = vibrate
+      Unit
+    }
+    Function("earconNames") { Earcons.names }
     Function("setSessionTts") { config: Map<String, Any?> ->
       SessionTts.configure(
         (config["engine"] as? String) ?: "auto",
@@ -313,6 +356,8 @@ class VlcSessionServiceModule : Module() {
       activity.volumeControlStream = if (media) AudioManager.STREAM_MUSIC else AudioManager.USE_DEFAULT_STREAM_TYPE
     }
   }
+
+  private val previewPlayer: EarconPlayer by lazy { EarconPlayer(context, log) }
 
   private var labInstance: TtsLab? = null
   private val labOrNull: TtsLab? get() = labInstance
