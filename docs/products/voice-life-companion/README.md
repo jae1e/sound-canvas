@@ -10,6 +10,8 @@ This document is the product brief. Read [implementation-handoff.md](implementat
 
 On-device LLM research (decision: use the OS-provided LLM only where available, otherwise a cloud API; S25 has none): [on-device-llm.md](on-device-llm.md).
 
+Cloud vs on-device STT and TTS (cost and latency, 2026-11-04; recommendation: keep both on-device): [speech-cloud-vs-device.md](speech-cloud-vs-device.md).
+
 The repository remains a workspace for multiple market studies. This product direction applies to Voice Life Companion; it does not invalidate unrelated research or authorize replacing other agents' work.
 
 ### Scope Clarification
