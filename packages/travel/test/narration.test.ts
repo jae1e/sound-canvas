@@ -59,6 +59,7 @@ describe("number reading", () => {
     expect(yearToWords(1900)).toBe("nineteen hundred");
     expect(yearToWords(2005)).toBe("two thousand five");
     expect(yearToWords(2018)).toBe("twenty eighteen");
+    expect(speechNumbers("Burned in the 1590s, rebuilt in 1867, and again in 1907, then 2,500 people", "en")).toBe("Burned in the fifteen nineties, rebuilt in eighteen sixty-seven, and again in nineteen oh seven, then 2500 people");
     expect(speechNumbers("Built in 1395 and 1,500 people came", "en")).toBe("Built in thirteen ninety-five and 1500 people came");
   });
 });
@@ -150,7 +151,7 @@ describe("landmark list", () => {
     expect(composeLandmarkList([], "en", { radiusM: 1500 }).text).toBe("I could not find a historic landmark within 1.5 kilometers.");
   });
   it("shortens one-liners", () => {
-    expect(oneLineFrom("A".repeat(10) + " " + "word ".repeat(30), "en", 40).endsWith("…")).toBe(true);
+    expect(oneLineFrom("A".repeat(10) + " " + "word ".repeat(30), "en", 40).endsWith(".")).toBe(true);
   });
 });
 

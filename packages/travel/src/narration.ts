@@ -105,6 +105,15 @@ function below100(n: number): string {
 }
 
 /** English year reading: 1395 -> "thirteen ninety-five", 1405 -> "fourteen oh five", 2005 -> "two thousand five". */
+/** English decade reading: 1590 -> "fifteen nineties". */
+export function decadeToWords(y: number): string {
+  const hi = Math.floor(y / 100);
+  const d = y % 100;
+  if (d === 0) return `${below100(hi)} hundreds`;
+  const w = below100(d);
+  return `${below100(hi)} ${w.endsWith("y") ? `${w.slice(0, -1)}ies` : `${w}s`}`;
+}
+
 export function yearToWords(y: number): string {
   if (y === 1000) return "one thousand";
   if (y >= 2000 && y < 2010) return y === 2000 ? "two thousand" : `two thousand ${below100(y - 2000)}`;
@@ -139,7 +148,8 @@ export function speechNumbers(text: string, lang: Lang): string {
     .replace(/(\d)\s*[~∼–—]\s*(\d)/g, "$1 to $2")
     .replace(/\s*&\s*/g, " and ")
     .replace(/\bNo\.\s*(\d)/g, "number $1");
-  t = t.replace(/(^|[^\d.,$₩])(1\d{3}|20\d{2})(?![\d,]|\.\d|\s*(?:square|meters|kilometers|percent|people|visitors|won|yen|dollars))/g, (_m, pre: string, y: string) => `${pre}${yearToWords(Number(y))}`);
+  t = t.replace(/\b(1\d{2}0|20\d0)s\b/g, (_m, y: string) => decadeToWords(Number(y)));
+  t = t.replace(/(^|[^\d.,$₩])(1\d{3}|20\d{2})(?!\d|\.\d|\s*(?:square|meters|kilometers|percent|people|visitors|won|yen|dollars))/g, (_m, pre: string, y: string) => `${pre}${yearToWords(Number(y))}`);
   return t.replace(/\s+/g, " ").trim();
 }
 
@@ -202,13 +212,18 @@ const sourceShort = (source: LandmarkSource, lang: Lang): string => {
   return (lang === "ko" ? ko : en)[source];
 };
 
-/** First sentence of provider text, cleaned and shortened to at most `max` characters at a word boundary. */
+/**
+ * First sentence of provider text, cleaned and shortened to at most `max` characters at a clause or word boundary
+ * (no ellipsis: it is read aloud).
+ */
 export function oneLineFrom(overview: string, lang: Lang, max = 80): string {
   const first = prepareSentences(overview, lang)[0] ?? "";
   if (first.length <= max) return first;
   const cut = first.slice(0, max);
+  const comma = Math.max(cut.lastIndexOf(","), cut.lastIndexOf("，"));
+  if (comma > max * 0.4) return `${cut.slice(0, comma)}.`;
   const sp = lang === "en" ? cut.lastIndexOf(" ") : -1;
-  return `${(sp > max * 0.5 ? cut.slice(0, sp) : cut).replace(/[\s,;:]+$/, "")}…`;
+  return `${(sp > max * 0.5 ? cut.slice(0, sp) : cut).replace(/[\s,;:]+$/, "")}.`;
 }
 
 const ORDINAL_KO = ["첫 번째", "두 번째", "세 번째"];

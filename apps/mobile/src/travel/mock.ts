@@ -1,6 +1,16 @@
 import { categoryCodeFor, cumulativeDistances, destinationPoint, haversineM } from '@vlc/travel';
-import type { LatLng, Place, RouteStep, WalkRoute, WhereAmI } from '@vlc/travel';
-import type { SearchParams, TravelClient } from './client';
+import type { LatLng, Landmark, LandmarkDetail, Place, RouteStep, WalkRoute, WhereAmI } from '@vlc/travel';
+import type { LandmarkDetailParams, LandmarkParams, SearchParams, TravelClient } from './client';
+import { GWANGHWAMUN, LANDMARK_FIXTURES, type LandmarkFixture } from './landmarkFixtures';
+
+const FIXTURE_ATTRIBUTION = { ko: '샘플 데이터 (앱 내장)', en: 'Sample data (bundled)' } as const;
+
+/** First sentence of the fixture overview, used as the list's one-liner. */
+function firstSentence(f: LandmarkFixture, lang: 'ko' | 'en'): string {
+  const text = f.overview[lang];
+  const end = text.search(/[.!?](\s|$)/);
+  return end > 0 ? text.slice(0, end + 1) : text;
+}
 
 /** Fixture places laid out around the caller so the UI works anywhere without keys. */
 const FIXTURES: Array<{ name: string; code: string; category: string; bearing: number; distanceM: number }> = [
@@ -38,6 +48,46 @@ export class MockTravelClient implements TravelClient {
       .filter((pl) => pl.distanceM <= (p.radiusM ?? 500))
       .sort((a, b) => a.distanceM - b.distanceM)
       .slice(0, p.limit ?? 5);
+  }
+
+  /**
+   * Fixture landmarks near Gwanghwamun. When the caller is more than 5 km away (an emulator, a desk), the layout is
+   * shifted so Gwanghwamun appears at the caller's position and the flow can still be tried.
+   */
+  async nearbyLandmarks(p: LandmarkParams): Promise<Landmark[]> {
+    const here = { lat: p.lat, lng: p.lng };
+    const far = haversineM(here, GWANGHWAMUN) > 5000;
+    const shift = far ? { lat: here.lat - GWANGHWAMUN.lat, lng: here.lng - GWANGHWAMUN.lng } : { lat: 0, lng: 0 };
+    return LANDMARK_FIXTURES.map((f): Landmark => {
+      const lat = f.lat + shift.lat;
+      const lng = f.lng + shift.lng;
+      return {
+        id: `fixture:${f.key}`,
+        name: f.name[p.lang],
+        category: f.category[p.lang],
+        distanceM: Math.round(haversineM(here, { lat, lng })),
+        lat,
+        lng,
+        oneLine: firstSentence(f, p.lang),
+        source: 'fixture',
+        attribution: FIXTURE_ATTRIBUTION[p.lang],
+      };
+    })
+      .filter((l) => l.distanceM <= (p.radiusM ?? 1500))
+      .sort((a, b) => a.distanceM - b.distanceM)
+      .slice(0, p.limit ?? 3);
+  }
+
+  async landmarkDetail(p: LandmarkDetailParams): Promise<LandmarkDetail> {
+    const f = LANDMARK_FIXTURES.find((x) => `fixture:${x.key}` === p.id);
+    return {
+      id: p.id,
+      lang: p.lang,
+      overview: f ? f.overview[p.lang] : '',
+      facts: f ? (f.facts[p.lang] ?? []) : [],
+      source: 'fixture',
+      attribution: FIXTURE_ATTRIBUTION[p.lang],
+    };
   }
 
   async where(): Promise<WhereAmI> {
