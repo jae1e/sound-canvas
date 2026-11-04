@@ -132,11 +132,33 @@ The user prefers the separation topic: splitting voices, individual voices and i
    - **Free tools fall short:** CapCut and Adobe isolate the voice but drop the sound effects, or require an editor.
    - **Gate:** the Content ID test from Recommendation B.
    - **Later upsell:** royalty-free replacement music, which needs a licensed music source.
-3. **Instrument stems from performance videos ("click the guitarist")**, for musicians, cover creators and music teachers.
-   - **Why third:** audio-only stem splitting is the most crowded area. Moises reports 70M registered users (Dec 2025), and LALAL.AI, Suno Get Stems, Flow Music and free UVR/Demucs all compete. The only open wedge is video-native selection of the player on screen.
+3. **Any part of a song or recording, from audio or video.** This covers a named instrument and an individual singer, for musicians, singers, choirs, cover creators and music teachers. *(Revised the same day after a user correction. The first version limited this to video, which wrongly treated a crowded audio-only market as a filter. Many recordings have no visible player, and many songs have several singers.)*
+   - **Prompts:** the user can describe the part in text ("the second guitar", "the tambourine"), mark a moment ("this voice at 0:42"), or click a face or player in video. Video adds the click option and is not required.
+   - **Competition for audio-only stems:**
+     - Moises reports 70M registered users (Dec 2025).
+     - LALAL.AI and free UVR/Demucs also compete.
+     - Suno Get Stems runs on uploaded music as well. Its Advanced Split (Premier plan only, 10 credits per stem) offers nearly 100 instruments, and Suno says it "regenerates each stem from scratch" rather than cutting the song apart [vendor claim] ([Suno, 2026-06-11](https://suno.com/blog/stem-separation-updates)). Whether Advanced Split works on uploads is unconfirmed.
+   - **Possible wedges:** any sound described in text instead of a fixed stem menu; the actual recorded performance rather than a regenerated copy, which matters to learners, transcribers and samplers [hypothesis]; and individual singers.
+   - **Individual singers is a clearer gap:**
+     - LALAL.AI's Lead & Back Vocal Splitter separates layers, not individual singers ([LALAL.AI](https://www.lalal.ai/lead-back-vocals-remover/)).
+     - Guides say duets get grouped as one "vocals" stem and fall back to manual work in a DAW ([macmyths](https://macmyths.com/how-to-separate-multiple-singers-with-ai-on-mac-iphone-and-ipad/)).
+     - A Spleeter issue asks for two-singer separation ([GitHub](https://fr.github.com/deezer/spleeter/issues/870)).
+     - For choirs, MVSep lists an SATB model with unverified quality ([MVSep](https://www.mvsep.com)), and Choir Player offers SATB parts only for its own catalogue ([App Store](https://apps.apple.com/us/app/id1139783014)).
+     - Choir separation is an active research problem, and unison is the hard case ([UPF](https://repositori.upf.edu/items/244597c0-e786-4585-8b4d-325e3aaa7958/full), [Frontiers 2022](https://www.frontiersin.org/articles/10.3389/frsip.2022.808594/pdf)).
+   - **Feasibility by case:**
+     - Singers who alternate lines (duets, group songs with member lines): likely feasible with span prompts and singer clustering.
+     - Harmony parts (SATB, a cappella): partly feasible, using pitch cues.
+     - Unison: not promised. Meta says highly similar sources remain a challenge.
+   - **Korean angle:** fans and cover singers who want one member's line from a K-pop group song. Demand is unmeasured; check it in the community pass [hypothesis].
    - **Scope limit:** Meta says isolating one instrument from an orchestra is still hard, so stick to bands and small ensembles.
    - **Licensing:** most open instrument models train on non-commercial datasets (MUSDB18, MoisesDB), so use SAM Audio.
    - **Rights posture:** the same as Moises and LALAL.AI. Users upload their own files, and the product does not fetch YouTube links.
+   - **Bake-off cases to add:**
+     1. audio-only stems against Moises, LALAL.AI and Suno;
+     2. an alternating-line duet;
+     3. a harmony group;
+     4. a unison chorus;
+     5. a group song with member lines.
 
 **MVP scope (about 3 months):**
 - **Product flow:** a web app where the user uploads video or audio. It shows the detected sources as tracks: faces and players from computer vision, plus speech, music and effects tags from an audio tagger. SAM Audio needs a prompt and cannot separate everything unprompted, so these detections serve as the prompts. The user keeps or mutes each track and gets a free 30-second preview. Export is WAV stems or a remixed MP4.
