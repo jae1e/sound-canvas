@@ -8,6 +8,8 @@ Status: the user has selected a personal-use product direction and explicitly wa
 
 This document is the product brief. Read [implementation-handoff.md](implementation-handoff.md) for behavior, state, architecture, and acceptance criteria, [earbud-compatibility.md](earbud-compatibility.md) for device research and launch/control constraints, and [technical-decisions.md](technical-decisions.md) for the proposed stack (Android first with iPhone later, Expo/React Native with TypeScript, on-device-first speech, tiered LLM routing, Korea walking routing).
 
+On-device LLM research (decision: use the OS-provided LLM only where available, otherwise a cloud API; S25 has none): [on-device-llm.md](on-device-llm.md).
+
 The repository remains a workspace for multiple market studies. This product direction applies to Voice Life Companion; it does not invalidate unrelated research or authorize replacing other agents' work.
 
 ### Scope Clarification
