@@ -137,7 +137,8 @@ export function scoreCase(c: EvalCase, o: Outcome): Score {
       const answerable = v.answered === c.expect.answerable;
       const text = squash(v.text);
       const included = !c.expect.answerable || c.expect.mustInclude.every((g) => g.some((s) => text.includes(squash(s))));
-      const noInvention = c.expect.mustNotInclude.every((s) => !text.includes(squash(s)));
+      const rawText = v.text.toLowerCase();
+      const noInvention = c.expect.mustNotInclude.every((s) => !rawText.includes(s.toLowerCase()) && (squash(s) === '' || !text.includes(squash(s))));
       // The validator can rescue a hallucination (the model said answerable but the quote or numbers were not in the source).
       const rescued = !c.expect.answerable && rawAnswerable && !v.answered;
       const bad = [!answerable && (c.expect.answerable ? 'refused an answerable question' : 'answered an unanswerable question'), !included && 'missing required fact', !noInvention && 'invented fact'].filter(Boolean);
