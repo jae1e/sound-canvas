@@ -33,7 +33,7 @@ The brief's four reasons differ sharply in how well they are supported. The tabl
 
 ## B2B separation and AI dubbing: a thin field with public prices at five cents to two dollars
 
-The separation vendors are few and some are unstable. **AudioShake** raised a $14M Series A announced 2025-10-01 (Shine Capital lead), claims 40+ enterprise partners (Disney Music Group, Warner Music Group, Universal Music, NFL Films, Warner Bros Discovery), "nearly 400% year-over-year revenue growth" off an undisclosed base, and 100M+ minutes processed; it publishes no API rates ([AudioShake](https://www.audioshake.ai/post/series-a-round-raise-14-million-shinecapital-origin-thomson-reuters), vendor claims; the round is a verified fact). Its named use for archives is removing unlicensed music from NFL Films footage. **Music.ai** (the B2B arm of Moises) raised a $40M Series A in January 2025 and publishes its rates ([Cultr](https://www.cultr.com/news/music-ai-moises-secures-40m-from-steve-aoki-3lau-others-in-series-a-round/)). A Portuguese-language report puts subscriptions at over 90% of its revenue (single secondary source, [Bloomberg Linea](https://www.bloomberglinea.com.br/startups/dona-do-moises-musicai-capta-us-40-milhoes-para-levar-ia-generativa-a-musicos/)). **iZotope RX** (Dialogue Isolate, Music Rebalance) changed hands: Boris FX acquired iZotope, reported 2026-07-02, after Native Instruments' preliminary insolvency in January 2026 ([MusicTech](https://musictech.com/news/industry/izotope-joins-boris-fx-exits-native-instruments/)). **Supertone** (HYBE) is being liquidated; shareholders resolved dissolution on 15 July 2026, with last-year revenue about 2.3bn KRW and a net loss about 13bn KRW ([Edaily, 2026-07-27](https://en.edaily.co.kr/news/eda202607275504/)). **Adobe** now ships on-device multi-stem "Enhance Audio" in Premiere beta, separating speech, music, ambience, effects and reverb ([ProVideo Coalition](https://www.provideocoalition.com/stem-separation-moves-into-the-edit-what-enhance-audio-changes-for-dialogue-workflows-in-premiere-beta/amp/)), and Steinberg SpectraLayers 12 offers AI unmixing for a one-time $349.99 ([Sonic State, 2025-07-04](https://sonicstate.com/news/2025/07/04/steinberg-releases-spectralayers-12)). Dolby's media-API docs now 301-redirect to OptiView; whether Enhance is discontinued is unconfirmed ([Dolby docs](https://docs.dolby.io/media-apis/docs/overview)). Audionamix shows no 2024-2026 news (a PitchBook "Out of Business" entry is ambiguous). The pattern is that separation is being absorbed into editors at low or zero marginal price, so standalone vendors compete on quality, rights-safe workflows and integrations (hypothesis).
+The separation vendors are few and some are unstable. **AudioShake** raised a $14M Series A announced 2025-10-01 (Shine Capital lead), claims 40+ enterprise partners (Disney Music Group, Warner Music Group, Universal Music, NFL Films, Warner Bros Discovery), "nearly 400% year-over-year revenue growth" off an undisclosed base, and 100M+ minutes processed; it publishes no API rates ([AudioShake](https://www.audioshake.ai/post/series-a-round-raise-14-million-shinecapital-origin-thomson-reuters), vendor claims; the round is a verified fact). Its named use for archives is removing unlicensed music from NFL Films footage. **Music.ai** (the B2B arm of Moises) raised a $40M Series A in January 2025 and publishes its rates ([Cultr](https://www.cultr.com/news/music-ai-moises-secures-40m-from-steve-aoki-3lau-others-in-series-a-round/)). A Portuguese-language report puts subscriptions at over 90% of its revenue (single secondary source, [Bloomberg Linea](https://www.bloomberglinea.com.br/startups/dona-do-moises-musicai-capta-us-40-milhoes-para-levar-ia-generativa-a-musicos/)). **iZotope RX** (Dialogue Isolate, Music Rebalance) changed hands: Boris FX acquired iZotope, reported 2026-07-02, after Native Instruments' preliminary insolvency in January 2026 ([MusicTech](https://musictech.com/news/industry/izotope-joins-boris-fx-exits-native-instruments/)). **Supertone** (HYBE) is being liquidated; shareholders resolved dissolution on 15 July 2026, with last-year revenue about 2.3bn KRW and a net loss about 13bn KRW ([Edaily, 2026-07-27](https://en.edaily.co.kr/news/eda202607275504/)). Supertone was a voice-AI company, not a music-sharing service. Its products were Shift (real-time voice changer), Clear (noise and voice isolation), Air, Play (TTS and voice creation), an API and Voice Builder. It also published the Supertonic TTS models that the Voice Life Companion app uses. Supertone's own notice says all services ended on 2026-08-31, and perpetual licences remain usable ([Supertone sunset](https://www.supertone.ai/ko/sunset)). A later report says Shift, Clear and Air are moving to Antinode Audio Inc. through a business transfer ([Production Expert](https://www.production-expert.com/production-expert-1/hybe-announces-transfer-of-ownership-of-some-supertone-products-including-clear-to-antinode-audio-inc); checked 2026-11-04, not confirmed against a primary source). **Adobe** now ships on-device multi-stem "Enhance Audio" in Premiere beta, separating speech, music, ambience, effects and reverb ([ProVideo Coalition](https://www.provideocoalition.com/stem-separation-moves-into-the-edit-what-enhance-audio-changes-for-dialogue-workflows-in-premiere-beta/amp/)), and Steinberg SpectraLayers 12 offers AI unmixing for a one-time $349.99 ([Sonic State, 2025-07-04](https://sonicstate.com/news/2025/07/04/steinberg-releases-spectralayers-12)). Dolby's media-API docs now 301-redirect to OptiView; whether Enhance is discontinued is unconfirmed ([Dolby docs](https://docs.dolby.io/media-apis/docs/overview)). Audionamix shows no 2024-2026 news (a PitchBook "Out of Business" entry is ambiguous). The pattern is that separation is being absorbed into editors at low or zero marginal price, so standalone vendors compete on quality, rights-safe workflows and integrations (hypothesis).
 
 Public pricing, checked 2026-11-04 on official pages unless noted:
 
@@ -103,11 +103,62 @@ Accuracy is good on easy data and weak where it matters. An independent benchmar
 
 ## Which wedges fit a small computer-vision team
 
-The evidence favours workflow tools over model-building, for three reasons. First, separation models are commoditising (Adobe, SpectraLayers, free CapCut tools, $0.05/min Music.ai), and the SOTA is open-source MSST architectures, so model quality alone is not a moat. Second, the durable pain is rights risk, where the buyer already pays humans for slow work: Gaudio's CEO describes three weeks of manual music replacement per title. Third, the team's own history (billboard and region replacement in video) and the BlurMe template suggest review-centred products sold to rights-sensitive institutions. Ranked by fit with the user's thesis (assist the user, help them make money, target tedious or high-turnover work), the hypotheses are these.
+The evidence favours workflow tools over model-building, for three reasons. First, separation models are commoditising (Adobe, SpectraLayers, free CapCut tools, $0.05/min Music.ai), and the SOTA is open-source MSST architectures, so model quality alone is not a moat. Second, the durable pain is rights risk, where the buyer already pays humans for slow work: Gaudio's CEO describes three weeks of manual music replacement per title. Third, the BlurMe template suggests review-centred products. The team's own history needs care here. The user later clarified that their earlier ad-panel replacement project aimed for real-time replacement and did not work technically, because of pose stabilization and blending (user statement, 2026-11-04). Photoreal region replacement is therefore a known hard area for this team, not a proven strength. Offline processing with masking or blurring and human review avoids most of it. Ranked by fit with the user's thesis (assist the user, help them make money, target tedious or high-turnover work), the hypotheses are these.
 
 The first and strongest is a **rights-risk audit and replacement workbench for archive video**, with detection of music and brand/logo regions in finished masters, human review, a replacement or masking step, and cue-sheet or evidence export, sold per title to broadcasters, archive owners and distributors. It combines audio and video, which the notes say nobody confirmed doing together (hypothesis; Gaudio covers audio, Flawless covers visual dubbing). AudioShake's NFL Films use case (removing unlicensed music from archival footage) shows a buyer exists. It would integrate separation from AudioShake, Music.ai or Gaudio rather than compete with them. The main risk is that Gaudio already sells the audio half, and the evidence that Korean broadcasters actually hold only single masters is unverified, so the first step is a few buyer interviews rather than building.
 
 The second is a **creator-side BGM clearance checker**, the top-ranked consumer idea, though it only works if separated output demonstrably passes Content ID, which no independent test shows, and YouTube and CapCut cap the price. The third is **audio-visual speaker separation for hearables or meetings**, using face tracking plus a Dolphin-class model; it fits the CV background but sells to a few OEMs through long licensing cycles, and the Dolphin and training-data licences must be cleared first. Wedges to avoid on this evidence are generic diarization, consumer stem apps, UGC dubbing hosting, and standalone dialogue-boost apps. A visibly acquirable path is also supported: strategics bought Deep Render, iSIZE and Supponor, and iZotope changed hands to Boris FX (all verified above), which suggests post-production and streaming-delivery technology firms buy narrow, working technology, though no source shows an engineering or simulation firm buying audio-video tools, so that remains the user's hypothesis to test.
+
+## User direction after the first draft (2026-11-04)
+
+These are the user's decisions and corrections, recorded so later work does not repeat the discovery.
+
+- **Self-serve SaaS first, B2B second.** The user wants to start with a SaaS anyone can sign up for and use easily, and move to B2B (broadcasters, distributors, archives) only as the next step. The B2B archive workbench above becomes the later stage, not the entry product.
+- **The ad-replacement experience was a technical failure.** The team aimed for real-time ad-panel replacement, and it failed on pose stabilization and blending. Avoid real-time photoreal replacement. Offline processing, and masking or blurring with review, fit better.
+- **Acquisitions as signals.** The iZotope, Papercup and Supponor deals show that strategic buyers do buy narrow audio and video technology. That supports the user's acquirable-technology thesis. They were not premium exits, though:
+  - iZotope was sold after its parent's insolvency.
+  - RWS bought only Papercup's IP, and much of the team left.
+  - No terms were disclosed for any of the three deals.
+
+  For a builder the lesson is two-sided. The technology keeps its value, but standalone separation or dubbing companies have struggled to become large businesses on their own (hypothesis from the cited deals).
+
+### Self-serve entry product (hypothesis, to validate)
+
+The best consumer idea above, BGM clearance, extends naturally into a self-serve SaaS that can later grow into the B2B rights workbench. The flow would be:
+
+1. Upload a video.
+2. The service detects copyrighted music and separates it from voice and ambience.
+3. The user reviews the flagged spans.
+4. The music is removed, or replaced with safe music.
+5. Export, optionally with a "clean audio" report.
+
+It is offline, with no real-time requirement, and its review step mirrors BlurMe.
+
+Candidate first users, all hypotheses with no demand data collected yet:
+- YouTube and Shorts creators with claimed or muted videos
+- live streamers re-uploading VODs that contain background music
+- wedding and event videographers
+- travel and vlog creators
+- small production companies re-packaging Korean content for overseas YouTube channels
+
+This fits the user's thesis because it helps users make money (restoring monetization blocked by claims), targets a tedious task, and the individual practitioner decides and pays.
+
+**Unit cost (estimate).**
+- Using a third-party API first, for example Music.ai cinematic stems at $0.05/min, costs about $3 per audio hour.
+- Self-hosting later costs roughly $0.005–0.5 per audio hour (see the run-cost section), but needs model weights that are cleared for commercial use.
+
+**The key risk, and a cheap test.** Does separated or "cleaned" audio still match in Content ID or other recognizers (Audible Magic)? No independent evidence was found either way. A one- to two-day experiment settles it:
+1. Take ten of the user's own videos with commercial music audible in the background.
+2. Process them with two or three separation tools.
+3. Upload them as unlisted videos.
+4. Count the claims.
+
+Run this before building.
+
+**Other open items.**
+- A music source for replacement that a SaaS may redistribute: a licensed library partner, commercially licensed AI music, or a removal-only v1.
+- The licences of the separation weights used.
+- Whether platform features close the gap first, for example YouTube Erase Song, which today works only on already-claimed videos.
 
 ## Claims in the original conversation: verified, corrected, or unverified
 
