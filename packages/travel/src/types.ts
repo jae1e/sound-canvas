@@ -20,7 +20,7 @@ export interface Place {
   phone?: string;
   url?: string;
   /** Data provider, used for the spoken attribution. */
-  source: "kakao" | "mock";
+  source: "kakao" | "mock" | "tourapi";
 }
 
 export type TurnType =
@@ -81,4 +81,42 @@ export interface GpsFix {
   accuracyM: number;
   /** Epoch ms when the fix was taken. */
   timestampMs: number;
+}
+
+/** Where a landmark or its description came from. `fixture` is app-bundled sample data. */
+export type LandmarkSource = "tourapi" | "kakao" | "wikipedia" | "fixture";
+
+/** Normalized landmark returned by the Worker (`POST /landmarks/nearby`). */
+export interface Landmark {
+  /** Provider id such as `tourapi:126508:12`. Pass it back to `/landmarks/detail`. */
+  id: string;
+  name: string;
+  category: string;
+  distanceM: number;
+  lat: number;
+  lng: number;
+  /** One short descriptive line (may be empty when the provider has no text). */
+  oneLine: string;
+  source: LandmarkSource;
+  /** Human readable attribution to show on screen, in the request language. */
+  attribution: string;
+}
+
+export type LandmarkFactKey = "hours" | "closed" | "fee" | "duration" | "heritage" | "contact";
+
+export interface LandmarkFact {
+  key: LandmarkFactKey;
+  value: string;
+}
+
+/** Description text for one landmark (`POST /landmarks/detail`). `overview` is plain text. */
+export interface LandmarkDetail {
+  id: string;
+  lang: Lang;
+  overview: string;
+  facts: LandmarkFact[];
+  source: LandmarkSource;
+  attribution: string;
+  /** Link to the source page when the provider requires one (Wikipedia). */
+  sourceUrl?: string;
 }

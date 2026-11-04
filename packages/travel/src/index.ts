@@ -6,3 +6,4 @@ export * from "./tracker";
 export * from "./cues";
 export * from "./answers";
 export * from "./intents";
+export * from "./narration";
