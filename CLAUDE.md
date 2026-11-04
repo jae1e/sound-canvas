@@ -18,6 +18,7 @@ This repository is a workspace for studying multiple markets and product opportu
 ## Existing Research
 
 - Music and audio market study: [docs/market-studies/music-audio.md](docs/market-studies/music-audio.md).
+- Gaudio Lab and the AI audio/video separation market (DME separation, music replacement, dubbing, consumer stem apps, diarization, virtual ad replacement, 블러미/BlurMe): [docs/market-studies/audio-video-separation/gaudio-lab-and-ai-separation-market.md](docs/market-studies/audio-video-separation/gaudio-lab-and-ai-separation-market.md). Research notes are in the `research-notes/` folder next to it.
 
 ## Product Handoffs
 

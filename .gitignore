@@ -26,3 +26,7 @@ tools/tts-samples/**/*.wav
 
 # Agent worktrees
 .claude/worktrees/
+
+# Deep-research working folders (copies live under docs/market-studies)
+/research_notes/
+/reports/
