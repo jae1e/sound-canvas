@@ -32,7 +32,7 @@ The personas are **composite hypotheses**. They are built from that screening re
 - **Real-time processing** (see the team's earlier ad-replacement experience).
 - **Fetching media from platform links.**
 
-**Open scope question:** removing a fan's singing at a concert. When the fan sings the performer's melody, the case is close to unison. This document treats it as a stretch test only and asks the user to decide.
+**Concert sing-along (user decision, 2026-11-04):** kept as a case. Fans' singing goes into "others"; leakage is expected where it is near-unison with the performer.
 
 ## Persona summary
 
@@ -391,9 +391,9 @@ The goal is to replay each story with realistic clips before building the full p
    - P8 is checked only through a landing-page test.
 6. **After the clips: the session simulation.** Walk through each persona's simulated session in a clickable prototype and time the steps. Record where a first-time user would stall: upload size, the source list, the prompt choice, the preview.
 
-## Open questions for the user
+## User decisions on the open questions (2026-11-04)
 
-1. Should the concert sing-along case (near-unison) be dropped along with harmony and unison, or kept as a stretch test?
-2. Which personas should the first simulation wave cover? The proposal is P1–P4, plus P5 as the demo.
-3. Can the team record the lav-reference clips? Can anyone supply real event recordings (P2) or VOD segments (P4), with consent?
-4. Should the Korean-first personas (P1, P4, P6) drive the first landing pages, or the English/global ones? The screening found that Korea alone cannot supply the subscriber count needed for the revenue target.
+1. **Concert sing-along:** a good case to keep. Fans' singing is simply classified as "others"; the product does not try to identify every sound. See the targets-plus-others model in [demo-plan.md](demo-plan.md).
+2. **Demo scope:** P1 to P7. All 8 personas stay; P8 is not in the demo.
+3. **Functionality first:** landing pages and demand tests are deferred.
+4. Real clip recording (lav-reference clips, event footage, VOD segments) is not yet decided. Synthetic clips with ground truth come first.
