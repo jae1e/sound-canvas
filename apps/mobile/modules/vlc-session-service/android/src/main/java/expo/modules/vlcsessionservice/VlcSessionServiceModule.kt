@@ -11,6 +11,7 @@ import expo.modules.kotlin.exception.CodedException
 import expo.modules.kotlin.modules.Module
 import expo.modules.kotlin.modules.ModuleDefinition
 import expo.modules.vlcsessionservice.audio.AudioRouting
+import expo.modules.vlcsessionservice.audio.PacingPlayer
 import expo.modules.vlcsessionservice.audio.SpeechOutput
 import expo.modules.vlcsessionservice.log.DiagLog
 import expo.modules.vlcsessionservice.log.LogSummary
@@ -42,6 +43,7 @@ class VlcSessionServiceModule : Module() {
       "speechStart", "partialTranscript", "finalTranscript", "echoSuppressed",
       "ttsStart", "ttsDone",
       "cueDue", "cueAudible",
+      "pacePrepareProgress", "paceBeat", "paceSegmentDone",
       "location", "locationGap",
       "routeChanged", "modelDownloadProgress",
       "speechOutputRoute", "ttsLabEvent", "ttsLabProgress", "ttsLabPrepared", "ttsLabSelfTest", "ttsLabSelfTestDone",
@@ -147,6 +149,66 @@ class VlcSessionServiceModule : Module() {
     }
     Function("cancelCue") { id: String -> SessionRuntime.service?.cues?.cancel(id); Unit }
     Function("ackCue") { id: String -> SessionRuntime.service?.cues?.ack(id) ?: false }
+
+    // ---- pacing clips (pre-synthesised phrases played on a native timer) -----------------------------------
+    AsyncFunction("pacingPrepare") { clips: List<Map<String, Any?>>, promise: Promise ->
+      val svc = SessionRuntime.service
+      val cache = svc?.pacingCache
+      if (svc == null || cache == null) {
+        promise.reject(CodedException("NO_SESSION", "Start a session first", null))
+        return@AsyncFunction
+      }
+      io.execute {
+        runCatching {
+          val pairs = clips.mapNotNull { m ->
+            val text = m["text"] as? String ?: return@mapNotNull null
+            Pair(text, (m["lang"] as? String) ?: "ko")
+          }
+          var lastEmit = 0L
+          cache.prepare(pairs) { done, total ->
+            val now = android.os.SystemClock.elapsedRealtime()
+            if (done == 0 || done == total || now - lastEmit >= 250) {
+              lastEmit = now
+              sendEvent("pacePrepareProgress", mapOf("done" to done, "total" to total))
+            }
+          }.toMap()
+        }.fold({ promise.resolve(it) }, { promise.reject(CodedException("PACING_PREPARE", it.chainText(), it)) })
+      }
+    }
+    /** offsetMs is relative to startEpochMs. Plays cached clips at absolute times on a native thread. */
+    Function("paceSchedule") { segmentId: String, startEpochMs: Double, beats: List<Map<String, Any?>> ->
+      val player = SessionRuntime.service?.pacing ?: throw CodedException("NO_SESSION", "Start a session first", null)
+      val specs = beats.mapNotNull { m ->
+        val text = m["text"] as? String ?: return@mapNotNull null
+        PacingPlayer.BeatSpec(
+          (m["offsetMs"] as? Number)?.toLong() ?: 0L, text, (m["lang"] as? String) ?: "ko", m["tag"] as? String,
+        )
+      }
+      player.schedule(segmentId, startEpochMs.toLong(), specs)
+      Unit
+    }
+    Function("paceCancel") { segmentId: String? -> SessionRuntime.service?.pacing?.cancel(segmentId); Unit }
+    Function("paceStatus") {
+      val svc = SessionRuntime.service
+      val p = svc?.pacing
+      mapOf(
+        "active" to ((p?.segmentCount ?: 0) > 0),
+        "segments" to (p?.segmentCount ?: 0),
+        "pendingBeats" to (p?.pendingBeats ?: 0),
+        "cachedClips" to (svc?.pacingCache?.cachedFileCount()
+          ?: java.io.File(context.filesDir, "vlc-pacing").listFiles { f -> f.name.endsWith(".wav") }?.size ?: 0),
+      )
+    }
+    AsyncFunction("pacingClearCache") { promise: Promise ->
+      io.execute {
+        runCatching {
+          SessionRuntime.service?.pacing?.cancel(null)
+          val cache = SessionRuntime.service?.pacingCache
+          val n = cache?.clear() ?: (java.io.File(context.filesDir, "vlc-pacing").listFiles()?.count { it.delete() } ?: 0)
+          mapOf("deleted" to n)
+        }.fold({ promise.resolve(it) }, { promise.reject(CodedException("PACING_CLEAR", it.chainText(), it)) })
+      }
+    }
 
     // ---- audio routing -----------------------------------------------------------------------
     AsyncFunction("listCommunicationDevices") {

@@ -258,7 +258,72 @@ export type TtsLabProgressEvent = {
   totalBytes: number;
 };
 
+// ---- Pacing clips ---------------------------------------------------------------------------
+
+export type PaceLang = 'ko' | 'en';
+export type PacingClipInput = { text: string; lang: PaceLang };
+export type PacingClipResult = {
+  text: string;
+  lang: PaceLang;
+  durationMs: number;
+  /** True when the clip was already on disk (no synthesis). */
+  cached: boolean;
+  /** Engine that produced the clip: 'supertonic' or 'platform' (platform also when Supertonic failed for this clip). */
+  engine: 'supertonic' | 'platform';
+  ok: boolean;
+};
+export type PacingPrepareResult = {
+  engine: 'supertonic' | 'platform';
+  voice: number;
+  steps: number;
+  total: number;
+  synthesized: number;
+  cached: number;
+  /** Texts that could not be synthesised by any engine. */
+  failed: string[];
+  clips: PacingClipResult[];
+  elapsedMs: number;
+};
+export type PacePrepareProgressEvent = { done: number; total: number };
+/** offsetMs is relative to the segment's startEpochMs. */
+export type PaceBeatInput = { offsetMs: number; text: string; lang: PaceLang; tag?: string | null };
+export type PaceBeatEvent = {
+  segmentId: string;
+  /** Index in the array passed to paceSchedule. */
+  index: number;
+  tag: string | null;
+  text: string;
+  /** 'cache' = native clip; 'live_tts' = clip missing, spoken through the live TTS path. */
+  source: 'cache' | 'live_tts';
+  scheduledOffsetMs: number;
+  /** Uptime right after play() returned minus the scheduled uptime. */
+  driftMs: number;
+  /** Same measurement taken just before play(). */
+  prePlayDriftMs: number;
+  clipMs: number;
+  routedDevice: string | null;
+  scheduledEpochMs: number;
+  playStartEpochMs: number;
+};
+export type PaceSegmentDoneEvent = {
+  segmentId: string;
+  beats: number;
+  played: number;
+  missing: number;
+  cancelled: boolean;
+  meanDriftMs: number;
+  p95DriftMs: number;
+  maxDriftMs: number;
+  minDriftMs: number;
+  lateOver50Ms: number;
+  lateOver100Ms: number;
+};
+export type PaceStatus = { active: boolean; segments: number; pendingBeats: number; cachedClips: number };
+
 export type VlcSessionServiceModuleEvents = {
+  pacePrepareProgress: (e: PacePrepareProgressEvent) => void;
+  paceBeat: (e: PaceBeatEvent) => void;
+  paceSegmentDone: (e: PaceSegmentDoneEvent) => void;
   sttState: (e: SttStateEvent) => void;
   sttPartial: (e: SttPartialEvent) => void;
   sttFinal: (e: SttFinalEvent) => void;

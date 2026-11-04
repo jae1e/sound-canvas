@@ -22,11 +22,13 @@ import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
 import expo.modules.vlcsessionservice.audio.AudioCapture
 import expo.modules.vlcsessionservice.audio.AudioRouting
+import expo.modules.vlcsessionservice.audio.PacingPlayer
 import expo.modules.vlcsessionservice.location.LocationTracker
 import expo.modules.vlcsessionservice.log.BatteryMonitor
 import expo.modules.vlcsessionservice.log.DiagLog
 import expo.modules.vlcsessionservice.speech.ModelCatalog
 import expo.modules.vlcsessionservice.speech.ModelManager
+import expo.modules.vlcsessionservice.speech.PacingCache
 import expo.modules.vlcsessionservice.speech.SpeechPipeline
 import expo.modules.vlcsessionservice.speech.TtsController
 
@@ -50,6 +52,12 @@ class SessionService : Service() {
     private set
   var cues: CueScheduler? = null
     private set
+  var pacingCache: PacingCache? = null
+    private set
+  var pacing: PacingPlayer? = null
+    private set
+  @Volatile private var ttsSpeaking = false
+  @Volatile private var paceSpeaking = false
   private var location: LocationTracker? = null
   private var battery: BatteryMonitor? = null
   @Volatile private var bargeIn = false
@@ -118,9 +126,16 @@ class SessionService : Service() {
       tts = t
       t.setCommunicationUsage(r.inCommunicationMode())
       t.init(cfg.language)
-      t.onActiveChanged = { speaking -> sessionStt?.onTtsActive(speaking) }
+      t.onActiveChanged = { speaking -> ttsSpeaking = speaking; updateSttHalfDuplex() }
 
       cues = CueScheduler(this, log, emit) { text, cueId -> speak(text, "cue", cueId, "native_fallback") }
+      val pc = PacingCache(this, log, t)
+      pacingCache = pc
+      pacing = PacingPlayer(
+        this, log, emit, pc,
+        speakLive = { text -> speak(text, "normal", null, "pace_fallback") },
+        onSpeaking = { speaking -> paceSpeaking = speaking; updateSttHalfDuplex() },
+      )
 
       val models = ModelManager(this)
       if (cfg.sttEngine == "platform") {
@@ -213,6 +228,11 @@ class SessionService : Service() {
     sessionStt?.holdForExternalRecorder(hold)
   }
 
+  /** Half-duplex hook: STT stays paused while either live TTS or a pacing clip is audible. */
+  private fun updateSttHalfDuplex() {
+    sessionStt?.onTtsActive(ttsSpeaking || paceSpeaking)
+  }
+
   fun setBargeIn(enabled: Boolean) {
     bargeIn = enabled
     log.log("barge_in_setting", mapOf("enabled" to enabled))
@@ -254,6 +274,7 @@ class SessionService : Service() {
     safe("stt_session") { sessionStt?.release(); sessionStt = null }
     safe("capture") { capture?.stop(); capture = null }
     safe("cues") { cues?.shutdown(); cues = null }
+    safe("pacing") { pacing?.shutdown(); pacing = null; pacingCache = null }
     safe("tts") { tts?.shutdown(); tts = null }
     safe("routing") { routing?.unregister(); routing?.clear(); routing = null }
     safe("wakelock") { wakeLock?.takeIf { it.isHeld }?.release(); wakeLock = null }

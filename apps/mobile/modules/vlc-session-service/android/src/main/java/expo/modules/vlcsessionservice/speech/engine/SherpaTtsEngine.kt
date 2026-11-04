@@ -257,6 +257,46 @@ class SherpaTtsEngine(
     cb.onFinished(outcome, info)
   }
 
+  /**
+   * Synthesises [text] to float PCM without playing anything (pacing clip cache). Takes [genLock], so it waits for a
+   * running live utterance; a later [speak] or [stop] bumps the generation and aborts this call (returns null), so live
+   * speech always wins. Returns (samples, sampleRate), or null on abort/failure. Blocking: call off the main thread.
+   */
+  fun synthesizeToPcm(text: String, locale: Locale, sid: Int, steps: Int): Pair<FloatArray, Int>? {
+    val t = tts ?: return null
+    genLock.lock()
+    try {
+      if (tts == null) return null
+      val gen = generation.get() // a live speak()/stop() after this point changes it and aborts us
+      val chunks = ArrayList<FloatArray>()
+      var callbackError: Throwable? = null
+      val gc = GenerationConfig(sid = sid, speed = 1.0f, numSteps = steps.coerceIn(1, 64), extra = mapOf("lang" to locale.language))
+      val cb = SherpaAudioCallback { samples ->
+        try {
+          if (gen != generation.get()) return@SherpaAudioCallback 0
+          chunks.add(samples.copyOf())
+          1
+        } catch (e: Throwable) {
+          callbackError = e
+          0
+        }
+      }
+      val generated = t.generateWithConfigAndCallback(text, gc, cb)
+      callbackError?.let { throw it }
+      if (gen != generation.get()) return null
+      val total = chunks.sumOf { it.size }
+      val out = if (total > 0) {
+        FloatArray(total).also { var o = 0; for (c in chunks) { System.arraycopy(c, 0, it, o, c.size); o += c.size } }
+      } else generated.samples
+      return if (out.isEmpty()) null else Pair(out, t.sampleRate())
+    } catch (e: Throwable) {
+      log.log("tts_synth_pcm_failed", mapOf("engine" to id, "error" to e.chainText()))
+      return null
+    } finally {
+      genLock.unlock()
+    }
+  }
+
   private fun outcomeAllowsDrain(gen: Int) = !stopFlag && gen == generation.get()
 
   override fun stop() {

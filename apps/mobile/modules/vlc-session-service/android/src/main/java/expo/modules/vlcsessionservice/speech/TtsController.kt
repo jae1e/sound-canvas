@@ -14,7 +14,10 @@ import expo.modules.vlcsessionservice.speech.engine.SherpaTtsEngine
 import expo.modules.vlcsessionservice.speech.engine.SpeakCallback
 import expo.modules.vlcsessionservice.speech.engine.SpeakRequest
 import android.media.AudioDeviceInfo
+import java.io.File
 import java.util.Locale
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicInteger
 import java.util.concurrent.atomic.AtomicLong
@@ -307,6 +310,45 @@ class TtsController(
     abandonFocus()
   }
 
+  // ---- Pacing clip synthesis (no playback) -----------------------------------------------------------
+
+  private class PaceWait { val latch = CountDownLatch(1); @Volatile var ok = false }
+  private val paceWaiters = ConcurrentHashMap<String, PaceWait>()
+
+  /** The loaded Supertonic engine, or null. Used by the pacing cache to synthesise clips offline. */
+  fun supertonicEngine(): SherpaTtsEngine? = synchronized(stLock) { stEngine }
+
+  /**
+   * Renders [text] to a WAV file with the platform engine (`synthesizeToFile`); plays nothing. Blocking, call off the
+   * main thread. Restores the session language afterwards. Utterance ids use the `pace-` prefix, which the live
+   * listener ignores (no `pending` entry).
+   */
+  fun synthesizePlatformToFile(text: String, loc: Locale, file: File, timeoutMs: Long = 20_000): Boolean {
+    val deadline = SystemClock.elapsedRealtime() + 6_000
+    while (!ready && SystemClock.elapsedRealtime() < deadline) Thread.sleep(50)
+    val t = tts ?: return false
+    if (!ready) return false
+    val id = "pace-${seq.incrementAndGet()}"
+    val w = PaceWait()
+    paceWaiters[id] = w
+    try {
+      val lr = t.setLanguage(loc)
+      if (lr == TextToSpeech.LANG_MISSING_DATA || lr == TextToSpeech.LANG_NOT_SUPPORTED) return false
+      if (t.synthesizeToFile(text, Bundle(), file, id) != TextToSpeech.SUCCESS) return false
+      return w.latch.await(timeoutMs, TimeUnit.MILLISECONDS) && w.ok
+    } finally {
+      paceWaiters.remove(id)
+      try { t.setLanguage(locale) } catch (_: Throwable) {}
+    }
+  }
+
+  private fun paceDone(id: String, ok: Boolean): Boolean {
+    val w = paceWaiters[id] ?: return false
+    w.ok = ok
+    w.latch.countDown()
+    return true
+  }
+
   private val listener = object : UtteranceProgressListener() {
     override fun onStart(utteranceId: String) {
       val p = pending[utteranceId] ?: return
@@ -314,17 +356,27 @@ class TtsController(
       markStarted(utteranceId, SystemClock.elapsedRealtime(), null)
     }
 
-    override fun onDone(utteranceId: String) = finish(utteranceId, "done")
+    override fun onDone(utteranceId: String) {
+      if (paceDone(utteranceId, true)) return
+      finish(utteranceId, "done")
+    }
 
     @Deprecated("Deprecated in Java")
-    override fun onError(utteranceId: String) = finish(utteranceId, "error")
+    override fun onError(utteranceId: String) {
+      if (paceDone(utteranceId, false)) return
+      finish(utteranceId, "error")
+    }
 
     override fun onError(utteranceId: String, errorCode: Int) {
+      if (paceDone(utteranceId, false)) return
       log.log("error", mapOf("where" to "tts_utterance", "utteranceId" to utteranceId, "errorCode" to errorCode))
       finish(utteranceId, "error:$errorCode")
     }
 
-    override fun onStop(utteranceId: String, interrupted: Boolean) = finish(utteranceId, if (interrupted) "interrupted" else "stopped")
+    override fun onStop(utteranceId: String, interrupted: Boolean) {
+      if (paceDone(utteranceId, false)) return
+      finish(utteranceId, if (interrupted) "interrupted" else "stopped")
+    }
   }
 
   private fun finish(utteranceId: String, outcome: String) {

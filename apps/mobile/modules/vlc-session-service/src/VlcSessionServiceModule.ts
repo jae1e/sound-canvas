@@ -25,6 +25,10 @@ import type {
   TtsLabPrepareResult,
   TtsLabRoutePreview,
   MusicVolume,
+  PaceBeatInput,
+  PaceStatus,
+  PacingClipInput,
+  PacingPrepareResult,
   TtsLabSpeakOptions,
   TtsLabVoice,
   VlcSessionServiceModuleEvents,
@@ -53,6 +57,19 @@ declare class VlcSessionServiceNative extends NativeModule<VlcSessionServiceModu
   cancelCue(id: string): void;
   /** Synchronous. Returns false if the cue is unknown, not fired yet, or already acked. */
   ackCue(id: string): boolean;
+
+  /**
+   * Pre-synthesises every phrase to the WAV cache (skips cached ones). Requires a running session (rejects NO_SESSION).
+   * Plays nothing. Progress arrives as pacePrepareProgress events.
+   */
+  pacingPrepare(clips: PacingClipInput[]): Promise<PacingPrepareResult>;
+  /** Synchronous. Plays cached clips at startEpochMs + offsetMs on a native timer; missing clips fall back to live TTS. Rejects without a session. */
+  paceSchedule(segmentId: string, startEpochMs: number, beats: PaceBeatInput[]): void;
+  /** null cancels every segment. Stops playing clips immediately; emits paceSegmentDone with cancelled=true. */
+  paceCancel(segmentId: string | null): void;
+  paceStatus(): PaceStatus;
+  /** Cancels playback and deletes the clip cache directory. */
+  pacingClearCache(): Promise<{ deleted: number }>;
 
   listCommunicationDevices(): Promise<AudioDevice[]>;
   setCommunicationDevice(id: number): Promise<{ ok: boolean; reason?: string; route?: RouteState }>;
