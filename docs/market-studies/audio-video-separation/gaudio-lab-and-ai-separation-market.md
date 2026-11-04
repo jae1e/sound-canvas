@@ -143,6 +143,38 @@ Candidate first users, all hypotheses with no demand data collected yet:
 
 This fits the user's thesis because it helps users make money (restoring monetization blocked by claims), targets a tedious task, and the individual practitioner decides and pays.
 
+**Existing tools already cover most of this flow (checked 2026-11-04).** The user asked whether YouTube or Suno already does this.
+
+*YouTube*
+
+YouTube covers the whole loop for YouTube uploads, but only after Content ID has found the song:
+- **Checks** scans an upload for copyright matches before it is published [V] ([YouTube Help](https://support.google.com/youtubecreatorstudio/answer/57407?hl=en&co=GENIE.Platform%3DDesktop)).
+- **Erase Song** removes a claimed song with AI and keeps the other audio. It is available since July 2024, with mute and trim as fallbacks [V] ([TechCrunch](https://techcrunch.com/2024/07/05/youtubes-updated-eraser-tool-removes-copyrighted-music-without-impacting-other-audio)).
+- **Replace Song → Create** generates four royalty-free, sound-alike instrumentals to swap in [V] ([Tubefilter, 2026-05-04](https://www.tubefilter.com/2026/05/04/youtube-ai-tool-royalty-free-music-resolve-content-id/amp/)). Since May 2026 it has been a US-only, desktop test inside the claim workflow, with a wider rollout announced for "later this year".
+
+*Suno*
+
+Suno has no music-removal tool for video:
+- **Suno Scenes** writes a new song for a photo or video, on iOS [MC] ([CO/AI](https://getcoai.com/news/sunos-new-feature-composes-songs-based-on-photos-and-videos)).
+- **Get Stems** splits songs into 12 stems, or about 100 instruments in Advanced Split since 2026-06-11. It is available on the Pro and Premier plans, and Suno says it regenerates each stem rather than cutting up the mix [MC] ([Suno help](https://help.suno.com/en/articles/12702337), [release notes](https://about.suno.com/release-notes/advanced-stems)).
+
+Suno and YouTube's Create button mean that generating replacement music is becoming free.
+
+*Other tools*
+
+Third-party tools already remove music from local files:
+- AudioShake Music Removal keeps dialogue and effects. Its web platform requires an access request, and it also offers an SDK [MC] ([AudioShake](https://www.audioshake.ai/products/music-removal)).
+- Adobe Podcast's music remover, Premiere's Enhance Audio beta, DaVinci Resolve Studio's Dialogue Separator, and CapCut.
+- Small new apps such as SoundScrub, a desktop app with prompt-based sound removal from $5, updated 2026-06 [MC] ([PeerPush](https://peerpush.com/p/soundscrub)).
+
+*Verdict*
+
+A YouTube-only "remove and replace claimed music" SaaS is largely served and has high platform risk. What remains is thin, and every item is a hypothesis to test before building:
+- non-YouTube platforms: Instagram, TikTok, Facebook, Twitch VOD muting;
+- batch cleanup of large back catalogues, where YouTube's tools work claim by claim;
+- keeping effects and ambience at higher quality than voice isolators;
+- licensed replacement music for platforms that offer none.
+
 **Unit cost (estimate).**
 - Using a third-party API first, for example Music.ai cinematic stems at $0.05/min, costs about $3 per audio hour.
 - Self-hosting later costs roughly $0.005–0.5 per audio hour (see the run-cost section), but needs model weights that are cleared for commercial use.
