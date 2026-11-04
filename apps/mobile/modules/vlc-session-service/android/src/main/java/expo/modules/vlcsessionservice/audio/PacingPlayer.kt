@@ -25,6 +25,8 @@ import java.util.concurrent.atomic.AtomicInteger
  * A beat's [AudioTrack] (MODE_STATIC, LOW_LATENCY) is built 1-2 beats ahead on the same thread, so the fire path is just
  * `play()`. Drift = uptime right after `play()` returned minus the scheduled uptime.
  *
+ * A missing clip never falls back to another voice: [onMissing] decides (earcon + log).
+ *
  * Routing: USAGE_MEDIA + CONTENT_TYPE_SPEECH, follows the system route (Bluetooth earbuds work). No preferred device,
  * no forced speaker, no communication device. Other audio is ducked with a transient-may-duck focus request.
  *
@@ -36,8 +38,13 @@ class PacingPlayer(
   private val log: DiagLog,
   private val emit: (String, Map<String, Any?>) -> Unit,
   private val cache: PacingCache,
-  /** Live TTS fallback for a clip that is not cached (no flush). */
-  private val speakLive: (text: String) -> Unit,
+  /**
+   * A beat's clip is not cached. There is no live-TTS fallback (the session keeps one voice): the owner plays an earcon
+   * and logs `speech_dropped_stale`, because a late count or cue is no longer true.
+   */
+  private val onMissing: (text: String, tag: String?) -> Unit,
+  /** A clip of the session voice just started (the user has now heard it). */
+  private val onPlayed: () -> Unit,
   /** Half-duplex STT hook: true when a clip starts (or stays paused across a short gap), false when listening may resume. */
   private val onSpeaking: (Boolean) -> Unit,
 ) {
@@ -83,6 +90,11 @@ class PacingPlayer(
   val pendingBeats: Int get() = segments.values.sumOf { it.unfired.get() }
 
   // ---- public API (any thread) -------------------------------------------------------------------------
+
+  /** Plays one cached clip, or the composed fragments [parts] joined by [PacingCache.COMPOSE_SEP], right now. */
+  fun playNow(segmentId: String, parts: List<String>, lang: String, tag: String?) {
+    schedule(segmentId, System.currentTimeMillis(), listOf(BeatSpec(0, parts.joinToString(PacingCache.COMPOSE_SEP.toString()), lang, tag)))
+  }
 
   fun schedule(segmentId: String, startEpochMs: Long, beats: List<BeatSpec>) {
     if (shutDown) return
@@ -190,8 +202,8 @@ class PacingPlayer(
     if (track == null || clip == null) {
       seg.missing++
       log.log("pace_clip_missing", mapOf("segmentId" to seg.id, "index" to b.index, "text" to b.spec.text, "lang" to b.spec.lang))
-      try { speakLive(b.spec.text) } catch (e: Throwable) { log.log("error", mapOf("where" to "pace_live_fallback", "message" to e.chainText())) }
-      emitBeat(seg, b, "live_tts", pre, pre, System.currentTimeMillis(), 0, null)
+      try { onMissing(b.spec.text, b.spec.tag) } catch (e: Throwable) { log.log("error", mapOf("where" to "pace_missing_handler", "message" to e.chainText())) }
+      emitBeat(seg, b, "earcon", pre, pre, System.currentTimeMillis(), 0, null)
       prepareAhead(seg, b.order + 1, 2)
       beatFinished(seg, SystemClock.uptimeMillis())
       return
@@ -202,7 +214,7 @@ class PacingPlayer(
       try { track.release() } catch (_: Throwable) {}
       seg.missing++
       log.log("pace_clip_missing", mapOf("segmentId" to seg.id, "index" to b.index, "text" to b.spec.text, "reason" to "play_failed"))
-      try { speakLive(b.spec.text) } catch (_: Throwable) {}
+      try { onMissing(b.spec.text, b.spec.tag) } catch (_: Throwable) {}
       beatFinished(seg, SystemClock.uptimeMillis())
     }
     prepareAhead(seg, b.order + 1, 2)
@@ -221,6 +233,7 @@ class PacingPlayer(
     val postEpoch = System.currentTimeMillis()
     playingClips++
     seg.played++
+    try { onPlayed() } catch (_: Throwable) {}
     seg.drifts.add(post - b.scheduledUptime)
     val routed = try { track.routedDevice?.let { "type=${it.type} id=${it.id} ${it.productName}" } } catch (_: Throwable) { null }
     emitBeat(seg, b, "cache", pre, post, postEpoch, clip.durationMs, routed)

@@ -196,6 +196,9 @@ class SherpaTtsEngine(
       val steps = (req.options["steps"] as? Number)?.toInt()?.coerceIn(1, 64) ?: 8
       val gc = GenerationConfig(sid = sid, speed = 1.0f, numSteps = steps, extra = mapOf("lang" to req.locale.language))
       var callbackError: Throwable? = null
+      // A cue that became stale while its audio was being generated is dropped instead of played late.
+      val staleAt = (req.options["staleAtEpochMs"] as? Number)?.toLong() ?: 0L
+      var stale = false
       // Shared by the streaming callback and the returned-audio fallback.
       val writeSamples = { samples: FloatArray ->
         val w0 = System.nanoTime()
@@ -211,6 +214,10 @@ class SherpaTtsEngine(
       val audioCallback = SherpaAudioCallback { samples ->
         try {
           if (stopFlag || gen != generation.get()) return@SherpaAudioCallback 0
+          if (firstAudioRt == 0L && staleAt > 0 && System.currentTimeMillis() > staleAt) {
+            stale = true
+            return@SherpaAudioCallback 0
+          }
           writeSamples(samples)
           1
         } catch (e: Throwable) {
@@ -222,7 +229,8 @@ class SherpaTtsEngine(
       val callbackFrames = frames
       callbackError?.let { throw it }
       // Some models (Kitten) return the whole utterance without ever invoking the callback: play the returned samples.
-      if (callbackFrames == 0L && generated.samples.isNotEmpty() && !stopFlag && gen == generation.get()) {
+      if (!stale && staleAt > 0 && callbackFrames == 0L && System.currentTimeMillis() > staleAt) stale = true
+      if (!stale && callbackFrames == 0L && generated.samples.isNotEmpty() && !stopFlag && gen == generation.get()) {
         writeSamples(generated.samples)
       }
       val genMs = SystemClock.elapsedRealtime() - genStart - writeNanos / 1_000_000
@@ -234,6 +242,7 @@ class SherpaTtsEngine(
         while (tr.playbackHeadPosition < frames && SystemClock.elapsedRealtime() < deadline && !stopFlag && gen == generation.get()) Thread.sleep(20)
       }
       if (stopFlag || gen != generation.get()) outcome = "stopped"
+      if (stale && outcome == "done") outcome = "dropped_stale"
       info = mapOf(
         "genMs" to genMs,
         "audioSec" to audioSec,

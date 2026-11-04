@@ -13,7 +13,8 @@ import java.security.MessageDigest
  * Pre-synthesised phrase clips for the pacing player. Supertonic takes about 1.8 s to first audio and does not stream,
  * so every phrase of a routine is rendered once to `filesDir/vlc-pacing/<engine>-<lang>-<sha1>.wav` (16-bit PCM mono)
  * and played later from memory. The key hashes `engine|voice|steps|lang|text`, so changing voice or steps misses the
- * cache instead of playing a stale voice. Nothing here plays audio.
+ * cache instead of playing a stale voice. Only the session voice (chosen once per session, see TtsController) is ever read
+ * or written; there is no cross-engine fallback. Nothing here plays audio.
  */
 class PacingCache(
   private val context: Context,
@@ -56,6 +57,7 @@ class PacingCache(
 
   fun clear(): Int {
     synchronized(mem) { mem.clear(); memBytes = 0 }
+    synchronized(composed) { composed.clear() }
     val files = dir.listFiles() ?: return 0
     var n = 0
     for (f in files) if (f.delete()) n++
@@ -65,17 +67,52 @@ class PacingCache(
 
   // ---- lookup (used by the player) -----------------------------------------------------------------
 
-  /** Cached clip for the active voice settings (Supertonic first when wanted, then the platform clip), or null. */
+  /**
+   * Cached clip in the SESSION voice only (never another engine's clip), or null. A text containing [COMPOSE_SEP] is a
+   * composed phrase: its fragments' clips joined with [COMPOSE_GAP_MS] of silence (null if any fragment is missing).
+   */
   fun clipFor(text: String, lang: String): Clip? {
+    if (text.indexOf(COMPOSE_SEP) >= 0) return compose(text.split(COMPOSE_SEP), lang)
     val l = normLang(lang)
-    val order = if (SessionTts.wantsSupertonic()) listOf(ST, PL) else listOf(PL, ST)
-    for (e in order) {
-      val key = keyFor(e, l, text)
-      synchronized(mem) { mem[key] }?.let { return it }
-      val f = fileFor(e, l, key)
-      if (f.isFile) load(key, f)?.let { return it }
+    val e = tts.sessionVoice
+    val key = keyFor(e, l, text)
+    synchronized(mem) { mem[key] }?.let { return it }
+    val f = fileFor(e, l, key)
+    return if (f.isFile) load(key, f) else null
+  }
+
+  fun hasClip(text: String, lang: String): Boolean = clipFor(text, lang) != null
+
+  private val composed = LinkedHashMap<String, Clip>(8, 0.75f, true)
+
+  /** Concatenates fragment clips with short gaps. Null when a fragment is missing or the sample rates differ. */
+  fun compose(parts: List<String>, lang: String): Clip? {
+    val clean = parts.map { it.trim() }.filter { it.isNotEmpty() }
+    if (clean.isEmpty()) return null
+    val cacheKey = "${tts.sessionVoice}|${normLang(lang)}|${clean.joinToString(COMPOSE_SEP.toString())}"
+    synchronized(composed) { composed[cacheKey] }?.let { return it }
+    val clips = ArrayList<Clip>()
+    for (part in clean) clips.add(clipFor(part, lang) ?: return null)
+    val sr = clips[0].sampleRate
+    if (clips.any { it.sampleRate != sr }) return null
+    val gap = sr * COMPOSE_GAP_MS / 1000
+    val out = ShortArray(clips.sumOf { it.pcm.size } + gap * (clips.size - 1))
+    var o = 0
+    for ((i, c) in clips.withIndex()) {
+      System.arraycopy(c.pcm, 0, out, o, c.pcm.size)
+      o += c.pcm.size
+      if (i < clips.size - 1) o += gap
     }
-    return null
+    val clip = Clip(out, sr, out.size * 1000L / sr)
+    synchronized(composed) {
+      composed[cacheKey] = clip
+      while (composed.size > MAX_COMPOSED) {
+        val it = composed.entries.iterator()
+        it.next()
+        it.remove()
+      }
+    }
+    return clip
   }
 
   private fun load(key: String, f: File): Clip? {
@@ -105,14 +142,13 @@ class PacingCache(
   fun prepare(clips: List<Pair<String, String>>, progress: (done: Int, total: Int) -> Unit): PrepareResult {
     val t0 = SystemClock.elapsedRealtime()
     val unique = clips.map { Pair(it.first.trim(), normLang(it.second)) }.filter { it.first.isNotEmpty() }.distinct()
-    val voice = SessionTts.voice
-    val steps = SessionTts.steps
-    var useSt = false
-    if (SessionTts.wantsSupertonic() && SessionTts.modelReady(context)) {
+    val voice = tts.sessionSid
+    val steps = tts.sessionSteps
+    // The session voice was chosen once at session start; the cache never mixes in another engine.
+    val useSt = tts.sessionVoice == ST
+    if (useSt) {
       tts.ensureSupertonic()
-      val deadline = SystemClock.elapsedRealtime() + SUPERTONIC_WAIT_MS
-      while (!SessionTts.loaded && SessionTts.loading && SystemClock.elapsedRealtime() < deadline) Thread.sleep(100)
-      useSt = SessionTts.loaded && tts.supertonicEngine() != null
+      awaitEngine(SUPERTONIC_WAIT_MS)
     }
     dir.mkdirs()
     val results = ArrayList<ClipResult>()
@@ -130,40 +166,35 @@ class PacingCache(
     val out = PrepareResult(engine, if (useSt) voice else 0, if (useSt) steps else 0, unique.size, synthesized, cachedN, failed, results, SystemClock.elapsedRealtime() - t0)
     log.log("pace_prepare", mapOf(
       "engine" to engine, "total" to out.total, "synthesized" to synthesized, "cached" to cachedN, "failed" to failed.size,
-      "platformFallbacks" to results.count { it.ok && it.engine == PL && useSt }, "elapsedMs" to out.elapsedMs,
+      "elapsedMs" to out.elapsedMs,
     ))
     return out
   }
 
-  /** Returns (result, usedFallback). */
+  /** Returns (result, false). A failed clip stays failed: it is retried with the same engine, never filled by another. */
   private fun prepareOne(text: String, lang: String, useSt: Boolean, voice: Int, steps: Int): Pair<ClipResult, Boolean> {
-    var fellBack = false
-    if (useSt) {
-      val key = keyFor(ST, lang, text, voice, steps)
-      val f = fileFor(ST, lang, key)
-      if (f.isFile) load(key, f)?.let { return Pair(ClipResult(text, lang, it.durationMs, true, ST, true), false) }
-      val pcm = synthSupertonic(text, lang, voice, steps)
-      if (pcm != null) {
-        val clip = store(key, f, pcm.first, pcm.second)
-        if (clip != null) return Pair(ClipResult(text, lang, clip.durationMs, false, ST, true), false)
-      }
-      fellBack = true
-      log.log("pace_clip_fallback", mapOf("text" to text, "lang" to lang, "from" to ST, "to" to PL))
-    }
-    val key = keyFor(PL, lang, text)
-    val f = fileFor(PL, lang, key)
-    if (f.isFile) load(key, f)?.let { return Pair(ClipResult(text, lang, it.durationMs, true, PL, true), fellBack) }
-    val pcm = synthPlatform(text, lang)
+    val engine = if (useSt) ST else PL
+    val key = keyFor(engine, lang, text, voice, steps)
+    val f = fileFor(engine, lang, key)
+    if (f.isFile) load(key, f)?.let { return Pair(ClipResult(text, lang, it.durationMs, true, engine, true), false) }
+    val pcm = if (useSt) synthSupertonic(text, lang, voice, steps) else synthPlatform(text, lang)
     val clip = pcm?.let { store(key, f, it.first, it.second) }
     if (clip == null) {
-      log.log("pace_clip_failed", mapOf("text" to text, "lang" to lang))
-      return Pair(ClipResult(text, lang, 0, false, PL, false), fellBack)
+      log.log("pace_clip_failed", mapOf("text" to text, "lang" to lang, "engine" to engine))
+      return Pair(ClipResult(text, lang, 0, false, engine, false), false)
     }
-    return Pair(ClipResult(text, lang, clip.durationMs, false, PL, true), fellBack)
+    return Pair(ClipResult(text, lang, clip.durationMs, false, engine, true), false)
+  }
+
+  /** Waits (up to [ms]) for the Supertonic engine to be loaded, for example while it reloads after a failure. */
+  private fun awaitEngine(ms: Long) {
+    val deadline = SystemClock.elapsedRealtime() + ms
+    while (tts.supertonicEngine() == null && tts.sessionVoice == ST && SystemClock.elapsedRealtime() < deadline) Thread.sleep(100)
   }
 
   private fun synthSupertonic(text: String, lang: String, voice: Int, steps: Int): Pair<ShortArray, Int>? {
     repeat(3) { attempt ->
+      if (tts.supertonicEngine() == null) awaitEngine(SUPERTONIC_WAIT_MS)
       val engine = tts.supertonicEngine() ?: return null
       val r = try { engine.synthesizeToPcm(text, TtsController.localeFor(lang), voice, steps) } catch (e: Throwable) {
         log.log("pace_synth_error", mapOf("engine" to ST, "error" to e.chainText())); null
@@ -223,7 +254,7 @@ class PacingCache(
 
   // ---- keys ------------------------------------------------------------------------------------------
 
-  private fun keyFor(engine: String, lang: String, text: String, voice: Int = SessionTts.voice, steps: Int = SessionTts.steps): String {
+  private fun keyFor(engine: String, lang: String, text: String, voice: Int = tts.sessionSid, steps: Int = tts.sessionSteps): String {
     val v = if (engine == ST) voice else 0
     val s = if (engine == ST) steps else 0
     val md = MessageDigest.getInstance("SHA-1").digest("$engine|$v|$s|$lang|$text".toByteArray(Charsets.UTF_8))
@@ -288,6 +319,10 @@ class PacingCache(
   companion object {
     const val ST = "supertonic"
     const val PL = "platform"
+    /** Joins the fragments of a composed phrase in a clip lookup text. */
+    const val COMPOSE_SEP = '\u0001'
+    const val COMPOSE_GAP_MS = 80
+    private const val MAX_COMPOSED = 32
     private const val MAX_MEM_BYTES = 64L * 1024 * 1024
     private const val SUPERTONIC_WAIT_MS = 20_000L
     private const val SILENCE_THRESHOLD = 130 // about -48 dBFS
