@@ -17,6 +17,7 @@ sam = [
   "torch",
   "torchaudio",
   "sam-audio @ git+https://github.com/facebookresearch/sam-audio",
+  "accelerate",  # lets transformers build T5 directly on the GPU (memory-light loading)
 ]
 
 # Speaker/singer clustering spike. Needs access to pyannote/speaker-diarization-community-1.
