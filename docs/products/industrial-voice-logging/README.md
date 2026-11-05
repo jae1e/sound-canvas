@@ -15,7 +15,6 @@
 - Light, fast and reliable; every entry visibly shows recording, saved and synced.
 - MVP: a general voice memo app for noisy places such as the subway, transcribed on our own GPU server.
 - Next: a first commercial vertical (likely Korean manufacturing safety and context records) and exports for robot and AV data.
-- Business: $300K profit in year 1 and $0.5–1M in year 2; self-serve on a vendor-run private cloud, with on-prem as the B2B upsell.
 
 ## Documents
 
