@@ -144,3 +144,29 @@ Do not use non-commercial sets (MUSDB18, MoisesDB, MedleyDB), not even for inter
   - Speaker split via pyannote.
   - Two "others" variants, per-track gain and mute, mix WAV or MP4, and stems as a zip.
   - Not in v0: clicking a face or player (visual prompts) and the `-tv` models. Both are planned for v1.
+
+## UI v1 design: one "Sources found" panel (2026-11-05)
+
+The user described five scenarios to support. In all of them the audio comes first: the product works out who or what is playing, and when, from the audio itself. Video is an optional extra that lets the user pick a source by clicking on it.
+
+| Scenario | How sources are found | How the user selects | Main difficulty |
+|---|---|---|---|
+| Sitcom with faces visible (actor 1, actor 2, noise) | Speaker clustering over the whole file (pyannote). Faces are tracked within each shot, and active-speaker (lip-sync) detection attaches each face to a voice cluster. The voice itself links the same person across shots, so no face-recognition model is needed. | Person card, a click on a face in the paused frame, or a timeline bar | Reaction shots where the speaker is off-screen, overlapping lines, the laugh track |
+| Football broadcast with commentators off-screen | Speaker clustering only. Commentators are close-miked over the crowd, so the voices are relatively clean. | Person card ("off-screen voice"), or a timeline bar | Both commentators shouting at once at a goal, crowd chanting |
+| Concert where the band and instruments are visible | Audio tagging plus probe separation (a short excerpt per candidate prompt, kept if the stem is not silent). Open-vocabulary video segmentation (SAM 3: "guitar", "drum kit", "person playing keyboard") can then link a stem to a player. | Instrument card, a typed description, a marked moment, or a click on the player (visual prompt, `-tv` model) | Two instruments of the same type, stage bleed, PA and crowd |
+| Concert where instruments cannot be seen or recognised | Same as above, but audio only | Instrument card, a typed description, a marked moment | Live reverb and crowd. The crowd singing goes to "others" (user decision) |
+| Music with only a still cover image | Audio only. A static frame is detected and video analysis is skipped. | Instrument card, a typed description, a marked moment | Two of the same instrument. The upstream processor averages the channels to mono, so stereo panning (left vs right guitar) is lost unless the lab adds a mid/side or per-channel pre-step [hypothesis to test] |
+
+**UI elements:**
+- One card per detected source (person or instrument), with a face, icon or "off-screen" marker, the duration it is active, and a 3 s sample.
+- Keep, remove and level controls for each source.
+- A timeline lane per source; clicking a lane jumps the video there.
+- Merge and split corrections.
+- A "describe a sound" box and a "this sound at [time]" box.
+- Click-on-video, shown only when the video is not a still image.
+- "Separate selected", which runs only after selection because separation is the expensive step.
+
+**Order of work:**
+1. Cards, timeline and per-source separation (audio only). This covers football, music with a cover image, and concerts where instruments cannot be seen.
+2. Face and instrument linking, plus click-on-video (SAM 3, active-speaker detection, `sam-audio-large-tv`). Check the licences before use.
+3. Later, a dedicated front end with instant WebAudio mixing in place of Gradio.
