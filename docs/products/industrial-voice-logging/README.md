@@ -1,8 +1,21 @@
 # Industrial Voice Logging ("Field Voice Log", working name)
 
-## Background and Goals
+## Background
 
-Physical AI and industrial operations increasingly run on language. Robot and autonomous-vehicle teams need timestamped intent, corrections and explanations to train vision-language-action models. Factories and construction sites depend on spoken context such as shift handovers, maintenance observations, safety briefings and incident reports. The people who hold this knowledge work with busy, often gloved hands, so they talk instead of typing. Their sites are noisy and security-sensitive, and many cannot send audio or text to external cloud AI services. Speech-to-text by itself is becoming a commodity, since Procore, Mitti (formerly SafetyCulture) and push-to-talk radio apps already bundle it, yet none of the frontline and construction platforms we reviewed offers an on-premises, no-external-AI option. In Korea, safety law turns daily records such as tool-box meetings (TBM) and risk assessments into evidence that must be kept for three years. Our goal is a voice-first logging system that captures speech, optional audio, photos, timestamps and location on phones, earbuds or bodycams. It works offline and syncs to a self-hosted server or private cloud running open models, so records stay inside the customer's network and can serve as evidence. It must be light, fast and reliable, and it must show users at a glance that each entry is recording, saved and synced. We start with a general-purpose voice memo app, tested in noisy places such as the subway, with transcription on our own GPU server. Next we will choose a first commercial vertical, most likely Korean manufacturing safety and context records, and add exports for robot and AV data pipelines. The business aims for $300K profit in year one and $0.5–1M in year two. It starts self-serve on a vendor-operated private cloud, with on-premises deployment as the B2B upsell.
+- Physical AI (robots, autonomous vehicles, VLA models) and industrial operations increasingly depend on language: intent, corrections, shift handovers, safety briefings and incident reports.
+- Field workers have busy, often gloved hands, so they speak rather than type.
+- Sites are noisy and security-sensitive, and many cannot use external cloud AI.
+- Speech-to-text is becoming a commodity (Procore, Mitti, push-to-talk apps), but none of the frontline platforms we reviewed offers on-prem or no-external-AI deployment.
+- Korean safety law requires daily TBM and risk-assessment records, kept for 3 years.
+
+## Goals
+
+- Voice-first logging: speech, optional audio, photos, timestamps and GPS from a phone, earbuds or a bodycam.
+- Offline-first, syncing to a self-hosted server or private cloud with open models; records stay in the customer's network.
+- Light, fast and reliable; every entry visibly shows recording, saved and synced.
+- MVP: a general voice memo app for noisy places such as the subway, transcribed on our own GPU server.
+- Next: a first commercial vertical (likely Korean manufacturing safety and context records) and exports for robot and AV data.
+- Business: $300K profit in year 1 and $0.5–1M in year 2; self-serve on a vendor-run private cloud, with on-prem as the B2B upsell.
 
 ## Documents
 
