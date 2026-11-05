@@ -129,3 +129,18 @@ Do not use non-commercial sets (MUSDB18, MoisesDB, MedleyDB), not even for inter
    - a story-harness skeleton.
 
    Then build the synthetic clip sets and run the spike once access is granted.
+
+## Status update (2026-11-05)
+
+- **SAM Audio spike:** first runs are recorded in [tools/separation-lab/spike-results/sam-audio-first-run.md](../../../tools/separation-lab/spike-results/sam-audio-first-run.md).
+  - The memory-light loader cut host RAM from about 14.6 GB to 6–8.5 GB.
+  - Large with bf16 weights fits about 45 s per pass, so the demo processes 30 s chunks.
+  - Target plus residual does not equal the input.
+  - The ImageBind visual ranker is non-commercial (CC BY-NC-SA 4.0) and is kept off.
+- **Web demo v0:** pulled forward at the user's request (2026-11-04). It is a Gaudio-Studio-style flow at `tools/separation-lab/seplab/web/` (Gradio), launched with `./run-demo.sh`.
+  - Binds to 127.0.0.1 only and runs inside a 14 GB memory-capped scope.
+  - Input is an uploaded file or a URL, imported with yt-dlp. **URL import is for internal testing only.** Whether the public product accepts platform links is still an open decision; the earlier rights posture was to accept uploads only.
+  - Up to 4 targets, each a preset or free text, with optional spans.
+  - Speaker split via pyannote.
+  - Two "others" variants, per-track gain and mute, mix WAV or MP4, and stems as a zip.
+  - Not in v0: clicking a face or player (visual prompts) and the `-tv` models. Both are planned for v1.
