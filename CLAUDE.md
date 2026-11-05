@@ -29,6 +29,10 @@ This repository is a workspace for studying multiple markets and product opportu
 
 - Audio separation SaaS (exploration, MVP not committed): [docs/products/audio-separation/personas-and-user-stories.md](docs/products/audio-separation/personas-and-user-stories.md). The user chose the sound-separation topic (voices, individual voices, instruments, individual singers who take turns; audio and video input) and excluded harmony groups and unison choruses as too difficult.
 
+## Learning Material
+
+- Audio and AI separation curriculum for the user (a mechanical engineer new to audio; nine lectures from acoustics to SAM Audio and an industry map): [docs/learning/audio-ai/README.md](docs/learning/audio-ai/README.md).
+
 ## Code
 
 - Write code, comments, and identifiers in English.
