@@ -49,6 +49,8 @@ UV_PROJECT_ENVIRONMENT=.venv-diar uv run --no-sync python -m seplab.spike_pyanno
 
 Results: [spike-results/pyannote-clustering.md](spike-results/pyannote-clustering.md).
 
+Korean twins of US-3.1, US-1.x and US-2.1 (Zeroth-Korean, `seplab build-clips --language ko`) and the English-vs-Korean evaluation (`python -m seplab.eval_language`): [spike-results/korean-speech.md](spike-results/korean-speech.md).
+
 ## Web demo (v0)
 
 A local, Gaudio-Studio-style page for SAM Audio: upload a file or paste a link, pick up to 4 targets, listen to each track, set a gain per track, then download the stems or a mix. Internal testing only.

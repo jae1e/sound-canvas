@@ -50,3 +50,46 @@ def build_all(data_root: str | Path, out_root: str | Path, stories: list[str] | 
             build_us61(c, d, 610 + i, singers, techs)
             made.setdefault("US-6.1", []).append(str(d))
     return made
+
+
+# ----------------------------------------------------------------------------------------------- Korean sets
+
+KO_STORIES = ["US-3.1", "US-1.x", "US-2.1"]
+
+
+def build_korean(data_root: str | Path, out_root: str | Path, stories: list[str] | None = None) -> dict[str, list[str]]:
+    """Korean twins of the English US-3.1, US-1.x and US-2.1 sets: same recipes, seeds, durations, overlap,
+    SNRs, rooms, noise and music sources; only the speech pool changes (Zeroth-Korean). Clips are written to
+    <out_root>/<story>-ko/ and their manifests get language='ko'."""
+    import json
+
+    from .zeroth import KoreanCorpora
+
+    c = KoreanCorpora(Path(data_root))
+    out = Path(out_root)
+    made: dict[str, list[str]] = {}
+
+    def done(story: str, d: Path) -> None:
+        mp = d / "manifest.json"
+        m = json.loads(mp.read_text())
+        m.update(language="ko", corpus="Zeroth-Korean (OpenSLR SLR40, CC BY 4.0)")
+        mp.write_text(json.dumps(m, indent=2))
+        made.setdefault(story, []).append(str(d))
+
+    wanted = stories or KO_STORIES
+    if "US-3.1" in wanted:
+        for i, (n, same) in enumerate(US31_RECIPES):
+            d = out / "US-3.1-ko" / f"clip{i + 1}_{n}spk_{'same' if same else 'mixed'}"
+            build_us31(c, d, 310 + i, n, same)
+            done("US-3.1", d)
+    if "US-1.x" in wanted:
+        for i, p in enumerate(US1_PASSERS):
+            d = out / "US-1.x-ko" / f"clip{i + 1}_{p}passers"
+            build_us1(c, d, 110 + i, p)
+            done("US-1.x", d)
+    if "US-2.1" in wanted:
+        for i in range(5):
+            d = out / "US-2.1-ko" / f"clip{i + 1}"
+            build_us21(c, d, 210 + i, music_snr_db=[0.0, -3.0, 0.0, 3.0, -3.0][i])
+            done("US-2.1", d)
+    return made

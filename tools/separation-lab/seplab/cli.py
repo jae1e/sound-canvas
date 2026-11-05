@@ -59,8 +59,8 @@ def cmd_mix(a):
 
 
 def cmd_build_clips(a):
-    from .build_sets import build_all
-    made = build_all(a.data, a.out, a.story or None)
+    from .build_sets import build_all, build_korean
+    made = (build_korean if a.language == "ko" else build_all)(a.data, a.out, a.story or None)
     for k, v in made.items():
         print(f"{k}: {len(v)} clips")
 
@@ -158,7 +158,10 @@ def main(argv=None):
 
     s = sub.add_parser("build-clips", help="build the synthetic clip sets from the licensed corpora under --data")
     s.add_argument("--data", default="data"); s.add_argument("--out", default="data/clips")
-    s.add_argument("--story", action="append", help="limit to a story (repeatable)"); s.set_defaults(fn=cmd_build_clips)
+    s.add_argument("--story", action="append", help="limit to a story (repeatable)")
+    s.add_argument("--language", choices=["en", "ko"], default="en",
+                   help="ko builds the Korean twins of US-3.1, US-1.x and US-2.1 from Zeroth-Korean (data/zeroth)")
+    s.set_defaults(fn=cmd_build_clips)
 
     s = sub.add_parser("remix", help="remix separated tracks with a gain each")
     s.add_argument("tracks_dir"); s.add_argument("output")
