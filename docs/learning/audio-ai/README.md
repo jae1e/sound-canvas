@@ -4,6 +4,8 @@
 
 The reading favours blogs, interactive explainers, videos and tutorials over papers. A paper appears only when it is the clearest source, and is marked *(paper)*. Every link was checked on 2026-11-05.
 
+Korean learning translation (English stays canonical): [ko/README.md](ko/README.md).
+
 ## How it maps to what you already know
 
 | You know (mechanical engineering) | Audio equivalent | Lecture |
