@@ -17,6 +17,10 @@ Korean learning translation (English stays canonical): [ko/README.md](ko/README.
 | Modal decomposition, least squares, matrix factorisation | NMF (non-negative matrix factorisation: split a spectrogram into a few building-block spectra and how strongly each is active over time), Wiener filtering (a least-squares optimal gain per frequency, from signal and noise power), masking (multiply the spectrogram by a 0-to-1 gain to keep or remove parts) | 5 |
 | Optimisation, regression | Training neural separators (losses; PIT = permutation-invariant training, which scores the best matching of outputs to targets, because the outputs have no natural order) | 6 |
 | Stochastic processes, ODEs | Diffusion and flow-matching generative models (they create audio by starting from random noise and integrating an ODE for a number of steps) | 8 |
+| Active vibration control, sensor arrays and phased arrays, accelerometers | ANC (active noise cancellation: an anti-phase sound that cancels noise at the ear), beamforming (combining several microphones with delays so one direction is favoured), bone-conduction voice pickup (an accelerometer that senses the skull's vibration) | 11 |
+| DAQ chains: sensor, conditioning, ADC, transport, file format | The capture chain: microphone, preamp and ADC, the phone's audio path, Bluetooth headset profiles, codecs and containers | 10 |
+| Dynamic programming, sequence alignment, state estimation | Speech recognition (ASR): edit distance for WER (word error rate), CTC alignment, transducers and attention decoders | 12 |
+| Object re-identification and tracking (vision) | Keeping only one person's words: own-voice detection, speaker verification, diarisation plus ASR, target-speaker recognition | 13 |
 
 ## Schedule (about 4 weeks at 6–8 hours a week)
 
@@ -32,7 +36,18 @@ Korean learning translation (English stays canonical): [ko/README.md](ko/README.
 | 4 | [08 Generative and foundation models](08-generative-foundation-models.md) | 3 h | Neural codecs (learned audio compressors), diffusion and flow matching, CLAP (a model linking text and audio), SAM Audio (Meta's prompt-driven separation model) |
 | 4 | [09 What today's services use](09-industry-map.md) | 1.5 h | Open building blocks, vendor models (what companies use), platform features (what phones and apps build in), trends |
 
-**Fast track (about 8 hours)**, if time is short: lectures 03, 05, 06 and 08. Those four explain how our product works and where its weaknesses lie.
+**Part 2: voice capture and speech-to-text for the field logging app** (about 1.5 weeks). It supports the [industrial voice logging MVP](../../products/industrial-voice-logging/mvp-requirements.md): the phone records, and our own server transcribes noisy Korean and English speech.
+
+| Week | Lecture | Time | Core idea |
+|---|---|---|---|
+| 5 | [10 The capture chain](10-capture-chain.md) | 2 h | Microphones, Bluetooth headset profiles (HFP, LE Audio), Android audio sources and file formats decide what reaches the recogniser |
+| 5 | [11 Noise reduction in hardware and software](11-noise-reduction.md) | 2.5 h | ANC protects the ear, beamforming and bone conduction help the mic, and software denoising often hurts speech recognition |
+| 5 | [12 Speech-to-text](12-speech-to-text.md) | 3 h | CTC, transducers and attention decoders (Whisper, Qwen3-ASR); WER and CER scoring; streaming, timestamps and custom vocabulary |
+| 6 | [13 Whose words?](13-whose-words.md) | 2.5 h | Keeping only the wearer's words: close-talk by design, own-voice detection, enrolment, diarisation plus ASR |
+
+**Fast track (about 8 hours)**, if time is short: lectures 03, 05, 06 and 08. Those four explain how our separation product works and where its weaknesses lie.
+
+**App track (about 10 hours)**, for the field logging app: lectures 02 (§1–2), 03, then 10–13.
 
 ## Tools for the exercises
 

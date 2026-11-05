@@ -33,7 +33,7 @@ This repository is a workspace for studying multiple markets and product opportu
 
 ## Learning Material
 
-- Audio and AI separation curriculum for the user (a mechanical engineer new to audio; nine lectures from acoustics to SAM Audio and an industry map): [docs/learning/audio-ai/README.md](docs/learning/audio-ai/README.md).
+- Audio and AI curriculum for the user (a mechanical engineer new to audio): lectures 01–09 run from acoustics to SAM Audio and an industry map; Part 2 (lectures 10–13) covers the capture chain, hardware and software noise reduction, speech-to-text, and single-speaker transcription for the industrial voice logging app: [docs/learning/audio-ai/README.md](docs/learning/audio-ai/README.md).
 
 ## Code
 

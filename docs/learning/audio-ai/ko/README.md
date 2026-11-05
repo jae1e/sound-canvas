@@ -19,6 +19,10 @@
 | 모드 분해, 최소제곱, 행렬 분해 | NMF(비음수 행렬 분해, non-negative matrix factorisation: 스펙트로그램을 몇 개의 기본 스펙트럼과 시간에 따른 각각의 세기로 분해), 위너 필터링(Wiener filtering: 신호와 잡음 파워로 주파수마다 구하는 최소제곱 최적 이득), 마스킹(masking: 스펙트로그램에 0~1 이득을 곱해 일부를 남기거나 제거) | 5 |
 | 최적화, 회귀 | 신경망 분리기 학습(손실 함수; PIT = 순열 불변 학습(permutation-invariant training), 출력에 자연스러운 순서가 없으므로 출력과 목표의 최선의 짝짓기로 점수를 매김) | 6 |
 | 확률 과정, ODE | 확산(diffusion) 및 플로 매칭(flow-matching) 생성 모델 (무작위 잡음에서 시작해 여러 스텝 동안 ODE를 적분하여 오디오를 만듦) | 8 |
+| 능동 진동 제어, 센서 어레이와 위상 배열(phased array), 가속도계 | ANC(능동 소음 제어, active noise cancellation: 역위상 소리로 귀에서 소음을 상쇄), 빔포밍(beamforming: 여러 마이크를 지연시켜 합쳐 한 방향을 강조), 골전도 음성 픽업(bone-conduction voice pickup: 두개골 진동을 감지하는 가속도계) | 11 |
+| DAQ 체인: 센서, 신호 조절, ADC, 전송, 파일 형식 | 수음 사슬(capture chain): 마이크, 프리앰프와 ADC, 폰의 오디오 경로, 블루투스 헤드셋 프로필, 코덱과 컨테이너 | 10 |
+| 동적 계획법(dynamic programming), 시퀀스 정렬, 상태 추정 | 음성 인식(ASR, automatic speech recognition): WER(단어 오류율, word error rate)을 위한 편집 거리, CTC 정렬, 트랜스듀서(transducer)와 어텐션 디코더 | 12 |
+| 객체 재식별과 추적(비전) | 한 사람의 말만 남기기: 본인 음성 감지(own-voice detection), 화자 검증(speaker verification), 화자 분할(diarisation) + 음성 인식, 목표 화자 인식(target-speaker recognition) | 13 |
 
 ## 일정 (주당 6–8시간, 약 4주)
 
@@ -34,7 +38,18 @@
 | 4 | [08 생성 모델과 파운데이션 모델](08-generative-foundation-models.md) | 3 h | 신경 코덱(neural codec: 학습된 오디오 압축기), 확산과 플로 매칭, CLAP(텍스트와 오디오를 잇는 모델), SAM Audio(Meta의 프롬프트 기반 분리 모델) |
 | 4 | [09 오늘날 서비스가 쓰는 것](09-industry-map.md) | 1.5 h | 오픈 구성 요소, 벤더 모델(회사들이 쓰는 것), 플랫폼 기능(휴대폰과 앱에 내장된 것), 동향 |
 
+**2부: 현장 기록 앱을 위한 음성 캡처와 음성 인식** (약 1.5주). [산업 음성 로깅 MVP](../../../products/industrial-voice-logging/mvp-requirements.md)를 뒷받침합니다. 폰이 녹음하고, 우리 서버가 시끄러운 환경의 한국어와 영어 음성을 전사합니다.
+
+| 주 | 강의 | 시간 | 핵심 개념 |
+|---|---|---|---|
+| 5 | [10 수음 사슬(capture chain)](10-capture-chain.md) | 2 h | 마이크, 블루투스 헤드셋 프로필(HFP, LE Audio), 안드로이드 오디오 소스(audio source), 파일 형식이 인식기에 무엇이 도달할지를 정합니다 |
+| 5 | [11 하드웨어와 소프트웨어의 소음 저감](11-noise-reduction.md) | 2.5 h | ANC는 귀를 보호하고, 빔포밍과 골전도는 마이크를 돕고, 소프트웨어 잡음 제거는 음성 인식을 오히려 해치는 경우가 많습니다 |
+| 5 | [12 음성 인식(speech-to-text)](12-speech-to-text.md) | 3 h | CTC, 트랜스듀서, 어텐션 디코더(Whisper, Qwen3-ASR); WER과 CER 채점; 스트리밍, 타임스탬프, 사용자 어휘 |
+| 6 | [13 누구의 말인가?](13-whose-words.md) | 2.5 h | 착용자의 말만 남기기: 설계로 확보하는 근접 발화, 본인 음성 감지, 등록(enrolment), 화자 분할 + 음성 인식 |
+
 **빠른 경로 (약 8시간)**, 시간이 부족할 때: 강의 03, 05, 06, 08. 이 네 강의가 우리 제품이 어떻게 동작하고 약점이 어디에 있는지를 설명해 줍니다.
+
+**앱 경로 (약 10시간)**, 현장 기록 앱을 위해: 강의 02(§1–2), 03, 그다음 10–13.
 
 ## 실습 도구
 
