@@ -101,6 +101,19 @@ def cmd_run_story(a):
     print(f"results: {a.out or f'runs/{a.story}'}/results.json and index.html")
 
 
+def cmd_diarize(a):
+    """Needs the diarization environment (pyannote). Writes {"speakers": {label: [[s, e], ...]}, ...}."""
+    from .spike_pyannote import diarize, load_pipeline
+    x, sr = read_wav(a.input)
+    if sr != 16000:
+        from .audio_io import resample
+        x, sr = resample(x, sr, 16000), 16000
+    hyp, excl, seconds = diarize(load_pipeline(), x, sr, a.num_speakers or None)
+    out = {"duration": len(x) / sr, "seconds": seconds, "speakers": hyp, "exclusive": excl}
+    Path(a.output).write_text(json.dumps(out, indent=2))
+    print(f"wrote {a.output}: {len(hyp)} speakers")
+
+
 def main(argv=None):
     p = argparse.ArgumentParser(prog="seplab", description="Audio-separation test lab")
     sub = p.add_subparsers(dest="cmd", required=True)
@@ -157,6 +170,10 @@ def main(argv=None):
     s = sub.add_parser("run-story", help=f"run a story over clip manifests ({', '.join(list_stories())})")
     s.add_argument("story"); s.add_argument("--clips", required=True); s.add_argument("--out")
     backend_args(s); s.set_defaults(fn=cmd_run_story)
+
+    s = sub.add_parser("diarize", help="pyannote speaker segments to JSON (run in the .venv-diar environment)")
+    s.add_argument("input"); s.add_argument("output")
+    s.add_argument("--num-speakers", type=int, default=None); s.set_defaults(fn=cmd_diarize)
 
     a = p.parse_args(argv)
     try:

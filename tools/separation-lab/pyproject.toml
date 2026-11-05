@@ -20,6 +20,13 @@ sam = [
   "accelerate",  # lets transformers build T5 directly on the GPU (memory-light loading)
 ]
 
+# Local web demo (Gradio UI + yt-dlp URL import). Installs next to the sam extra:
+#   uv sync --extra sam --extra web
+web = [
+  "gradio>=5",
+  "yt-dlp[default]",  # [default] brings yt-dlp-ejs, the YouTube challenge solver (needs node or deno)
+]
+
 # Speaker/singer clustering spike. Needs access to pyannote/speaker-diarization-community-1.
 diarization = [
   "torch",

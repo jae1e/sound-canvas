@@ -141,7 +141,11 @@ class SamAudioBackend:
             result = self._model.separate(batch, predict_spans=self.predict_spans,
                                           reranking_candidates=self.reranking_candidates)
         out = []
-        for t in (result.target, result.residual):
+        targets = (result.target, result.residual)
+        for t in targets:
             x = resample(self._to_numpy(t), model_sr, sr)
             out.append(fit_length(x, len(audio)).astype(np.float32))
+        result = batch = targets = t = None  # drop tensor references before emptying the cache
+        if self.device.startswith("cuda"):
+            torch.cuda.empty_cache()  # keeps VRAM fragmentation down between chunks
         return out[0], out[1]

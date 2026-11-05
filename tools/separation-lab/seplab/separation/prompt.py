@@ -13,6 +13,8 @@ class Prompt:
     description: str = ""                       # text prompt, lowercase noun/verb phrase works best
     spans: list[Span] = field(default_factory=list)
     masked_video: Any = None                    # path to a masked video, or a tensor (visual prompt)
+    # Chunked runs: a chunk with no positive span gives silence for this target (speaker split).
+    require_span: bool = False
 
     def __post_init__(self) -> None:
         self.spans = [(str(s), float(a), float(b)) for s, a, b in self.spans]
