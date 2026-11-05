@@ -98,42 +98,83 @@ Each extra bit halves the step and buys 6 dB.
 
 ## 3. Files and codecs
 
+A digital recording has two separate questions: how are the samples *arranged in a file*, and are they *compressed*? Some words first:
+- **Bitrate:** how many bits per second the audio takes, written in kbps (kilobits per second; 1 kbps = 1000 bits/s).
+- **Codec** (coder-decoder): the method that compresses audio into fewer bits (encode) and turns it back into sound (decode).
+- **Lossless** compression keeps every bit: decoding gives back exactly the original samples. **Lossy** compression throws information away on purpose to get a much smaller file.
+
+**Size of uncompressed audio.** CD-quality stereo is 44,100 samples/s × 16 bits × 2 channels = 1,411,200 bits/s, about 1.41 Mbit/s. One minute is 1,411,200 / 8 × 60 ≈ 10.6 MB.
+
 **Lossless:**
-- WAV and AIFF hold raw PCM.
-- FLAC is compressed and lossless, used by most datasets.
+- **PCM** (pulse-code modulation): the plain list of sample values, uncompressed. Sections 1 and 2 described exactly this: a number per sample, per channel. "PCM" is what the audio data inside a WAV file is.
+- **WAV** (Waveform Audio File Format): a small header (sample rate, bit depth, channel count) followed by raw PCM. **AIFF** (Audio Interchange File Format) is Apple's equivalent: same idea, different header. Both are huge but simple and exact.
+- **FLAC** (Free Lossless Audio Codec): zip-like compression for audio. It predicts each sample from the previous ones and stores only the small prediction errors. The file is smaller (for music often around half the size of the WAV; this varies a lot), and decoding gives back **bit-exact** samples, meaning every bit identical to the original. Most datasets use it.
 
 **Lossy:**
-- MP3, AAC and Opus transform the signal (MDCT), use a psychoacoustic model to find what is masked, and spend bits only on what is audible.
+- **MP3** (MPEG-1 Audio Layer III), **AAC** (Advanced Audio Coding) and **Opus** are lossy codecs. A typical MP3 at 128 kbps is about 11 times smaller than CD-quality PCM (1411 / 128). Opus is a modern open codec designed for both speech and music at low delay, used in calls and web streaming.
+- They transform the signal (**MDCT**, the modified discrete cosine transform), use a **psychoacoustic model** to find what is masked, and spend bits only on what is audible.
+  - **MDCT:** the overlapped frequency transform lossy codecs use. It cuts the signal into short blocks that overlap by half, and turns each block into frequency coefficients with cosine functions. It is a cousin of the STFT (lecture 03). The overlap lets the blocks join smoothly, without producing extra data.
+  - **Psychoacoustic model:** a computer model of human hearing, built on masking and the critical bands from lecture 01. For every frequency band it estimates how much noise could be added before a listener would notice.
+  - **How the bits are spent:** the codec rounds the frequency coefficients coarsely where masking hides the error and finely where it does not. That is quantisation (section 2) with a different step size in each band, so the error noise sits just under the masking threshold.
 - YouTube audio is Opus or AAC.
 
 **Why lossy matters for separation:**
 - Codec artifacts and band-limiting (often nothing above about 16 kHz) are already in most user uploads. The missing top end is the codec's deliberate low-pass, not aliasing. Models trained only on clean audio can behave oddly on them.
+  - An *artifact* is a sound defect created by processing. Typical codec artifacts are a thin, watery or "swirly" quality in the high frequencies.
+  - *Band-limiting* means the top of the spectrum is cut off: a spectrogram of such a file shows an empty region above the cutoff.
+  - The codec discards the top end because it is expensive to code and usually masked or hard to hear.
 - **Video containers** (MP4, MOV, MKV) wrap a video stream and an audio stream. Our demo copies the video stream and replaces only the audio ("remux"), so the video is not re-encoded.
+  - **Container vs codec:** the container is the outer box (a file with labelled tracks, such as video, audio, subtitles); the codec is how the contents of each track are compressed (for example H.264 video and AAC audio). Changing the container does not change the compression, and vice versa.
+  - **Remux:** repackage the same compressed streams into a new box (or swap one track). It is fast and loses no quality, because nothing is decoded.
+  - **Re-encoding:** decode the stream to raw samples or pixels and compress it again. It is slower, and each lossy re-encode loses a little more quality (generation loss). Remuxing the video avoids this for the picture; the new audio track still has to be encoded once.
 
 ## 4. Channels, stereo and mid/side
 
-**Stereo panning.** Stereo is two channels, L and R. A source panned to the centre has equal level in both. Mixers pan instruments by changing the L/R gain ratio (pan laws keep perceived loudness constant).
+**Channel.** A channel is one stream of samples intended for one speaker. Mono has one channel. **Stereo** has two: L (left) and R (right). A stereo file stores a pair of numbers per time step, at the same sample rate.
+
+**Stereo panning.** A source panned to the centre has equal level in both. Mixers pan instruments by changing the L/R gain ratio (pan laws keep perceived loudness constant).
+- **Panning** places a sound between the speakers. All left means R = 0; centre means L = R.
+- **Pan law:** if a centred source simply used full gain on both sides, it would sound louder than the same source panned hard left, because two speakers add. A pan law lowers the centre by a fixed amount, commonly 3 dB, so the perceived loudness stays the same as the sound moves across.
+- **Why it works:** L and R differ in level (and sometimes in timing). Our brains use those differences to place sources left or right.
 
 **Mid/side transform:**
 
   M = (L + R) / 2,  S = (L − R) / 2,  and back: L = M + S, R = M − S.
 
+- **M (mid)** is what the two channels share: the sum. It is what you would hear from a mono speaker.
+- **S (side)** is how the two channels differ.
+- Numbers: L = 0.8, R = 0.8 gives M = 0.8, S = 0. A sound with L = 0.5, R = −0.5 gives M = 0, S = 0.5. Check the way back: 0.8 + 0 = 0.8 and 0.8 − 0 = 0.8.
+- It is a simple change of basis (a rotation by 45° plus scaling), which loses nothing. It is easier to process a "shared" part and a "different" part separately.
 - Centre-panned sources (lead vocal, kick, bass) live in M.
 - Wide sources (stereo reverb, guitars panned left and right) live mostly in S.
 
-**The old "karaoke" trick.** L − R cancels the centre-panned vocal. It also cancels the bass and kick, which is why it sounds poor.
+**The old "karaoke" trick.** L − R (which is 2S) cancels the centre-panned vocal: the same signal in both channels subtracts to zero. It also cancels the bass and kick, which is why it sounds poor. Stereo reverb on the vocal and anything not exactly centred stays behind.
 
 **Relevance to us.** SAM Audio's processor averages channels to mono, which throws away this spatial information. Using L/R and M/S as extra cues is one of our candidate differentiators.
+- *SAM Audio* is the separation model we evaluate. *Averaging to mono* means (L + R) / 2, which is exactly M, so S is lost.
+- A *cue* is a piece of extra evidence a separator can use to tell sources apart, such as "this source sits left of centre".
 
 ## 5. Loudness: LUFS
 
+**dBFS and peak level.** dBFS means decibels relative to full scale, the largest value the format can store (1.0). 0 dBFS is the maximum; everything else is negative. Half the maximum amplitude is 20 log₁₀(0.5) ≈ −6 dBFS. This is the scale of the level meter in recording software.
+
 **What LUFS measures.**
-- Peak level (dBFS) says nothing about how loud something *sounds*.
+- Peak level (dBFS) says nothing about how loud something *sounds*. A single sharp drum hit and a sustained organ chord can have the same peak, but the organ sounds far louder.
 - **LUFS/LKFS** (ITU-R BS.1770) applies a K-weighting filter (roughly matching the ear) and a gate that ignores silence, then averages.
-- The meters show **momentary** (400 ms), **short-term** (3 s) and **integrated** (whole file) values.
+  - **LUFS:** Loudness Units relative to Full Scale. **LKFS:** Loudness, K-weighted, relative to Full Scale. They are the same quantity under two names. One loudness unit (LU) equals 1 dB, so raising the gain by 3 dB raises the reading by 3 LUFS.
+  - **ITU-R BS.1770:** the standard from the International Telecommunication Union (radio sector) that defines the measurement. EBU R 128, the European broadcast rule, builds on it.
+  - **K-weighting:** a fixed filter applied before measuring. It cuts very low frequencies and boosts frequencies above a few kHz slightly, to mimic how the ear and head respond (see equal-loudness contours, lecture 01).
+  - **Gating:** the measurement skips parts that would drag the average down, namely near-silence and very quiet passages. So a file with long silences is not rated as quiet.
+- The meters show **momentary** (400 ms), **short-term** (3 s) and **integrated** (whole file) values. Integrated is the single number used for targets.
 - **True peak** (dBTP) catches peaks between samples.
+  - The reconstructed smooth wave (section 2, "stair-step myth") can rise above every sample value. Example: a sine at a quarter of the sample rate, with phase such that samples fall at 45° points, has samples of ±0.707 but a true peak of 1.0. The sample peak underestimates by 3 dB.
+  - dBTP estimates the reconstructed peak by oversampling. Converting to a lossy format or playing through a DAC can clip at such peaks, even though the file's sample peaks are below 0 dBFS.
 
 **Targets.** Streaming platforms normalise to targets that vendor blogs commonly give as about −14 LUFS integrated with a −1 dBTP ceiling. Figures differ by platform, so check the current documentation. Broadcast and Netflix use dialogue-gated targets around −27 LKFS.
+- *Normalise* here means the platform measures each track and turns it up or down so that all tracks play at a similar loudness.
+- *Dialogue-gated* means only the speech passages are measured, so loud music or effects do not drive the number.
+- Example of the arithmetic: a file at −20 LUFS needs +6 dB of gain to reach −14 LUFS. That gain also raises the peaks by 6 dB, so a peak at −3 dBFS would become +3 dBFS and clip. That is the reason for the true-peak ceiling and for limiters.
+- A *limiter* is an automatic gain reducer that turns the level down for a split second whenever a peak would exceed the ceiling.
 
 **For our product.** When we remix stems we should report or normalise loudness, so the user doesn't get a quieter file than the one they uploaded.
 
@@ -143,11 +184,23 @@ Each extra bit halves the step and buys 6 dB.
 - Xiph.org, *Digital Show & Dither* (video): https://xiph.org/video/vid2.shtml
 - iZotope, *What is mid/side processing?*: https://www.izotope.com/en/learn/what-is-midside-processing.html, and a deeper dive: https://www.izotope.com/en/learn/mid-side-deep-dive.html
 - NUGEN Audio, *What are LUFS?*: https://nugenaudio.com/what-are-lufs
-- iZotope, *Mastering for streaming platforms*: https://www.izotope.com/en/learn/mastering-for-streaming-platforms.html
-- DSP Guide, chapter 3 (ADC and DAC): https://www.dspguide.com/
+- iZotope, *Mastering for streaming platforms*: https://www.izotope.com/en/learn/mastering-for-streaming-platforms.html (mastering is the final preparation of a mix for release, including loudness)
+- DSP Guide, chapter 3 (ADC and DAC; a DAC is a digital-to-analog converter, the reverse of an ADC): https://www.dspguide.com/
 
 ## Exercise (30 min)
 
 1. Take any stereo music file, compute M and S, and listen to each.
 2. Compute L − R and hear the "karaoke" effect and its side effects.
 3. This is the cheapest separator there is. Note what it gets wrong; lecture 05 explains why.
+
+A starting point (the file must be stereo; writing as float avoids the clipping described in section 2, because L − R can exceed 1.0):
+
+```python
+import soundfile as sf
+x, fs = sf.read("song.wav")          # x has shape (samples, 2)
+L, R = x[:, 0], x[:, 1]
+M, S = (L + R) / 2, (L - R) / 2
+sf.write("mid.wav", M, fs, subtype="FLOAT")
+sf.write("side.wav", S, fs, subtype="FLOAT")
+sf.write("karaoke.wav", L - R, fs, subtype="FLOAT")
+```
