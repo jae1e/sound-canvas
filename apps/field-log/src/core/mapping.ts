@@ -71,7 +71,7 @@ export function journalRecordToEvent(r: JournalRecord): MappedEvent {
       return {
         ...base,
         type: 'route_changed',
-        payload: { memo_id: r.memoId, recording_id: r.recordingId, route: routeToWire(r.route) },
+        payload: { memo_id: r.memoId, recording_id: r.recordingId, route: routeToWire(r.route), reason: r.reason },
       };
     case 'recording_paused':
       return { ...base, type: 'recording_paused', payload: { memo_id: r.memoId, recording_id: r.recordingId } };

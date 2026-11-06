@@ -99,4 +99,10 @@ export const MIGRATIONS: string[] = [
   ALTER TABLE memos ADD COLUMN deleted INTEGER NOT NULL DEFAULT 0;
   ALTER TABLE objects ADD COLUMN skipped INTEGER NOT NULL DEFAULT 0;
   `,
+  `
+  ALTER TABLE segments ADD COLUMN route_json TEXT;
+  `,
+  `
+  ALTER TABLE memos ADD COLUMN title TEXT;
+  `,
 ];

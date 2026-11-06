@@ -4,6 +4,8 @@ import type {
   Capabilities,
   ClockReading,
   FlNativeModuleEvents,
+  InputPreference,
+  InputsEvent,
   JournalRecord,
   LocationPayload,
   RecorderStatus,
@@ -25,6 +27,14 @@ declare class FlNativeModule extends NativeModule<FlNativeModuleEvents> {
   /** Closes the open segment (journal: segment_closed, then recording_stopped reason 'user'). */
   stopRecording(location?: LocationPayload): Promise<void>;
   getStatus(): Promise<RecorderStatus>;
+  /**
+   * Sets the input preference (persisted natively). While recording it takes effect immediately: the
+   * segment closes, the capture moves to the new input and route_changed (reason 'user') is journaled.
+   * Resolves with the resulting InputsEvent (also emitted as onInputs).
+   */
+  setInputPreference(preference: InputPreference): Promise<InputsEvent>;
+  /** Current inputs, preference and resolved selection, without changing anything. */
+  getInputs(): Promise<InputsEvent>;
   /**
    * Closes the open segment (segment_closed), journals recording_paused and releases the
    * microphone; the foreground service stays with a "Paused" notification. No-op when paused.

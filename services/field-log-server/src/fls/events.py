@@ -14,6 +14,7 @@ from .langs import normalize_languages
 
 log = logging.getLogger("fls.events")
 
+MAX_TITLE_CHARS = 120
 INT_FIELDS = ("seq", "wall_ms", "elapsed_us", "boot_count")
 STR_FIELDS = ("event_id", "device_id", "type", "prev_hash", "record_hash")
 
@@ -174,6 +175,15 @@ def _project(c: sqlite3.Connection, dev: str, ev: dict[str, Any], t: int, object
             "UPDATE recordings SET stopped_wall_ms=?, stop_reason=? WHERE device_id=? AND recording_id=?",
             (ev["wall_ms"], p.get("reason"), dev, p["recording_id"]),
         )
+    elif typ == "memo_titled":
+        title = p["title"]
+        if not isinstance(title, str) or len(title.strip()) > MAX_TITLE_CHARS:
+            raise ValueError("bad title")  # accepted and chained, but not projected
+        # Latest by seq wins (events are projected in seq order). An empty title clears it.
+        cur = c.execute("UPDATE memos SET title=? WHERE device_id=? AND memo_id=? AND deleted_server_ms IS NULL "
+                        "AND kind IS NOT NULL", (title.strip() or None, dev, p["memo_id"]))
+        if cur.rowcount != 1:
+            raise ValueError("unknown memo")
     elif typ == "memo_note":
         c.execute("UPDATE memos SET note=? WHERE device_id=? AND memo_id=? AND deleted_server_ms IS NULL",
                   (p["text"], dev, p["memo_id"]))
@@ -234,7 +244,7 @@ def _memo_deleted(c: sqlite3.Connection, dev: str, memo_id: str) -> bool:
 def _delete_memo(c: sqlite3.Connection, dev: str, memo_id: str, t: int, unlink: list[str]) -> None:
     """Contract section 8: remove content, keep a tombstone (memo id, envelopes, hashes)."""
     c.execute("INSERT OR IGNORE INTO memos(device_id, memo_id) VALUES (?,?)", (dev, memo_id))
-    c.execute("UPDATE memos SET deleted_server_ms=?, note=NULL WHERE device_id=? AND memo_id=? "
+    c.execute("UPDATE memos SET deleted_server_ms=?, note=NULL, title=NULL WHERE device_id=? AND memo_id=? "
               "AND deleted_server_ms IS NULL", (t, dev, memo_id))
     segs = [r["segment_id"] for r in c.execute(
         "SELECT segment_id FROM segments WHERE device_id=? AND memo_id=?", (dev, memo_id))]
@@ -244,7 +254,7 @@ def _delete_memo(c: sqlite3.Connection, dev: str, memo_id: str, t: int, unlink: 
         c.execute("DELETE FROM alt_transcripts WHERE device_id=? AND segment_id=?", (dev, seg))
         c.execute("DELETE FROM reference_transcripts WHERE device_id=? AND segment_id=?", (dev, seg))
     c.execute("DELETE FROM transcripts WHERE device_id=? AND memo_id=?", (dev, memo_id))
-    c.execute("UPDATE events SET payload='{}', redacted=1 WHERE device_id=? AND type='memo_note' "
+    c.execute("UPDATE events SET payload='{}', redacted=1 WHERE device_id=? AND type IN ('memo_note','memo_titled') "
               "AND json_extract(payload,'$.memo_id')=?", (dev, memo_id))
     shas = {r[0] for r in c.execute(
         "SELECT object_sha256 FROM segments WHERE device_id=? AND memo_id=? "

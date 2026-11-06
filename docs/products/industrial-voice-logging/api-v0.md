@@ -99,11 +99,12 @@ Every event has this envelope:
 | `photo_added` | `{memo_id, photo_id, object_sha256, mime, bytes, width?, height?, source: "camera" \| "library", taken_wall_ms?, location?}`. `taken_wall_ms` comes from EXIF when present. The original bytes are uploaded unmodified |
 | `recording_started` | `{memo_id, recording_id, route: Route, source: "UNPROCESSED" \| "VOICE_RECOGNITION" \| "MIC", sample_rate: 16000, effects: {ns, agc, aec}, location?}`. Each of `ns`, `agc` and `aec` is `"off"`, `"on"` or `"unavailable"` |
 | `segment_closed` | `{memo_id, recording_id, segment_id, index, object_sha256, bytes, format: "wav_pcm16_16k_mono", start_elapsed_us, end_elapsed_us, start_wall_ms, duration_ms, peak_dbfs_x100, clipped_samples, hf_ratio_4k_ppm, flags: [...], recovered: bool}` |
-| `route_changed` | `{memo_id, recording_id, route: Route}` |
+| `route_changed` | `{memo_id, recording_id, route: Route, reason?: "device_connected" \| "device_disconnected" \| "user" \| "system"}`. The open segment was closed at the switch, so every segment has one route (v0.2) |
 | `recording_stopped` | `{memo_id, recording_id, reason: "user" \| "error" \| "interrupted" \| "recovered", location?}` |
 | `clock_sync` | `{offset_ms, rtt_ms, server_ms}` (integers, rounded) |
 | `memo_note` | `{memo_id, text}` (typed note, optional) |
 | `memo_deleted` | `{memo_id}`. The user deleted the memo; see section 8 |
+| `memo_titled` | `{memo_id, title}` (v0.2). The user set or changed the memo title: plain text, trimmed, at most 120 characters; an empty string clears it. Append-only: the latest event by `seq` wins. Without a title, views show the start of the transcript |
 | `recording_paused` | `{memo_id, recording_id}`. The open segment was closed first; the microphone is released while paused |
 | `recording_resumed` | `{memo_id, recording_id}`. New segments continue the index numbering |
 | `capture_state` | `{memo_id, recording_id, silenced: bool}`. Android silenced (or un-silenced) the capture because another app took the microphone; segments recorded while silenced contain zeros |
@@ -176,6 +177,9 @@ Server behaviour:
 - **Soft close:** after 20 s, a segment closes at the first 300 ms window that is quiet. Quiet means at least 10 dB below the segment's median RMS, or below −45 dBFS.
 - **Hard close:** at 30 s. Boundaries therefore rarely cut a word.
 - **Transcription:** each segment is transcribed on its own.
+- **Route switch (v0.2):** when the capture moves to another input (earbuds connected or disconnected, or the user picks another input), the open segment closes at that sample and the next one starts without a gap. A `route_changed` event follows.
+
+**Input selection (v0.2, 2026-11-06).** The app's default input mode is `auto`, which works like a call app. It uses a connected headset microphone and otherwise the phone microphone. Priority: wired or USB headset, then a BLE Audio headset, then Bluetooth SCO, then the built-in microphone. Earbuds connected or disconnected during a recording switch the capture live. The other modes are `phone` (always the built-in microphone) and `device` (one headset, matched by type, product name and address hash, because Android device ids change on every reconnect). Using a Bluetooth microphone puts the earbuds into call (HFP) mode while recording, which lowers media audio quality and usually limits the microphone to speech bandwidth.
 
 ## 7. Languages and ASR input conditioning (v0.1, 2026-11-06)
 
@@ -183,11 +187,11 @@ Server behaviour:
 
 **Final engine (Qwen3-ASR).**
 - **One language in the list:** the engine is forced to that language.
-- **Several languages:** the engine first runs with automatic detection. Its context string names the languages in priority order.
+- **Several languages:** the engine first runs with automatic detection. The context string carries no language hint (removed 2026-11-06, because Qwen echoed it on silent segments); it is reserved for the personal vocabulary (A12). Segments with no speech energy are gated before the model runs.
   - If the detected languages are all in the list, the result is kept.
   - If not, the segment is decoded again forced to the first language. For example, Korean speech once came back as Chinese.
 
-**Live draft engine (Nemotron).** It uses the first language of the list. Its automatic mode is less accurate per the vendor card, and the draft is only a preview.
+**Live draft engine (Nemotron).** With one language in the list it is forced to that language. With several it runs in automatic mode (v0.2, 2026-11-06). Forcing the first language, as v0.1 did, gave an empty draft for English speech when Korean came first. Replays of the user's phone memos showed automatic mode transcribing Korean and English as well as the forced language did.
 
 **Input conditioning.** The phone stores raw audio, and `UNPROCESSED` is quiet: about −36 dBFS at 94 dB SPL. Before audio reaches either engine, the server conditions a copy, never the stored file:
 - an 80 Hz high-pass filter;

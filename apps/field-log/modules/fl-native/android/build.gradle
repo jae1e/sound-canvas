@@ -1,0 +1,28 @@
+plugins {
+  id 'com.android.library'
+  id 'expo-module-gradle-plugin'
+}
+
+group = 'expo.modules.flnative'
+version = '0.1.0'
+
+android {
+  namespace "expo.modules.flnative"
+  defaultConfig {
+    consumerProguardFiles "consumer-rules.pro"
+    versionCode 1
+    versionName "0.1.0"
+  }
+  testOptions {
+    unitTests.returnDefaultValues = true
+  }
+  lintOptions {
+    abortOnError false
+  }
+}
+
+dependencies {
+  // Same version React Native 0.88 declares (gradle/libs.versions.toml: okhttp = "4.9.2"); Gradle unifies them.
+  implementation 'com.squareup.okhttp3:okhttp:4.9.2'
+  testImplementation 'junit:junit:4.13.2'
+}

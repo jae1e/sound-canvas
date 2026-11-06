@@ -1,7 +1,7 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Alert, Image, Modal, Pressable, ScrollView, Text, TextInput, ToastAndroid, View } from 'react-native';
-import { controlPhase, type ControlAction, formatPlace, isSilentPeak, mergeTranscript, segmentStartsMs, type DraftUtt, type FinalSeg } from '../../src/core';
+import { autoTitle, durationLabel, stampLabel, controlPhase, type ControlAction, formatPlace, isSilentPeak, mergeTranscript, segmentStartsMs, type DraftUtt, type FinalSeg } from '../../src/core';
 import { getMemoDetail, type MemoDetail, type SegmentRow } from '../../src/db/queries';
 import { useLang, useT, type Key } from '../../src/i18n';
 import { confirmDeleteMemo } from '../../src/memo/confirmDelete';
@@ -9,6 +9,8 @@ import { pauseMemoRecording, resumeMemoRecording, saveNote, startMemoRecording, 
 import { playRecording, stopPlayback, togglePlayback } from '../../src/memo/playback';
 import { usePlayback, useRecorder } from '../../src/state/recorder';
 import { BigButton, Chip, Row, TrustChips, useRouteText } from '../../src/ui/components';
+import { TitleEditor } from '../../src/ui/TitleEditor';
+import { InputChip } from '../../src/ui/inputUi';
 import { ControlPanel, LiveWave, RecordingPlayer } from '../../src/ui/recorderUi';
 import FlNative, { type Capabilities } from '../../src/native';
 import { updateSetting, useSettings } from '../../src/state/settings';
@@ -35,73 +37,6 @@ function LevelBanner({ active }: { active: boolean }) {
       <Text style={{ fontSize: 18, fontWeight: '700', color: red ? '#FFFFFF' : '#111418' }}>
         {`${red ? '⚠ ' : '△ '}${kind === 'silenced' ? t('silencedBanner') : kind === 'silent' ? t('silentBanner') : t('quietBanner')}`}
       </Text>
-    </View>
-  );
-}
-
-function InputChip({ active }: { active: boolean }) {
-  const t = useT();
-  const routeText = useRouteText();
-  const inputId = useSettings((x) => x.inputId);
-  const route = useRecorder((r) => r.route);
-  const [caps, setCaps] = useState<Capabilities | null>(null);
-  const [open, setOpen] = useState(false);
-
-  useEffect(() => {
-    FlNative.getCapabilities().then(setCaps, () => setCaps(null));
-  }, [open]);
-
-  const chosen = inputId !== null ? caps?.inputs.find((i) => i.id === inputId) : undefined;
-  const text = active && route
-    ? routeText(route)
-    : inputId === null
-      ? `🎙 ${t('inputDefaultLong')}`
-      : chosen
-        ? routeText(chosen)
-        : `🎧 #${inputId}`;
-
-  return (
-    <View style={{ alignSelf: 'stretch', marginVertical: 8 }}>
-      <Text style={s.small}>{t('inputWillUse')}</Text>
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel={`${t('chooseInput')}: ${text}`}
-        disabled={active}
-        onPress={() => setOpen(true)}
-        style={{ minHeight: 64, borderWidth: 2, borderColor: colors.primary, borderRadius: 12, justifyContent: 'center', paddingHorizontal: 14, backgroundColor: colors.surface }}
-      >
-        <Text style={{ fontSize: 20, fontWeight: '700', color: colors.text }}>{text}</Text>
-      </Pressable>
-      <Text style={[s.small, { marginTop: 4 }]}>{t('inputBtNote')}</Text>
-      <Modal visible={open} transparent animationType="fade" onRequestClose={() => setOpen(false)}>
-        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', padding: 20 }}>
-          <View style={{ backgroundColor: colors.bg, borderRadius: 14, padding: 16 }}>
-            <Text style={s.h1}>{t('chooseInput')}</Text>
-            <BigButton
-              label={`${inputId === null ? '◉' : '○'} ${t('systemDefault')}`}
-              variant={inputId === null ? 'solid' : 'outline'}
-              style={{ minHeight: 56 }}
-              onPress={() => {
-                void updateSetting('inputId', null);
-                setOpen(false);
-              }}
-            />
-            {(caps?.inputs ?? []).map((i) => (
-              <BigButton
-                key={i.id}
-                label={`${inputId === i.id ? '◉' : '○'} ${routeText(i)}`}
-                variant={inputId === i.id ? 'solid' : 'outline'}
-                style={{ minHeight: 56 }}
-                onPress={() => {
-                  void updateSetting('inputId', i.id);
-                  setOpen(false);
-                }}
-              />
-            ))}
-            <BigButton label={t('cancel')} variant="outline" style={{ minHeight: 52 }} onPress={() => setOpen(false)} />
-          </View>
-        </View>
-      </Modal>
     </View>
   );
 }
@@ -147,6 +82,7 @@ const statusKey = (seg: FinalSeg): Key =>
 
 function SegmentLine({ seg, row, label, onPlay }: { seg: FinalSeg; row?: SegmentRow; label: string; onPlay: () => void }) {
   const t = useT();
+  const routeText = useRouteText();
   const showText = seg.status === 'done' && !seg.noSpeech && seg.text.trim().length > 0;
   return (
     <Pressable accessibilityRole="button" onPress={onPlay} style={[s.card, { marginVertical: 4 }]}>
@@ -157,6 +93,7 @@ function SegmentLine({ seg, row, label, onPlay }: { seg: FinalSeg; row?: Segment
         {row?.flags.includes('clipped') && <Chip glyph="▲" label={t('clipped')} active />}
         {row?.flags.includes('narrowband') && <Chip glyph="▼" label={t('narrowband')} active />}
       </View>
+      {row?.route && <Text style={s.small}>{`${t('segmentInput')}: ${routeText(row.route)}`}</Text>}
       {showText && <Text style={[s.body, { marginTop: 4 }]}>{seg.text}</Text>}
       {seg.status === 'failed' && row?.error ? <Text style={s.small}>{row.error}</Text> : null}
     </Pressable>
@@ -265,6 +202,15 @@ export default function MemoScreen() {
 
   const totalMs = detail.segments.reduce((a, x) => a + x.durationMs, 0);
   const photo = detail.photos[0];
+  const firstFinal = detail.segments.find((x) => x.status === 'done' && !x.noSpeech && x.text.trim())?.text;
+  const draftList = Object.values(rec.drafts).flat();
+  const newestDraft = draftList.length ? draftList[draftList.length - 1].text : undefined;
+  const autoText = autoTitle({ firstFinalText: firstFinal, draftText: newestDraft, kind: detail.kind, fallbacks: { voice: t('memoVoice'), photo: t('memoPhoto') } });
+  const stampText = [
+    stampLabel(detail.createdWallMs, lang),
+    durationLabel(totalMs),
+    detail.location ? `📍 ${formatPlace(detail.location)}` : null,
+  ].filter(Boolean).join(' · ');
   const phase = controlPhase({ active, paused: rec.paused, hasRecordings: detail.recordings.length > 0 });
   const latest = detail.recordings[detail.recordings.length - 1];
   const latestRows = latest ? detail.segments.filter((x) => x.recordingId === latest.recordingId).sort((a, b) => a.index - b.index) : [];
@@ -307,6 +253,9 @@ export default function MemoScreen() {
         <Image source={{ uri: photo.path }} resizeMode="contain" style={{ width: '100%', height: 240, borderRadius: 12, backgroundColor: colors.surface }} />
       )}
 
+      <TitleEditor memoId={id} title={detail.title} placeholder={autoText} />
+      <Text style={[s.small, { marginBottom: 4 }]}>{stampText}</Text>
+
       <View style={{ alignItems: 'center', marginTop: 12 }}>
         <ControlPanel
           phase={phase}
@@ -319,7 +268,7 @@ export default function MemoScreen() {
           onAction={onAction}
         />
         {otherActive && <Text style={s.small}>{t('otherRecording')}</Text>}
-        <InputChip active={active} />
+        <InputChip />
         <LevelBanner active={active} />
         {active && <LiveWave active={active} />}
         <LiveBadge active={active} />

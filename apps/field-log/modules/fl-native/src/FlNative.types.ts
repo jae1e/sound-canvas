@@ -43,10 +43,33 @@ export interface LocationPayload {
 }
 
 export interface InputDevice {
-  /** AudioDeviceInfo.getId(). */
+  /** AudioDeviceInfo.getId(). Changes on every reconnect; never persist it. */
   id: number;
   type: RouteType;
   productName: string;
+  /** SHA-256 hex of the device address when it has one (Bluetooth, USB). Stable across reconnects. */
+  addressHash?: string;
+}
+
+/**
+ * Which microphone to record from (api-v0 section 6, "Input selection").
+ * - auto: a connected headset microphone, else the phone microphone. Priority: wired_headset or usb,
+ *   then ble_headset, then bluetooth_sco, then builtin_mic. Follows connects and disconnects live.
+ * - phone: always the built-in microphone.
+ * - device: one headset, matched by type + productName (+ addressHash when both have one); if it is
+ *   not connected, the phone microphone is used until it reconnects.
+ */
+export type InputPreference =
+  | { mode: 'auto' }
+  | { mode: 'phone' }
+  | { mode: 'device'; type: RouteType; productName: string; addressHash?: string };
+
+/** Fired on start of listening, on every input connect/disconnect and on setInputPreference(). */
+export interface InputsEvent {
+  inputs: InputDevice[];
+  /** The input the current preference resolves to right now (what a recording would use or is using). */
+  selected: InputDevice | null;
+  preference: InputPreference;
 }
 
 export interface Capabilities {
@@ -79,8 +102,8 @@ export interface LiveOptions {
 export interface StartRecordingOptions {
   memoId: string;
   recordingId: string;
-  /** AudioDeviceInfo id from Capabilities.inputs; omitted = system default input. */
-  preferredInputId?: number;
+  /** Omitted = the preference last set with setInputPreference(), default { mode: 'auto' }. */
+  input?: InputPreference;
   /** Omitted = UNPROCESSED when supported, else VOICE_RECOGNITION, else MIC. */
   source?: AudioSourceName;
   /** Echoed into the recording_started journal record. */
@@ -158,9 +181,13 @@ export interface JournalSegmentClosed extends JournalBase {
   recovered: boolean;
 }
 
+export type RouteChangeReason = 'device_connected' | 'device_disconnected' | 'user' | 'system';
+
+/** The open segment was closed at the switch (segment_closed comes first), so each segment has one route. */
 export interface JournalRouteChanged extends JournalBase {
   kind: 'route_changed';
   route: Route;
+  reason: RouteChangeReason;
 }
 
 export interface JournalRecordingStopped extends JournalBase {
@@ -246,4 +273,5 @@ export type FlNativeModuleEvents = {
   onWave: (e: WaveEvent) => void;
   onCapture: (e: CaptureEvent) => void;
   onPlayback: (e: PlaybackEvent) => void;
+  onInputs: (e: InputsEvent) => void;
 };

@@ -7,7 +7,12 @@ export interface MemoSummary {
   createdWallMs: number;
   location: LocationPayload | null;
   photoPath: string | null;
+  title: string | null;
   firstText: string | null;
+  /** All final transcript text joined. */
+  transcript: string | null;
+  durationMs: number;
+  photoCount: number;
   segmentCount: number;
   segmentsDone: number;
   segmentsFailed: number;
@@ -22,7 +27,11 @@ const parseLoc = (s: string | null): LocationPayload | null => (s ? (JSON.parse(
 export async function listMemos(limit = 200): Promise<MemoSummary[]> {
   const db = await getDb();
   const rows = await db.getAllAsync<Record<string, any>>(
-    `SELECT m.memo_id, m.kind, m.created_wall_ms, m.location_json,
+    `SELECT m.memo_id, m.kind, m.created_wall_ms, m.location_json, m.title,
+      (SELECT group_concat(t_text, ' ') FROM (SELECT t_text FROM segments s WHERE s.memo_id = m.memo_id AND s.t_status = 'done'
+         AND s.t_no_speech = 0 AND s.t_text <> '' ORDER BY s.start_wall_ms, s.idx)) AS transcript,
+      (SELECT COALESCE(SUM(duration_ms), 0) FROM segments s WHERE s.memo_id = m.memo_id) AS duration_ms,
+      (SELECT COUNT(*) FROM photos p WHERE p.memo_id = m.memo_id) AS photo_count,
       (SELECT path FROM photos p WHERE p.memo_id = m.memo_id ORDER BY p.created_wall_ms LIMIT 1) AS photo_path,
       (SELECT t_text FROM segments s WHERE s.memo_id = m.memo_id AND s.t_status = 'done' AND s.t_no_speech = 0 AND s.t_text <> ''
          ORDER BY s.start_wall_ms, s.idx LIMIT 1) AS first_text,
@@ -42,7 +51,11 @@ export async function listMemos(limit = 200): Promise<MemoSummary[]> {
     createdWallMs: r.created_wall_ms,
     location: parseLoc(r.location_json),
     photoPath: r.photo_path,
+    title: r.title,
     firstText: r.first_text,
+    transcript: r.transcript,
+    durationMs: r.duration_ms,
+    photoCount: r.photo_count,
     segmentCount: r.seg_count,
     segmentsDone: r.seg_done,
     segmentsFailed: r.seg_failed,
@@ -80,6 +93,7 @@ export interface SegmentRow {
   index: number;
   startElapsedUs: number;
   durationMs: number;
+  route: { type: string; productName?: string } | null;
   peakDbfsX100: number;
   flags: string[];
   recovered: boolean;
@@ -97,6 +111,7 @@ export interface MemoDetail {
   tz: string;
   location: LocationPayload | null;
   note: string | null;
+  title: string | null;
   photos: PhotoRow[];
   recordings: RecordingRow[];
   segments: SegmentRow[];
@@ -123,6 +138,7 @@ export async function getMemoDetail(memoId: string): Promise<MemoDetail | null> 
     tz: m.tz,
     location: parseLoc(m.location_json),
     note: m.note,
+    title: m.title,
     photos: photos.map((p) => ({
       photoId: p.photo_id,
       path: p.path,
@@ -148,6 +164,7 @@ export async function getMemoDetail(memoId: string): Promise<MemoDetail | null> 
       index: s.idx,
       startElapsedUs: s.start_elapsed_us,
       durationMs: s.duration_ms,
+      route: s.route_json ? JSON.parse(s.route_json) : null,
       peakDbfsX100: s.peak_dbfs_x100,
       flags: JSON.parse(s.flags),
       recovered: s.recovered === 1,

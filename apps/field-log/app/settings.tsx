@@ -5,6 +5,7 @@ import { useLang, useT } from '../src/i18n';
 import FlNative, { type Capabilities } from '../src/native';
 import { updateSetting, useSettings, type SourceChoice, type UiLang } from '../src/state/settings';
 import { useSyncStatus } from '../src/state/syncStatus';
+import { InputOptions, useInputChipText } from '../src/ui/inputUi';
 import { enrol } from '../src/sync/enrol';
 import { triggerSync } from '../src/sync/engine';
 import { BigButton, Row, useRouteText } from '../src/ui/components';
@@ -78,6 +79,7 @@ function MiniButton(props: { label: string; a11y: string; disabled?: boolean; on
 export default function Settings() {
   const t = useT();
   const routeText = useRouteText();
+  const inputText = useInputChipText();
   const lang = useLang();
   const st = useSettings();
   const sync = useSyncStatus();
@@ -159,14 +161,9 @@ export default function Settings() {
       />
 
       <Text style={s.h2}>{t('inputDevice')}</Text>
-      <Choices<number | null>
-        value={st.inputId}
-        options={[
-          { value: null, label: t('systemDefault') },
-          ...(caps?.inputs ?? []).map((i) => ({ value: i.id as number | null, label: routeText(i) })),
-        ]}
-        onChange={(v) => void updateSetting('inputId', v)}
-      />
+      <Text style={s.body}>{inputText}</Text>
+      <Text style={s.small}>{t('inputBtNote')}</Text>
+      <InputOptions />
 
       <Text style={s.h2}>{t('audioSource')}</Text>
       <Choices<SourceChoice>

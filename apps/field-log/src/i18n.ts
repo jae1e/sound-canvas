@@ -110,7 +110,7 @@ const en = {
   routeOther: 'Other input',
   inputWillUse: 'Input',
   inputDefaultLong: 'System default (usually the phone microphone)',
-  inputBtNote: 'With Bluetooth earbuds connected, Android still records from the phone microphone unless the earbuds are chosen here.',
+  inputBtNote: 'Using earbud microphones puts them in call mode while recording: media sound gets worse and the microphone is limited to speech quality. Choose Phone microphone for the best transcription.',
   chooseInput: 'Choose input',
   badgePhone: 'phone mic',
   badgeHeadset: 'headset',
@@ -119,6 +119,22 @@ const en = {
   quietBanner: 'Very quiet — move the mic closer',
   silentSegment: 'silent recording (no audio captured)',
   level: 'Level',
+  memoVoice: 'Voice memo',
+  memoPhoto: 'Photo memo',
+  editTitle: 'Edit title',
+  inputAutoWord: 'Auto',
+  inputOptAuto: 'Auto (headset when connected)',
+  inputOptPhone: 'Phone microphone',
+  inputNotConnected: '{name} is not connected, using the phone microphone',
+  switchConnected: 'Switched to {name} (connected)',
+  switchDisconnected: 'Earbuds disconnected, now phone microphone',
+  switchUser: 'Switched to {name}',
+  switchSystem: 'Input changed to {name}',
+  btRationaleTitle: 'Bluetooth access',
+  btRationaleBody: 'To record with your earbud microphone, Android needs the "Nearby devices" permission. If you decline, the phone microphone is used.',
+  btAllow: 'Continue',
+  btLater: 'Not now',
+  segmentInput: 'Input',
   ctlRecord: '● Record',
   ctlPause: '⏸ Pause',
   ctlResume: '● Resume',
@@ -255,7 +271,7 @@ const ko: Record<Key, string> = {
   routeOther: '기타 입력',
   inputWillUse: '입력',
   inputDefaultLong: '시스템 기본값 (보통 휴대폰 마이크)',
-  inputBtNote: '블루투스 이어버드를 연결해도 여기서 이어버드를 선택하지 않으면 Android는 휴대폰 마이크로 녹음합니다.',
+  inputBtNote: '이어버드 마이크를 쓰면 녹음 중 통화 모드가 되어 미디어 소리 품질이 나빠지고 마이크도 음성 품질로 제한됩니다. 가장 좋은 받아쓰기를 원하면 휴대폰 마이크를 선택하세요.',
   chooseInput: '입력 선택',
   badgePhone: '폰 마이크',
   badgeHeadset: '헤드셋',
@@ -264,6 +280,22 @@ const ko: Record<Key, string> = {
   quietBanner: '소리가 매우 작습니다 — 마이크를 더 가까이 하세요',
   silentSegment: '무음 녹음 (오디오가 캡처되지 않음)',
   level: '레벨',
+  memoVoice: '음성 메모',
+  memoPhoto: '사진 메모',
+  editTitle: '제목 편집',
+  inputAutoWord: '자동',
+  inputOptAuto: '자동 (헤드셋 연결 시 헤드셋)',
+  inputOptPhone: '휴대폰 마이크',
+  inputNotConnected: '{name}이(가) 연결되어 있지 않아 휴대폰 마이크를 사용합니다',
+  switchConnected: '{name}(으)로 전환됨 (연결됨)',
+  switchDisconnected: '이어버드 연결이 끊겨 휴대폰 마이크로 전환됨',
+  switchUser: '{name}(으)로 전환됨',
+  switchSystem: '입력이 {name}(으)로 바뀜',
+  btRationaleTitle: '블루투스 접근',
+  btRationaleBody: '이어버드 마이크로 녹음하려면 Android의 "근처 기기" 권한이 필요합니다. 거절하면 휴대폰 마이크를 사용합니다.',
+  btAllow: '계속',
+  btLater: '나중에',
+  segmentInput: '입력',
   ctlRecord: '● 녹음',
   ctlPause: '⏸ 일시정지',
   ctlResume: '● 계속 녹음',
@@ -298,6 +330,11 @@ export type Lang = 'en' | 'ko';
 export function resolveLang(uiLang: 'auto' | 'ko' | 'en'): Lang {
   if (uiLang !== 'auto') return uiLang;
   return getLocales()[0]?.languageCode === 'ko' ? 'ko' : 'en';
+}
+
+/** Translator for non-React code (alerts, toasts). */
+export function tr(key: Key): string {
+  return dict[resolveLang(useSettings.getState().uiLang)][key];
 }
 
 export function useT(): (key: Key) => string {

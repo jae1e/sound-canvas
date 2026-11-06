@@ -49,6 +49,12 @@ textarea { width:100%; font:inherit; background:var(--bg); color:var(--fg); bord
 .text { white-space:pre-wrap; word-break:break-word; }
 .thumbs img { height:90px; border-radius:6px; margin-right:6px; border:1px solid var(--line); }
 .formula { font-family:ui-monospace, monospace; font-size:.9rem; color:var(--muted); }
+.tl { position:relative; height:104px; border:1px solid var(--line); border-radius:6px; margin:.5rem 0; background:var(--bg); }
+.tl .seg, .tl .span { position:absolute; height:26px; border-radius:4px; font-size:.8rem; overflow:hidden; white-space:nowrap; padding:0 3px; color:#fff; border:1px solid var(--bg); }
+.tl .seg { top:6px; } .tl .paused { top:40px; height:20px; background:repeating-linear-gradient(45deg,var(--warn),var(--warn) 4px,transparent 4px,transparent 8px); border:1px solid var(--warn); }
+.tl .silenced { top:68px; height:20px; background:var(--bad); opacity:.75; }
+.tl .lbl { position:absolute; left:4px; font-size:.75rem; color:var(--muted); }
+.r0 { background:#0b5fd1; } .r1 { background:#0a7a2f; } .r2 { background:#8a4fd0; } .r3 { background:#b25a00; } .r4 { background:#007a8a; } .r5 { background:#8a2f55; }
 </style>
 </head>
 <body>
@@ -80,7 +86,7 @@ async function showList() {
   const rows = data.memos.map(m => el("tr", { class: "memo-row", tabindex: "0", role: "link",
       onclick: () => location.hash = "memo=" + m.memo_id,
       onkeydown: e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); location.hash = "memo=" + m.memo_id; } } },
-    el("td", {}, fmtTime(m.created_wall_ms)),
+    el("td", {}, el("b", { class: "text" }, memoHeading(m)), el("div", { class: "muted", style: "font-size:.9rem" }, memoWhen(m))),
     el("td", {}, m.kind || "-"),
     el("td", {}, m.location ? `${m.location.lat.toFixed(5)}, ${m.location.lon.toFixed(5)} (±${m.location.accuracy_m.toFixed(0)} m)` : "-"),
     el("td", {}, String(m.segment_count)),
@@ -89,7 +95,7 @@ async function showList() {
     el("td", { class: "thumbs" }, m.photos.length ? m.photos.slice(0, 3).map(p => el("img", { src: "/dash/api/objects/" + p.sha256, alt: "photo", loading: "lazy", style: "height:48px" })) : (m.photo_count ? m.photo_count + " photo(s)" : "-"))));
   $main.replaceChildren(
     el("h2", {}, `Memos (${data.memos.length}, newest first)`),
-    el("table", {}, el("thead", {}, el("tr", {}, ["Time", "Kind", "Location", "Segments", "Final", "Flags", "Photos"].map(h => el("th", {}, h)))),
+    el("table", {}, el("thead", {}, el("tr", {}, ["Memo", "Kind", "Location", "Segments", "Final", "Flags", "Photos"].map(h => el("th", {}, h)))),
       el("tbody", {}, rows)));
 }
 
@@ -126,6 +132,15 @@ function drawWave(canvas, pk) {
   }
 }
 
+const memoHeading = m => m.title || (m.snippet ? m.snippet + (m.snippet.length >= 40 ? "..." : "") : "(untitled " + (m.kind || "memo") + ")");
+const memoWhen = m => {
+  let when = "-";
+  try { when = m.created_wall_ms ? new Date(m.created_wall_ms).toLocaleString("en-GB", { timeZone: m.tz || "Asia/Seoul", dateStyle: "medium", timeStyle: "short" }) : "-"; }
+  catch (e) { when = fmtTime(m.created_wall_ms); }
+  return `${when} (${m.tz || "Asia/Seoul"}) - ${((m.duration_ms || 0) / 1000).toFixed(1)} s - ${m.input ? routeLabel(m.input) : "input unknown"}`;
+};
+const routeLabel = r => r ? r.type + (r.product_name ? " (" + r.product_name + ")" : "") : "unknown";
+const routeKey = r => r ? r.type + "|" + (r.product_name || "") : "unknown";
 function fmtCer(c) { return c === null || c === undefined ? "-" : (c * 100).toFixed(1) + "%"; }
 
 function segmentCard(memoId, s) {
@@ -302,7 +317,7 @@ function segmentCard(memoId, s) {
     el("div", { class: "grid" },
       metric("Peak", s.peak_dbfs == null ? null : s.peak_dbfs.toFixed(2) + " dBFS"), metric("Clipped samples", s.clipped_samples),
       metric("High band >4 kHz", s.hf_ratio_4k_ppm == null ? null : s.hf_ratio_4k_ppm + " ppm"),
-      metric("Flags", s.flags.join(", ") || "none"), metric("Route", s.route ? `${s.route.type}${s.route.product_name ? " (" + s.route.product_name + ")" : ""}` : null),
+      metric("Flags", s.flags.join(", ") || "none"), metric("Route at start", s.route ? routeLabel(s.route) + (s.route_reason ? ", switched: " + s.route_reason : "") : null),
       metric("Source", s.source), metric("Effects", eff), metric("Recovered", s.recovered ? "yes" : "no"),
       metric("Segment id", s.segment_id)),
     el("h2", {}, "Transcripts"),
@@ -323,18 +338,54 @@ function segmentCard(memoId, s) {
   return card;
 }
 
+function timelineCard(d) {
+  const tl = d.timeline, segs = d.segments.filter(s => s.start_elapsed_us != null);
+  const times = [...tl.events.map(e => e.elapsed_us), ...segs.flatMap(s => [s.start_elapsed_us, s.end_elapsed_us])].filter(v => v != null);
+  const card = el("section", { class: "card", "aria-label": "Memo timeline" }, el("h2", {}, "Recording timeline"));
+  if (!times.length) { card.append(el("p", { class: "muted" }, "No recording events.")); return card; }
+  const t0 = Math.min(...times), t1 = Math.max(...times, t0 + 1), span = t1 - t0;
+  const pos = (a, b) => `left:${(a - t0) / span * 100}%;width:${Math.max(0.3, ((b ?? t1) - a) / span * 100)}%`;
+  const keys = [...new Set(d.segments.map(s => routeKey(s.route)))];
+  const box = el("div", { class: "tl" }, el("span", { class: "lbl", style: "top:-1px" }, ""));
+  d.segments.forEach(s => { if (s.start_elapsed_us != null) box.append(el("div", { class: "seg span r" + (keys.indexOf(routeKey(s.route)) % 6), style: pos(s.start_elapsed_us, s.end_elapsed_us), title: `Segment ${s.index}: ${routeLabel(s.route)}` }, "#" + s.index)); });
+  tl.paused.forEach(p => box.append(el("div", { class: "span paused", style: pos(p.start_us, p.end_us), title: "Paused (microphone released)" })));
+  tl.silenced.forEach(p => box.append(el("div", { class: "span silenced", style: pos(p.start_us, p.end_us), title: "Capture silenced by Android (zeros)" })));
+  card.append(box, el("p", { class: "muted" }, `${((t1 - t0) / 1e6).toFixed(1)} s. Top row: segments coloured by route. Hatched: paused. Red: capture silenced. `,
+    keys.map((k, i) => el("span", { class: "pill" }, el("span", { class: "r" + (i % 6), style: "display:inline-block;width:.8em;height:.8em;border-radius:2px;margin-right:.3em" }), k.replace("|", " ")))));
+  const rows = tl.events.map(e => el("tr", {}, el("td", {}, ((e.elapsed_us - t0) / 1e6).toFixed(1) + " s"), el("td", {}, e.type),
+    el("td", {}, e.route ? routeLabel(e.route) : (e.silenced !== undefined ? (e.silenced ? "silenced" : "un-silenced") : ""), e.reason ? " (" + e.reason + ")" : "")));
+  card.append(el("table", {}, el("thead", {}, el("tr", {}, ["At", "Event", "Detail"].map(h => el("th", {}, h)))), el("tbody", {}, rows)));
+  return card;
+}
+
+function routeTable(d) {
+  const g = {};
+  for (const s of d.segments) {
+    const k = routeKey(s.route), x = g[k] ||= { route: s.route, n: 0, ms: 0, flags: new Set(), cer: [], silent: 0, peaks: [] };
+    x.n++; x.ms += s.duration_ms || 0; s.flags.forEach(f => x.flags.add(f));
+    if (s.final && s.final.no_speech) x.silent++;
+    if (s.final && s.final.cer != null) x.cer.push(s.final.cer);
+    if (s.peak_dbfs != null) x.peaks.push(s.peak_dbfs);
+  }
+  const rows = Object.values(g).map(x => el("tr", {}, el("td", {}, routeLabel(x.route)), el("td", {}, String(x.n)), el("td", {}, (x.ms / 1000).toFixed(1) + " s"),
+    el("td", {}, x.peaks.length ? Math.max(...x.peaks).toFixed(1) + " dBFS" : "-"), el("td", {}, [...x.flags].join(", ") || "none"), el("td", {}, String(x.silent)),
+    el("td", {}, x.cer.length ? fmtCer(x.cer.reduce((a, b) => a + b, 0) / x.cer.length) + ` (${x.cer.length})` : "-")));
+  return el("section", { class: "card", "aria-label": "Metrics by route" }, el("h2", {}, "Metrics by route"),
+    el("table", {}, el("thead", {}, el("tr", {}, ["Route", "Segments", "Duration", "Loudest peak", "Flags", "No speech", "Final CER (with reference)"].map(h => el("th", {}, h)))), el("tbody", {}, rows)));
+}
+
 async function showMemo(id) {
   clearTimeout(timer);
   const d = await api("/dash/api/memos/" + id);
   const head = el("div", { class: "card" },
-    el("h2", {}, `Memo ${d.kind} - ${fmtTime(d.created_wall_ms)}`),
+    el("h2", { class: "text" }, memoHeading(d)), el("p", { class: "muted" }, memoWhen(d) + " - " + d.kind),
     el("div", { class: "grid" },
       el("div", {}, el("b", {}, "Languages: "), d.languages.join(" > ")), el("div", {}, el("b", {}, "Time zone: "), d.tz || "-"),
       el("div", {}, el("b", {}, "Device: "), d.device_id), el("div", {}, el("b", {}, "Memo id: "), d.memo_id),
       el("div", {}, el("b", {}, "Location: "), d.location ? `${d.location.lat_e7 / 1e7}, ${d.location.lon_e7 / 1e7}` : "-")),
     d.note ? el("p", { class: "text" }, "Note: " + d.note) : null,
     el("div", { class: "thumbs" }, d.photos.map(p => el("a", { href: "/dash/api/objects/" + p.sha256, target: "_blank", rel: "noopener" }, el("img", { src: "/dash/api/objects/" + p.sha256, alt: "photo" })))));
-  $main.replaceChildren(el("p", {}, el("a", { href: "#" }, "< All memos")), head, ...d.segments.map(s => segmentCard(id, s)));
+  $main.replaceChildren(el("p", {}, el("a", { href: "#" }, "< All memos")), head, timelineCard(d), routeTable(d), ...d.segments.map(s => segmentCard(id, s)));
 }
 
 async function route() {

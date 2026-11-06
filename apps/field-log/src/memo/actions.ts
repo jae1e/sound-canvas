@@ -2,7 +2,7 @@ import { getCalendars } from 'expo-localization';
 import { Directory, File, Paths } from 'expo-file-system';
 import type { ImagePickerAsset } from 'expo-image-picker';
 import { PermissionsAndroid, Platform } from 'react-native';
-import { exifToWallMs, initialLevelMonitor, objectsToSkip, type LocationPayload } from '../core';
+import { titleChanged, titlePayload, exifToWallMs, liveLanguageFor, initialLevelMonitor, objectsToSkip, type LocationPayload } from '../core';
 import { writeTx } from '../db/db';
 import { appendEvent, newId } from '../db/events';
 import FlNative, { type LiveLanguage } from '../native';
@@ -10,6 +10,8 @@ import { applyStatus, setRoute, useRecorder } from '../state/recorder';
 import { useSettings } from '../state/settings';
 import { liveUrl } from '../sync/api';
 import { triggerSync } from '../sync/engine';
+import { tr } from '../i18n';
+import { ensureBluetoothPermission } from './permissions';
 import { fastLocation } from './location';
 
 export type MemoKind = 'photo' | 'image' | 'voice';
@@ -154,8 +156,6 @@ async function ensureAudioPermissions(): Promise<void> {
   if (Platform.OS !== 'android') return;
   const wanted: Parameters<typeof PermissionsAndroid.requestMultiple>[0] = [PermissionsAndroid.PERMISSIONS.RECORD_AUDIO];
   if (Number(Platform.Version) >= 33) wanted.push(PermissionsAndroid.PERMISSIONS.POST_NOTIFICATIONS);
-  // A chosen (non-default) input may be a Bluetooth headset; routing to it needs BLUETOOTH_CONNECT (API 31+).
-  if (useSettings.getState().inputId != null) wanted.push(PermissionsAndroid.PERMISSIONS.BLUETOOTH_CONNECT);
   const res = await PermissionsAndroid.requestMultiple(wanted);
   if (res[PermissionsAndroid.PERMISSIONS.RECORD_AUDIO] !== PermissionsAndroid.RESULTS.GRANTED) {
     throw new Error('MIC_DENIED');
@@ -165,6 +165,12 @@ async function ensureAudioPermissions(): Promise<void> {
 export async function startMemoRecording(memoId: string): Promise<void> {
   const s = useSettings.getState();
   await ensureAudioPermissions();
+  await ensureBluetoothPermission(s.inputPref, {
+    title: tr('btRationaleTitle'),
+    body: tr('btRationaleBody'),
+    ok: tr('btAllow'),
+    later: tr('btLater'),
+  });
   await FlNative.stopPlayback().catch(() => undefined);
   // A cached fix only, with a short cap: tap-to-recording must stay within about 2 s (A1).
   const location = await fastLocation(400);
@@ -172,12 +178,12 @@ export async function startMemoRecording(memoId: string): Promise<void> {
   const started = await FlNative.startRecording({
     memoId,
     recordingId,
-    preferredInputId: s.inputId ?? undefined,
+    input: s.inputPref,
     source: s.source === 'AUTO' ? undefined : s.source,
     location,
     live:
       s.liveEnabled && s.token
-        ? { url: liveUrl(s.serverUrl), token: s.token, language: (s.languages[0] ?? 'ko') as LiveLanguage }
+        ? { url: liveUrl(s.serverUrl), token: s.token, language: liveLanguageFor(s.languages) as LiveLanguage }
         : undefined,
   });
   applyStatus(await FlNative.getStatus());
@@ -259,4 +265,27 @@ export async function resumeMemoRecording(): Promise<void> {
   await FlNative.resumeRecording();
   useRecorder.setState({ monitor: initialLevelMonitor() });
   applyStatus(await FlNative.getStatus());
+}
+
+/** Saves a title as a memo_titled event. Does nothing when the text did not change. */
+export async function setMemoTitle(memoId: string, raw: string): Promise<boolean> {
+  const now = FlNative.clock();
+  let changed = false;
+  await writeTx(async (q) => {
+    const row = await q.getFirstAsync<{ title: string | null }>('SELECT title FROM memos WHERE memo_id = ?', memoId);
+    if (!row || !titleChanged(row.title, raw)) return;
+    const payload = titlePayload(memoId, raw);
+    await q.runAsync('UPDATE memos SET title = ? WHERE memo_id = ?', payload.title === '' ? null : payload.title, memoId);
+    await appendEvent(q, {
+      type: 'memo_titled',
+      memoId,
+      wallMs: now.wallMs,
+      elapsedUs: now.elapsedUs,
+      bootCount: now.bootCount,
+      payload,
+    });
+    changed = true;
+  });
+  if (changed) triggerSync();
+  return changed;
 }

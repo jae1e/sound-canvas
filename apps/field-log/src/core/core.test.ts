@@ -17,6 +17,21 @@ import {
   journalRecordToEvent,
   mergeTranscript,
   segmentStartsMs,
+  normaliseTitle,
+  titleChanged,
+  titlePayload,
+  projectTitle,
+  autoTitle,
+  displayTitle,
+  previewLine,
+  dateLabel,
+  stampLabel,
+  durationLabel,
+  parseInputPref,
+  samePref,
+  inputChipText,
+  liveLanguageFor,
+  switchNoticeKey,
   controlPhase,
   controlActions,
   statusLine,
@@ -489,5 +504,112 @@ describe('recorded-time merge with pauses', () => {
     ];
     expect(segmentStartsMs(rows)).toEqual([0, 10000]);
     expect(segmentStartsMs(rows, 0)).toEqual([0, 60000]); // elapsed-based would be wrong with pauses
+  });
+});
+
+describe('input preference', () => {
+  it('migrates legacy and invalid values to auto', () => {
+    expect(parseInputPref(null)).toEqual({ mode: 'auto' });
+    expect(parseInputPref('7')).toEqual({ mode: 'auto' }); // old numeric input_id
+    expect(parseInputPref('not json')).toEqual({ mode: 'auto' });
+    expect(parseInputPref('{"mode":"bogus"}')).toEqual({ mode: 'auto' });
+    expect(parseInputPref('{"mode":"device","type":"usb"}')).toEqual({ mode: 'auto' });
+  });
+  it('round-trips phone and device', () => {
+    expect(parseInputPref('{"mode":"phone"}')).toEqual({ mode: 'phone' });
+    const d = { mode: 'device', type: 'bluetooth_sco', productName: 'Buds', addressHash: 'ab' } as const;
+    expect(parseInputPref(JSON.stringify(d))).toEqual(d);
+    expect(samePref(d, { ...d })).toBe(true);
+    expect(samePref(d, { ...d, addressHash: 'cd' })).toBe(false);
+    expect(samePref({ mode: 'auto' }, { mode: 'phone' })).toBe(false);
+  });
+  const names = { builtin_mic: 'Phone microphone', bluetooth_sco: 'Bluetooth headset', ble_headset: 'LE', wired_headset: 'Wired', usb: 'USB', other: 'Other' };
+  const labels = { auto: 'Auto', notConnected: (n: string) => `${n} not connected, using phone microphone` };
+  it('writes the chip text', () => {
+    const base = { names, labels, recordingRoute: null };
+    expect(inputChipText({ ...base, pref: { mode: 'auto' }, selected: { type: 'bluetooth_sco', productName: 'QCY HT08' } })).toBe('Auto · 🎧 Bluetooth headset: QCY HT08');
+    expect(inputChipText({ ...base, pref: { mode: 'auto' }, selected: null })).toBe('Auto · 🎙 Phone microphone');
+    expect(inputChipText({ ...base, pref: { mode: 'phone' }, selected: { type: 'builtin_mic', productName: 'SM' } })).toBe('🎙 Phone microphone (SM)');
+    expect(inputChipText({ ...base, pref: { mode: 'device', type: 'bluetooth_sco', productName: 'Buds' }, selected: null })).toBe('🎙 Buds not connected, using phone microphone');
+    expect(inputChipText({ ...base, pref: { mode: 'auto' }, selected: null, recordingRoute: { type: 'bluetooth_sco', productName: 'Buds' } })).toBe('Auto · 🎧 Bluetooth headset: Buds');
+  });
+  it('chooses the live draft language', () => {
+    expect(liveLanguageFor(['ko', 'en'])).toBe('auto');
+    expect(liveLanguageFor(['en'])).toBe('en');
+    expect(liveLanguageFor(['ko'])).toBe('ko');
+  });
+  it('maps route reasons to notices', () => {
+    expect(switchNoticeKey('device_connected')).toBe('switchConnected');
+    expect(switchNoticeKey('device_disconnected')).toBe('switchDisconnected');
+    expect(switchNoticeKey('user')).toBe('switchUser');
+    expect(switchNoticeKey(undefined)).toBe('switchSystem');
+  });
+  it('carries the reason into the route_changed event', () => {
+    const e = journalRecordToEvent({ journalSeq: 1, kind: 'route_changed', memoId: 'm', recordingId: 'r', wallMs: 1, elapsedUs: 2, bootCount: 3, route: { type: 'bluetooth_sco', productName: 'Buds' }, reason: 'device_connected' });
+    expect(e.payload).toMatchObject({ reason: 'device_connected', route: { type: 'bluetooth_sco', product_name: 'Buds' } });
+    expect(canonicalJson(e.payload)).toContain('"reason":"device_connected"');
+  });
+});
+
+describe('memo titles', () => {
+  it('normalises and caps', () => {
+    expect(normaliseTitle('  hello  ')).toBe('hello');
+    expect(normaliseTitle('가'.repeat(130))).toHaveLength(120);
+    expect(normaliseTitle('   ')).toBe('');
+  });
+  it('detects changes only', () => {
+    expect(titleChanged(null, '  ')).toBe(false);
+    expect(titleChanged('a', ' a ')).toBe(false);
+    expect(titleChanged('a', 'b')).toBe(true);
+    expect(titleChanged('a', '')).toBe(true);
+  });
+  it('builds the event payload', () => {
+    expect(titlePayload('m1', '  Pump check ')).toEqual({ memo_id: 'm1', title: 'Pump check' });
+    expect(titlePayload('m1', '')).toEqual({ memo_id: 'm1', title: '' });
+    expect(() => canonicalJson(titlePayload('m1', '펌프 점검'))).not.toThrow();
+  });
+  it('projects latest-wins and empty clears', () => {
+    expect(projectTitle([{ seq: 3, title: 'b' }, { seq: 1, title: 'a' }])).toBe('b');
+    expect(projectTitle([{ seq: 1, title: 'a' }, { seq: 2, title: '' }])).toBeNull();
+    expect(projectTitle([])).toBeNull();
+  });
+  const fb = { voice: 'Voice memo', photo: 'Photo memo' };
+  it('derives the auto title', () => {
+    expect(autoTitle({ firstFinalText: 'Check valve 3', draftText: 'draft', kind: 'voice', fallbacks: fb })).toBe('Check valve 3');
+    expect(autoTitle({ firstFinalText: '', draftText: ' live words ', kind: 'voice', fallbacks: fb })).toBe('live words');
+    expect(autoTitle({ kind: 'voice', fallbacks: fb })).toBe('Voice memo');
+    expect(autoTitle({ kind: 'photo', fallbacks: fb })).toBe('Photo memo');
+    expect(autoTitle({ kind: 'image', fallbacks: fb })).toBe('Photo memo');
+    const long = autoTitle({ firstFinalText: 'a'.repeat(60), kind: 'voice', fallbacks: fb });
+    expect(Array.from(long)).toHaveLength(41);
+    expect(long.endsWith('…')).toBe(true);
+  });
+  it('chooses line 1 and the preview', () => {
+    expect(displayTitle('Mine', 'auto')).toBe('Mine');
+    expect(displayTitle(null, 'auto')).toBe('auto');
+    expect(previewLine('Check valve 3', 'Check valve 3')).toBeNull();
+    expect(previewLine('Mine', 'Check valve 3')).toBe('Check valve 3');
+    expect(previewLine('Check valve…', 'Check valve')).toBeNull();
+    expect(previewLine('Voice memo', '')).toBeNull();
+  });
+});
+
+describe('date labels', () => {
+  const now = new Date(2026, 10, 6, 20, 0).getTime();
+  it('says today, yesterday, or the date', () => {
+    expect(dateLabel(new Date(2026, 10, 6, 18, 43).getTime(), now, 'en')).toBe('Today 18:43');
+    expect(dateLabel(new Date(2026, 10, 5, 9, 10).getTime(), now, 'en')).toBe('Yesterday 09:10');
+    expect(dateLabel(new Date(2026, 10, 5, 9, 10).getTime(), now, 'ko')).toBe('어제 09:10');
+    expect(dateLabel(new Date(2026, 10, 6, 0, 5).getTime(), now, 'ko')).toBe('오늘 00:05');
+    expect(dateLabel(new Date(2026, 9, 30, 9, 10).getTime(), now, 'en')).toBe('2026-10-30');
+  });
+  it('formats the stamp with weekday', () => {
+    const t = new Date(2026, 10, 6, 18, 43).getTime();
+    expect(stampLabel(t, 'en')).toBe('2026-11-06 (Fri) 18:43');
+    expect(stampLabel(t, 'ko')).toBe('2026-11-06 (금) 18:43');
+  });
+  it('formats durations', () => {
+    expect(durationLabel(42000)).toBe('0:42');
+    expect(durationLabel(3725000)).toBe('1:02:05');
   });
 });

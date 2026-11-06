@@ -13,3 +13,5 @@ export * from './route';
 export * from './levelMonitor';
 export * from './controls';
 export * from './waveform';
+export * from './inputs';
+export * from './titles';

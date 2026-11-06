@@ -1,7 +1,8 @@
 import { Link, useRouter } from 'expo-router';
 import React from 'react';
 import { FlatList, Image, Pressable, Text, View } from 'react-native';
-import { formatPlace } from '../src/core';
+import { autoTitle, dateLabel, displayTitle, durationLabel, formatPlace, previewLine } from '../src/core';
+import { useRecorder } from '../src/state/recorder';
 import { listMemos, type MemoSummary } from '../src/db/queries';
 import { useLang, useT } from '../src/i18n';
 import { confirmDeleteMemo } from '../src/memo/confirmDelete';
@@ -42,29 +43,44 @@ function MemoRow({ m }: { m: MemoSummary }) {
   const t = useT();
   const lang = useLang();
   const router = useRouter();
-  const kind = labelKey(m.kind);
-  const place = formatPlace(m.location) ?? t('noLocation');
+  const draftText = useRecorder((r) => {
+    if (r.memoId !== m.memoId || !r.recordingId) return null;
+    const list = r.drafts[r.recordingId];
+    return list && list.length ? list[list.length - 1].text : null;
+  });
+  const auto = autoTitle({
+    firstFinalText: m.firstText,
+    draftText,
+    kind: m.kind,
+    fallbacks: { voice: t('memoVoice'), photo: t('memoPhoto') },
+  });
+  const line1 = displayTitle(m.title, auto);
+  const preview = previewLine(line1, m.transcript);
+  const meta = [
+    dateLabel(m.createdWallMs, Date.now(), lang),
+    m.durationMs > 0 ? durationLabel(m.durationMs) : null,
+    m.photoCount > 0 ? `📷${m.photoCount > 1 ? ` ×${m.photoCount}` : ''}` : null,
+    m.location ? `📍 ${formatPlace(m.location)}` : null,
+  ]
+    .filter(Boolean)
+    .join(' · ');
   return (
     <Pressable
       accessibilityRole="button"
       onPress={() => router.push(`/memo/${m.memoId}`)}
       onLongPress={() => confirmDeleteMemo(t, m.memoId)}
-      style={[s.card, { flexDirection: 'row' }]}
+      style={[s.card, { flexDirection: 'row', minHeight: 96 }]}
     >
-      {m.photoPath ? (
-        <Image source={{ uri: m.photoPath }} style={{ width: 72, height: 72, borderRadius: 8, marginRight: 12 }} />
-      ) : null}
       <View style={{ flex: 1 }}>
-        <Text style={[s.body, { fontWeight: '700' }]}>
-          {`${kind ? t(kind) : m.kind} · ${formatTime(m.createdWallMs, lang)}`}
+        <Text style={[s.body, { fontWeight: '700' }]} numberOfLines={1}>
+          {line1}
         </Text>
-        <Text style={s.small}>{place}</Text>
+        <Text style={s.small} numberOfLines={1}>
+          {meta}
+        </Text>
         <View style={{ flexDirection: 'row' }}>
           <RouteBadge type={m.routeType} />
         </View>
-        <Text style={m.firstText ? s.body : s.small} numberOfLines={2}>
-          {m.firstText ?? t('noText')}
-        </Text>
         <TrustChips
           isRecording={m.openRecordings > 0}
           segmentCount={m.segmentCount}
@@ -73,7 +89,15 @@ function MemoRow({ m }: { m: MemoSummary }) {
           pendingEvents={m.pendingEvents}
           pendingObjects={m.pendingObjects}
         />
+        {preview ? (
+          <Text style={[s.body, { marginTop: 6, color: colors.muted }]} numberOfLines={2}>
+            {preview}
+          </Text>
+        ) : null}
       </View>
+      {m.photoPath ? (
+        <Image source={{ uri: m.photoPath }} style={{ width: 72, height: 72, borderRadius: 8, marginLeft: 12 }} />
+      ) : null}
     </Pressable>
   );
 }

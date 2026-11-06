@@ -29,8 +29,8 @@ async function applyRecord(q: Q, r: JournalRecord): Promise<void> {
       if (exists) return;
       await q.runAsync(
         `INSERT INTO segments (segment_id, memo_id, recording_id, idx, path, sha256, bytes, start_elapsed_us, end_elapsed_us,
-           start_wall_ms, duration_ms, peak_dbfs_x100, clipped_samples, hf_ratio_4k_ppm, flags, recovered)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+           start_wall_ms, duration_ms, peak_dbfs_x100, clipped_samples, hf_ratio_4k_ppm, flags, recovered, route_json)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, (SELECT route_json FROM recordings WHERE recording_id = ?))`,
         r.segmentId,
         r.memoId,
         r.recordingId,
@@ -47,6 +47,7 @@ async function applyRecord(q: Q, r: JournalRecord): Promise<void> {
         r.hfRatio4kPpm,
         JSON.stringify(r.flags),
         r.recovered ? 1 : 0,
+        r.recordingId,
       );
       const obj = journalRecordObject(r);
       if (obj) {
@@ -90,7 +91,10 @@ export function ingestJournal(): Promise<number> {
     });
     // Push the latest route of the active recording to the UI at once.
     for (const r of records) {
-      if (r.kind === 'route_changed' && r.recordingId === useRecorder.getState().recordingId) setRoute(r.route);
+      if (r.kind === 'route_changed' && r.recordingId === useRecorder.getState().recordingId) {
+        setRoute(r.route);
+        useRecorder.setState({ routeNotice: { reason: r.reason, route: r.route, atMs: Date.now() } });
+      }
     }
     return records.length;
   };

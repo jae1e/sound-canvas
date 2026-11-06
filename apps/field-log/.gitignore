@@ -1,3 +1,8 @@
-android/
+/android/
 ios/
 .expo/
+
+# Native module build outputs
+modules/*/android/build/
+modules/*/android/.gradle/
+modules/*/android/.cxx/

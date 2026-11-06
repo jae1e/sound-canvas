@@ -225,8 +225,11 @@ class Worker:
             elif engine == "nemotron-replay":
                 if self.live is None or not self.live.available:
                     raise RuntimeError("live engine unavailable")
-                text, spans = replay_stream(self.live, raw, langs[0], variant == "conditioned")
-                lang, path = langs[0], f"stream:{langs[0]}"
+                # One language: force it. Several: automatic mode (forcing the first gives an empty
+                # draft for speech in another language of the list).
+                stream_lang = langs[0] if len(langs) == 1 else "auto"
+                text, spans = replay_stream(self.live, raw, stream_lang, variant == "conditioned")
+                lang, path = stream_lang, f"stream:{stream_lang}"
                 words, kind = spans, "utterances"
             else:
                 raise ValueError(f"unknown variant {engine}/{variant}")

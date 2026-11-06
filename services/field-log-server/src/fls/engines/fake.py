@@ -93,5 +93,9 @@ class FakeStreamingEngine:
     def preload(self) -> None:
         pass
 
+    def __init__(self) -> None:
+        self.opened: list[tuple[str, bool]] = []  # (language, condition) per stream, for tests
+
     def open_stream(self, language: str, condition: bool = True) -> _FakeStream:
+        self.opened.append((language, condition))
         return _FakeStream()

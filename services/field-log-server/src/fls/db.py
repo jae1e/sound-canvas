@@ -131,7 +131,7 @@ class Database:
         """Add columns introduced after the first release (CREATE TABLE IF NOT EXISTS keeps old tables)."""
         wanted = {
             "events": [("redacted", "INTEGER NOT NULL DEFAULT 0")],
-            "memos": [("languages", "TEXT"), ("deleted_server_ms", "INTEGER")],
+            "memos": [("languages", "TEXT"), ("deleted_server_ms", "INTEGER"), ("title", "TEXT")],
             "transcripts": [("detect_path", "TEXT")],
             "alt_transcripts": [("words", "TEXT"), ("words_kind", "TEXT")],
             "reference_transcripts": [("words", "TEXT")],

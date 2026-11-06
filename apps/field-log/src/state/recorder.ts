@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { PlaybackEvent, WaveEvent, LiveEvent, LiveState, RecorderStatus, Route } from '../native';
+import type { RouteChangeReason, PlaybackEvent, WaveEvent, LiveEvent, LiveState, RecorderStatus, Route } from '../native';
 import { initialLevelMonitor, pushWave, stepLevelMonitor, type DraftUtt, type LevelMonitorState } from '../core';
 
 export interface RecorderState {
@@ -16,6 +16,8 @@ export interface RecorderState {
   lastDraftAtMs: number;
   /** The input actually routed for the current recording. */
   route: Route | null;
+  /** The last live input switch during this recording, for a short notice. */
+  routeNotice: { reason: RouteChangeReason; route: Route; atMs: number } | null;
   paused: boolean;
   /** Android muted our capture because another app holds the microphone. */
   silenced: boolean;
@@ -37,6 +39,7 @@ export const useRecorder = create<RecorderState>(() => ({
   drafts: {},
   lastDraftAtMs: 0,
   route: null,
+  routeNotice: null,
   paused: false,
   silenced: false,
   wave: [],
@@ -57,7 +60,7 @@ export function applyStatus(s: RecorderStatus): void {
     silenced: s.recording && s.silenced,
     ...(s.recording && s.recordingId !== useRecorder.getState().recordingId ? { wave: [], recordedMs: s.elapsedMs } : {}),
     ...(s.recording ? {} : { wave: [], recordedMs: 0 }),
-    ...(s.recording ? {} : { levelDbfsX100: -9600, route: null, monitor: initialLevelMonitor() }),
+    ...(s.recording ? {} : { levelDbfsX100: -9600, route: null, routeNotice: null, monitor: initialLevelMonitor() }),
   });
 }
 

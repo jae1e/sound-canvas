@@ -10,6 +10,7 @@ export type EventType =
   | 'clock_sync'
   | 'memo_note'
   | 'memo_deleted'
+  | 'memo_titled'
   | 'recording_paused'
   | 'recording_resumed'
   | 'capture_state';

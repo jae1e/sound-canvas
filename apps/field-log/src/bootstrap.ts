@@ -2,7 +2,8 @@ import { getDb } from './db/db';
 import { ingestJournal } from './db/ingest';
 import FlNative from './native';
 import { applyCapture, applyLevel, applyLive, applyPlayback, applyWave, applyStatus, useRecorder } from './state/recorder';
-import { loadSettings } from './state/settings';
+import { applyInputs, refreshInputs } from './state/inputs';
+import { loadSettings, useSettings } from './state/settings';
 import { startSync, triggerSync } from './sync/engine';
 
 /** One-time app start: database, settings, crash recovery, journal ingest, listeners, sync loop. */
@@ -16,6 +17,8 @@ export async function bootstrap(): Promise<() => void> {
   }
   await ingestJournal().catch((e) => useRecorder.setState({ error: `Journal: ${(e as Error).message}` }));
   applyStatus(await FlNative.getStatus());
+  await FlNative.setInputPreference(useSettings.getState().inputPref).then(applyInputs, () => undefined);
+  await refreshInputs().catch(() => undefined);
 
   const subs = [
     FlNative.addListener('onJournal', () => {
@@ -30,6 +33,7 @@ export async function bootstrap(): Promise<() => void> {
     FlNative.addListener('onWave', applyWave),
     FlNative.addListener('onCapture', (e) => applyCapture(e.silenced)),
     FlNative.addListener('onPlayback', applyPlayback),
+    FlNative.addListener('onInputs', applyInputs),
   ];
   const stopSync = startSync();
   return () => {

@@ -36,6 +36,65 @@ def _js(v: str | None, default: Any = None) -> Any:
         return default
 
 
+ROUTE_TOLERANCE_US = 1_000_000  # a route event may be stamped slightly after the segment it opens
+
+
+def recording_timeline(db: Any, dev: str, memo_id: str) -> dict[str, Any]:
+    """Route, pause and silenced-capture history of a memo, read from its events."""
+    rows = db.query(
+        "SELECT type, wall_ms, elapsed_us, payload FROM events WHERE device_id=? AND type IN "
+        "('recording_started','route_changed','recording_paused','recording_resumed','capture_state',"
+        "'recording_stopped') AND json_extract(payload,'$.memo_id')=? ORDER BY seq", (dev, memo_id))
+    events, routes, paused, silenced = [], [], [], []
+    open_pause: dict[str, int] = {}
+    open_sil: dict[str, int] = {}
+    for r in rows:
+        p = _js(r["payload"], {})
+        rec, t = p.get("recording_id"), r["elapsed_us"]
+        ev = {"type": r["type"], "elapsed_us": t, "wall_ms": r["wall_ms"], "recording_id": rec}
+        if r["type"] in ("recording_started", "route_changed"):
+            route = p.get("route") or {}
+            routes.append({"recording_id": rec, "elapsed_us": t, "route": route,
+                           "reason": p.get("reason") if r["type"] == "route_changed" else None})
+            ev.update(route=route, reason=p.get("reason"))
+        elif r["type"] == "recording_paused":
+            open_pause[rec] = t
+        elif r["type"] == "recording_resumed" and rec in open_pause:
+            paused.append({"start_us": open_pause.pop(rec), "end_us": t})
+        elif r["type"] == "capture_state":
+            ev["silenced"] = bool(p.get("silenced"))
+            if p.get("silenced"):
+                open_sil.setdefault(rec, t)
+            elif rec in open_sil:
+                silenced.append({"start_us": open_sil.pop(rec), "end_us": t})
+        elif r["type"] == "recording_stopped":
+            ev["reason"] = p.get("reason")
+            if rec in open_pause:
+                paused.append({"start_us": open_pause.pop(rec), "end_us": t})
+            if rec in open_sil:
+                silenced.append({"start_us": open_sil.pop(rec), "end_us": t})
+        events.append(ev)
+    for rec, t in open_pause.items():  # still open (recording not stopped yet)
+        paused.append({"start_us": t, "end_us": None})
+    for rec, t in open_sil.items():
+        silenced.append({"start_us": t, "end_us": None})
+    return {"events": events, "routes": routes, "paused": paused, "silenced": silenced}
+
+
+def route_at(routes: list[dict], recording_id: str, start_us: int | None) -> dict | None:
+    """The route in effect at a segment's start (latest route event of its recording at or before it)."""
+    mine = [r for r in routes if r["recording_id"] == recording_id]
+    if not mine:
+        return None
+    if start_us is None:
+        return mine[0]
+    best = mine[0]
+    for r in mine:
+        if r["elapsed_us"] <= start_us + ROUTE_TOLERANCE_US:
+            best = r
+    return best
+
+
 def create_dashboard(state: Any) -> FastAPI:
     db, store = state.db, state.store
     app = FastAPI(title="Field Voice Log dashboard", docs_url=None, redoc_url=None, openapi_url=None)
@@ -101,7 +160,20 @@ def create_dashboard(state: Any) -> FastAPI:
             if any(r["no_speech"] for r in segs):
                 flags.append("no_speech")
             loc = _js(m["location"])
+            first = db.one("SELECT t.text FROM segments s JOIN transcripts t ON t.device_id=s.device_id AND "
+                           "t.segment_id=s.segment_id WHERE s.device_id=? AND s.memo_id=? AND t.status='done' "
+                           "AND t.no_speech=0 AND t.text<>'' ORDER BY s.idx LIMIT 1", (dev, mid))
+            seg0 = db.one("SELECT recording_id, start_elapsed_us FROM segments WHERE device_id=? AND memo_id=? "
+                          "ORDER BY idx LIMIT 1", (dev, mid))
+            dur = db.one("SELECT COALESCE(SUM(duration_ms),0) d FROM segments WHERE device_id=? AND memo_id=?",
+                         (dev, mid))["d"]
+            inp = None
+            if seg0:
+                inp = (route_at(recording_timeline(db, dev, mid)["routes"], seg0["recording_id"],
+                                seg0["start_elapsed_us"]) or {}).get("route")
             out.append({
+                "title": m["title"], "snippet": (first["text"][:40] if first else None),
+                "duration_ms": dur, "input": inp,
                 "memo_id": mid, "device_id": dev, "kind": m["kind"], "created_wall_ms": m["created_wall_ms"],
                 "tz": m["tz"], "languages": _js(m["languages"], DEFAULT_LANGUAGES),
                 "location": {"lat": loc["lat_e7"] / 1e7, "lon": loc["lon_e7"] / 1e7,
@@ -122,6 +194,7 @@ def create_dashboard(state: Any) -> FastAPI:
             raise HTTPException(404, "memo not found")
         dev = m["device_id"]
         segments = []
+        timeline = recording_timeline(db, dev, memo_id)
         for s in db.query("SELECT * FROM segments WHERE device_id=? AND memo_id=? ORDER BY idx, rowid", (dev, memo_id)):
             sid = s["segment_id"]
             rec = db.one("SELECT * FROM recordings WHERE device_id=? AND recording_id=?", (dev, s["recording_id"]))
@@ -153,7 +226,11 @@ def create_dashboard(state: Any) -> FastAPI:
                 "peak_dbfs": None if s["peak_dbfs_x100"] is None else s["peak_dbfs_x100"] / 100,
                 "clipped_samples": s["clipped_samples"], "hf_ratio_4k_ppm": s["hf_ratio_4k_ppm"],
                 "flags": _js(s["flags"], []), "recovered": bool(s["recovered"]),
-                "route": _js(rec["route"]) if rec else None, "source": rec["source"] if rec else None,
+                "route": (route_at(timeline["routes"], s["recording_id"], s["start_elapsed_us"]) or {}).get("route")
+                or (_js(rec["route"]) if rec else None),
+                "route_reason": (route_at(timeline["routes"], s["recording_id"], s["start_elapsed_us"]) or {}).get("reason"),
+                "start_elapsed_us": s["start_elapsed_us"], "end_elapsed_us": s["end_elapsed_us"],
+                "recording_id": s["recording_id"], "source": rec["source"] if rec else None,
                 "effects": _js(rec["effects"]) if rec else None,
                 "final": final, "alts": alts, "reference": ref_text,
                 "reference_words": _js(ref["words"]) if ref else None,
@@ -161,7 +238,11 @@ def create_dashboard(state: Any) -> FastAPI:
         return {
             "memo_id": memo_id, "device_id": dev, "kind": m["kind"], "created_wall_ms": m["created_wall_ms"],
             "tz": m["tz"], "languages": _js(m["languages"], DEFAULT_LANGUAGES), "note": m["note"],
-            "location": _js(m["location"]), "segments": segments,
+            "title": m["title"], "duration_ms": sum(x["duration_ms"] or 0 for x in segments),
+            "snippet": next((x["final"]["text"][:40] for x in segments if x["final"] and x["final"]["status"] == "done"
+                             and not x["final"]["no_speech"] and x["final"]["text"]), None),
+            "input": next((x["route"] for x in segments if x["route"]), None),
+            "location": _js(m["location"]), "segments": segments, "timeline": timeline,
             "photos": [{"photo_id": p["photo_id"], "sha256": p["object_sha256"], "mime": p["mime"]}
                        for p in db.query("SELECT * FROM photos WHERE device_id=? AND memo_id=?", (dev, memo_id))
                        if store.exists(p["object_sha256"])],
