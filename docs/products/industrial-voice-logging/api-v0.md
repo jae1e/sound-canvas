@@ -104,6 +104,9 @@ Every event has this envelope:
 | `clock_sync` | `{offset_ms, rtt_ms, server_ms}` (integers, rounded) |
 | `memo_note` | `{memo_id, text}` (typed note, optional) |
 | `memo_deleted` | `{memo_id}`. The user deleted the memo; see section 8 |
+| `recording_paused` | `{memo_id, recording_id}`. The open segment was closed first; the microphone is released while paused |
+| `recording_resumed` | `{memo_id, recording_id}`. New segments continue the index numbering |
+| `capture_state` | `{memo_id, recording_id, silenced: bool}`. Android silenced (or un-silenced) the capture because another app took the microphone; segments recorded while silenced contain zeros |
 
 Notes on `segment_closed`:
 - `flags` holds `clipped` and `narrowband` (A3).

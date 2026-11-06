@@ -7,7 +7,7 @@ import { useLang, useT } from '../src/i18n';
 import { confirmDeleteMemo } from '../src/memo/confirmDelete';
 import { useSettings } from '../src/state/settings';
 import { useSyncStatus } from '../src/state/syncStatus';
-import { BigButton, TrustChips, labelKey } from '../src/ui/components';
+import { BigButton, RouteBadge, TrustChips, labelKey } from '../src/ui/components';
 import { formatTime } from '../src/ui/format';
 import { colors, s } from '../src/ui/theme';
 import { useDbQuery } from '../src/ui/useQuery';
@@ -59,6 +59,9 @@ function MemoRow({ m }: { m: MemoSummary }) {
           {`${kind ? t(kind) : m.kind} · ${formatTime(m.createdWallMs, lang)}`}
         </Text>
         <Text style={s.small}>{place}</Text>
+        <View style={{ flexDirection: 'row' }}>
+          <RouteBadge type={m.routeType} />
+        </View>
         <Text style={m.firstText ? s.body : s.small} numberOfLines={2}>
           {m.firstText ?? t('noText')}
         </Text>

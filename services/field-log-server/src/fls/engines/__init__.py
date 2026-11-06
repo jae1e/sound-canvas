@@ -31,3 +31,13 @@ def make_live_engine(name: str, models_dir) -> StreamingEngine | None:
 
         return NemotronStreamingEngine(models_dir)
     raise ValueError(f"unknown live engine: {name}")
+
+
+def make_aligner(final_engine_name: str):
+    if final_engine_name == "fake":
+        from .aligner import FakeAligner
+
+        return FakeAligner()
+    from .aligner import Qwen3Aligner
+
+    return Qwen3Aligner()

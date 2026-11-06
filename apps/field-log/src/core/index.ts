@@ -9,3 +9,7 @@ export * from './memoState';
 export * from './syncPlan';
 export * from './transcriptMerge';
 export * from './languages';
+export * from './route';
+export * from './levelMonitor';
+export * from './controls';
+export * from './waveform';

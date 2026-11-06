@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import io
 import json
 import re
@@ -15,9 +16,11 @@ from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 from .audio import load_16k_mono
 from .cer import cer
 from .conditioning import condition
+from .engines.aligner import safe_align
+from .canon import canonical
 from .db import now_ms
 from .dsp_views import peaks, spectrogram_png
-from .jobs import variant_list
+from .jobs import uses_raw_audio, variant_list
 from .langs import DEFAULT_LANGUAGES, normalize_languages
 from .store import HEX64
 
@@ -123,13 +126,14 @@ def create_dashboard(state: Any) -> FastAPI:
             sid = s["segment_id"]
             rec = db.one("SELECT * FROM recordings WHERE device_id=? AND recording_id=?", (dev, s["recording_id"]))
             t = db.one("SELECT * FROM transcripts WHERE device_id=? AND segment_id=?", (dev, sid))
-            ref = db.one("SELECT text FROM reference_transcripts WHERE device_id=? AND segment_id=?", (dev, sid))
+            ref = db.one("SELECT text, words FROM reference_transcripts WHERE device_id=? AND segment_id=?", (dev, sid))
             ref_text = ref["text"] if ref else None
             alts = [{
                 "engine": a["engine"], "variant": a["variant"], "status": a["status"], "language": a["language"],
                 "detect_path": a["detect_path"], "text": a["text"],
                 "rtf": float(a["rtf"]) if a["rtf"] is not None else None, "processing_ms": a["processing_ms"],
                 "error": a["error"], "updated_server_ms": a["updated_server_ms"],
+                "words": _js(a["words"]), "words_kind": a["words_kind"] or "words",
                 "cer": with_cer(a["text"], ref_text) if a["status"] == "done" else None,
             } for a in db.query("SELECT * FROM alt_transcripts WHERE device_id=? AND segment_id=? "
                                 "ORDER BY created_server_ms, rowid", (dev, sid))]
@@ -138,6 +142,7 @@ def create_dashboard(state: Any) -> FastAPI:
                 final = {
                     "status": t["status"], "engine": t["engine"], "text": t["text"], "language": t["language"],
                     "no_speech": bool(t["no_speech"]), "detect_path": t["detect_path"],
+                    "words": _js(t["words"]), "words_kind": "words",
                     "rtf": float(t["rtf"]) if t["rtf"] is not None else None, "error": t["error"],
                     "updated_server_ms": t["updated_server_ms"],
                     "cer": with_cer(t["text"], ref_text) if t["status"] == "done" else None,
@@ -151,6 +156,7 @@ def create_dashboard(state: Any) -> FastAPI:
                 "route": _js(rec["route"]) if rec else None, "source": rec["source"] if rec else None,
                 "effects": _js(rec["effects"]) if rec else None,
                 "final": final, "alts": alts, "reference": ref_text,
+                "reference_words": _js(ref["words"]) if ref else None,
             })
         return {
             "memo_id": memo_id, "device_id": dev, "kind": m["kind"], "created_wall_ms": m["created_wall_ms"],
@@ -206,7 +212,7 @@ def create_dashboard(state: Any) -> FastAPI:
                     "INSERT INTO alt_transcripts(device_id, segment_id, engine, variant, status, "
                     "created_server_ms, updated_server_ms) VALUES (?,?,?,?, 'queued', ?, ?) "
                     "ON CONFLICT(device_id, segment_id, engine, variant) DO UPDATE SET status='queued', "
-                    "text=NULL, language=NULL, detect_path=NULL, rtf=NULL, processing_ms=NULL, error=NULL, "
+                    "text=NULL, language=NULL, detect_path=NULL, rtf=NULL, processing_ms=NULL, words=NULL, words_kind=NULL, error=NULL, "
                     "attempts=0, created_server_ms=excluded.created_server_ms, "
                     "updated_server_ms=excluded.updated_server_ms",
                     (s["device_id"], segment_id, engine, variant, t, t))
@@ -225,11 +231,61 @@ def create_dashboard(state: Any) -> FastAPI:
         if text.strip():
             db.execute("INSERT INTO reference_transcripts(device_id, segment_id, text, updated_server_ms) "
                        "VALUES (?,?,?,?) ON CONFLICT(device_id, segment_id) DO UPDATE SET text=excluded.text, "
+                       "words=CASE WHEN text=excluded.text THEN words ELSE NULL END, "
                        "updated_server_ms=excluded.updated_server_ms", (s["device_id"], segment_id, text, now_ms()))
         else:
             db.execute("DELETE FROM reference_transcripts WHERE device_id=? AND segment_id=?",
                        (s["device_id"], segment_id))
         return {"ok": True}
+
+    @app.post("/dash/api/segments/{segment_id}/align")
+    async def align(segment_id: str, request: Request):
+        """Word timestamps for one row: {"row": "final" | "alt:<engine>/<variant>" | "reference"}."""
+        s = segment_row(segment_id)
+        try:
+            row = (await request.json())["row"]
+            if not isinstance(row, str):
+                raise ValueError
+        except Exception:  # noqa: BLE001
+            raise HTTPException(422, "body must be {\"row\": string}") from None
+        if state.aligner is None:
+            raise HTTPException(503, "aligner unavailable")
+        dev = s["device_id"]
+        m = db.one("SELECT languages FROM memos WHERE device_id=? AND memo_id=?", (dev, s["memo_id"]))
+        langs = normalize_languages(_js(m["languages"]) if m else None)
+        raw_audio = False
+        if row == "final":
+            r = db.one("SELECT text, language FROM transcripts WHERE device_id=? AND segment_id=? AND status='done'",
+                       (dev, segment_id))
+        elif row == "reference":
+            r = db.one("SELECT text FROM reference_transcripts WHERE device_id=? AND segment_id=?", (dev, segment_id))
+            if r is not None:  # no detected language: guess from the script
+                r = {"text": r["text"], "language": "ko" if any("\uac00" <= c <= "\ud7a3" for c in r["text"]) else ""}
+        elif row.startswith("alt:") and "/" in row:
+            engine, variant = row[4:].split("/", 1)
+            r = db.one("SELECT text, language FROM alt_transcripts WHERE device_id=? AND segment_id=? "
+                       "AND engine=? AND variant=? AND status='done'", (dev, segment_id, engine, variant))
+            raw_audio = uses_raw_audio(engine, variant)
+        else:
+            raise HTTPException(422, "unknown row")
+        if r is None or not (r["text"] or "").strip():
+            raise HTTPException(409, "row has no text to align")
+        audio = audio_for(segment_id, not raw_audio)
+        words = await asyncio.to_thread(safe_align, state.aligner, audio, r["text"], r["language"] or "", langs)
+        if words is None:
+            raise HTTPException(502, "alignment failed")
+        t = now_ms()
+        wj = canonical(words)
+        if row == "final":
+            db.execute("UPDATE transcripts SET words=?, updated_server_ms=? WHERE device_id=? AND segment_id=?",
+                       (wj, t, dev, segment_id))
+            state.notifier.notify()
+        elif row == "reference":
+            db.execute("UPDATE reference_transcripts SET words=? WHERE device_id=? AND segment_id=?", (wj, dev, segment_id))
+        else:
+            db.execute("UPDATE alt_transcripts SET words=?, words_kind='words' WHERE device_id=? AND segment_id=? "
+                       "AND engine=? AND variant=?", (wj, dev, segment_id, engine, variant))
+        return {"words": words}
 
     @app.post("/dash/api/cer")
     async def cer_api(request: Request):

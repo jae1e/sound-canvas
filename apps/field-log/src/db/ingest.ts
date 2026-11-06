@@ -3,6 +3,7 @@ import { journalRecordObject, journalRecordToEvent } from '../core';
 import { writeTx, type Q } from './db';
 import { appendEvent } from './events';
 import { kvGet, kvSet } from './kv';
+import { setRoute, useRecorder } from '../state/recorder';
 
 async function applyRecord(q: Q, r: JournalRecord): Promise<void> {
   switch (r.kind) {
@@ -87,6 +88,10 @@ export function ingestJournal(): Promise<number> {
       for (const r of records) await applyRecord(q, r);
       await kvSet('journal_cursor', String(records[records.length - 1].journalSeq), q);
     });
+    // Push the latest route of the active recording to the UI at once.
+    for (const r of records) {
+      if (r.kind === 'route_changed' && r.recordingId === useRecorder.getState().recordingId) setRoute(r.route);
+    }
     return records.length;
   };
   chain = chain.then(run, run);

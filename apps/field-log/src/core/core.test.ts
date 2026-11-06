@@ -17,6 +17,21 @@ import {
   journalRecordToEvent,
   mergeTranscript,
   segmentStartsMs,
+  controlPhase,
+  controlActions,
+  statusLine,
+  peakToFraction,
+  levelBand,
+  pushWave,
+  bucketsPerSegment,
+  playheadFraction,
+  positionFromTouch,
+  routeLabel,
+  routeKind,
+  routeIcon,
+  isSilentPeak,
+  initialLevelMonitor,
+  stepLevelMonitor,
   selectUploadable,
   objectsToSkip,
   toggleLanguage,
@@ -343,5 +358,136 @@ describe('languages', () => {
   });
   it('memo_created languages stay canonical-safe', () => {
     expect(canonicalJson({ languages: ['ko', 'en'] })).toBe('{"languages":["ko","en"]}');
+  });
+});
+
+describe('route naming', () => {
+  const names = {
+    builtin_mic: 'Phone microphone',
+    bluetooth_sco: 'Bluetooth headset',
+    ble_headset: 'Bluetooth LE headset',
+    wired_headset: 'Wired headset',
+    usb: 'USB microphone',
+    other: 'Other input',
+  };
+  it('labels each route type', () => {
+    expect(routeLabel({ type: 'builtin_mic', productName: 'SM-S931N' }, names)).toBe('Phone microphone (SM-S931N)');
+    expect(routeLabel({ type: 'bluetooth_sco', productName: 'Buds' }, names)).toBe('Bluetooth headset: Buds');
+    expect(routeLabel({ type: 'usb' }, names)).toBe('USB microphone');
+    expect(routeLabel({ type: 'weird' }, names)).toBe('Other input');
+  });
+  it('classifies kinds and icons', () => {
+    expect(routeKind('builtin_mic')).toBe('phone');
+    for (const t of ['bluetooth_sco', 'ble_headset', 'wired_headset', 'usb']) expect(routeKind(t)).toBe('headset');
+    expect(routeKind('other')).toBe('other');
+    expect(routeIcon('builtin_mic')).toBe('🎙');
+    expect(routeIcon('bluetooth_sco')).toBe('🎧');
+  });
+  it('detects silent peaks', () => {
+    expect(isSilentPeak(-9600)).toBe(true);
+    expect(isSilentPeak(-9000)).toBe(true);
+    expect(isSilentPeak(-8999)).toBe(false);
+  });
+});
+
+describe('level monitor', () => {
+  const run = (samples: [number, number][]) => samples.reduce((st, [t, db]) => stepLevelMonitor(st, t, db), initialLevelMonitor());
+  const feed = (from: number, to: number, db: number): [number, number][] => {
+    const out: [number, number][] = [];
+    for (let t = from; t <= to; t += 100) out.push([t, db]);
+    return out;
+  };
+  it('raises silent after 1.5 s of digital zero', () => {
+    expect(run(feed(0, 1400, -9600)).alert).toBe('ok');
+    expect(run(feed(0, 1500, -9600)).alert).toBe('silent');
+  });
+  it('clears when the level rises and restarts the timer', () => {
+    const st = run([...feed(0, 2000, -9600), [2100, -3000]]);
+    expect(st.alert).toBe('ok');
+    expect(run([...feed(0, 2000, -9600), [2100, -3000], ...feed(2200, 3000, -9600)]).alert).toBe('ok');
+  });
+  it('raises quiet after 3 s below -70 dBFS but not silent', () => {
+    expect(run(feed(0, 2900, -7500)).alert).toBe('ok');
+    expect(run(feed(0, 3000, -7500)).alert).toBe('quiet');
+    expect(run([...feed(0, 3000, -7500), [3100, -5000]]).alert).toBe('ok');
+  });
+  it('silent takes priority over quiet', () => {
+    expect(run(feed(0, 4000, -9600)).alert).toBe('silent');
+  });
+  it('a single louder blip resets the quiet run', () => {
+    expect(run([...feed(0, 2500, -7500), [2600, -6000], ...feed(2700, 5700, -7500)]).alert).toBe('quiet');
+    expect(run([...feed(0, 2500, -7500), [2600, -6000], ...feed(2700, 4000, -7500)]).alert).toBe('ok');
+  });
+});
+
+describe('control state machine', () => {
+  it('derives the phase', () => {
+    expect(controlPhase({ active: false, paused: false, hasRecordings: false })).toBe('idle');
+    expect(controlPhase({ active: true, paused: false, hasRecordings: false })).toBe('recording');
+    expect(controlPhase({ active: true, paused: true, hasRecordings: true })).toBe('paused');
+    expect(controlPhase({ active: false, paused: false, hasRecordings: true })).toBe('stopped');
+  });
+  it('offers explicit buttons per phase', () => {
+    expect(controlActions('idle')).toEqual(['record']);
+    expect(controlActions('recording')).toEqual(['pause', 'stop']);
+    expect(controlActions('paused')).toEqual(['resume', 'stop']);
+    expect(controlActions('stopped')).toEqual(['recordMore', 'play']);
+  });
+  it('picks the state line', () => {
+    expect(statusLine('recording', 12000, 0)).toEqual({ key: 'recording', ms: 12000 });
+    expect(statusLine('paused', 12000, 0)).toEqual({ key: 'paused', ms: 12000 });
+    expect(statusLine('stopped', 0, 42000)).toEqual({ key: 'saved', ms: 42000 });
+    expect(statusLine('idle', 0, 0)).toEqual({ key: 'none', ms: null });
+  });
+  it('maps pause, resume and capture_state journal records to events', () => {
+    const base = { journalSeq: 1, memoId: 'm', recordingId: 'r', wallMs: 1, elapsedUs: 2, bootCount: 3 };
+    expect(journalRecordToEvent({ ...base, kind: 'recording_paused' })).toMatchObject({ type: 'recording_paused', payload: { memo_id: 'm', recording_id: 'r' } });
+    expect(journalRecordToEvent({ ...base, kind: 'recording_resumed' }).type).toBe('recording_resumed');
+    const cs = journalRecordToEvent({ ...base, kind: 'capture_state', silenced: true });
+    expect(cs.payload).toEqual({ memo_id: 'm', recording_id: 'r', silenced: true });
+  });
+});
+
+describe('waveform helpers', () => {
+  it('scales -60..0 dBFS to 0..1', () => {
+    expect(peakToFraction(-6000)).toBe(0);
+    expect(peakToFraction(-3000)).toBe(0.5);
+    expect(peakToFraction(0)).toBe(1);
+    expect(peakToFraction(-9600)).toBe(0);
+    expect(peakToFraction(500)).toBe(1);
+  });
+  it('bands levels', () => {
+    expect(levelBand(-5000)).toBe('quiet');
+    expect(levelBand(-2000)).toBe('good');
+    expect(levelBand(-300)).toBe('hot');
+  });
+  it('keeps a scrolling window', () => {
+    expect(pushWave([1, 2, 3], [4, 5], 4)).toEqual([2, 3, 4, 5]);
+    expect(pushWave([], [1], 4)).toEqual([1]);
+  });
+  it('splits buckets by duration', () => {
+    const b = bucketsPerSegment([20000, 10000], 300);
+    expect(b).toEqual([200, 100]);
+    expect(bucketsPerSegment([1000, 1000, 1000], 300).reduce((a, c) => a + c, 0)).toBe(300);
+    expect(bucketsPerSegment([])).toEqual([]);
+  });
+  it('maps touches and playheads', () => {
+    expect(positionFromTouch(50, 200, 10000)).toBe(2500);
+    expect(positionFromTouch(-5, 200, 10000)).toBe(0);
+    expect(positionFromTouch(999, 200, 10000)).toBe(10000);
+    expect(playheadFraction(2500, 10000)).toBe(0.25);
+    expect(playheadFraction(1, 0)).toBe(0);
+  });
+});
+
+describe('recorded-time merge with pauses', () => {
+  it('uses summed durations, not elapsed gaps, so a pause does not shift later segments', () => {
+    // Segment 1 started 60 s of wall time later (a 50 s pause), but only 10 s were recorded before it.
+    const rows = [
+      { index: 0, durationMs: 10000, startElapsedUs: 0 },
+      { index: 1, durationMs: 5000, startElapsedUs: 60_000_000 },
+    ];
+    expect(segmentStartsMs(rows)).toEqual([0, 10000]);
+    expect(segmentStartsMs(rows, 0)).toEqual([0, 60000]); // elapsed-based would be wrong with pauses
   });
 });

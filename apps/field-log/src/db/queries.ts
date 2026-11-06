@@ -12,6 +12,7 @@ export interface MemoSummary {
   segmentsDone: number;
   segmentsFailed: number;
   openRecordings: number;
+  routeType: string | null;
   pendingEvents: number;
   pendingObjects: number;
 }
@@ -29,6 +30,7 @@ export async function listMemos(limit = 200): Promise<MemoSummary[]> {
       (SELECT COUNT(*) FROM segments s WHERE s.memo_id = m.memo_id AND s.t_status = 'done') AS seg_done,
       (SELECT COUNT(*) FROM segments s WHERE s.memo_id = m.memo_id AND s.t_status = 'failed') AS seg_failed,
       (SELECT COUNT(*) FROM recordings r WHERE r.memo_id = m.memo_id AND r.stopped = 0) AS open_recs,
+      (SELECT route_json FROM recordings r WHERE r.memo_id = m.memo_id ORDER BY r.start_elapsed_us DESC LIMIT 1) AS route_json,
       (SELECT COUNT(*) FROM events e WHERE e.memo_id = m.memo_id AND e.acked = 0) AS pending_events,
       (SELECT COUNT(*) FROM objects o WHERE o.memo_id = m.memo_id AND o.uploaded = 0 AND o.skipped = 0) AS pending_objects
      FROM memos m WHERE m.deleted = 0 ORDER BY m.created_wall_ms DESC LIMIT ?`,
@@ -45,6 +47,7 @@ export async function listMemos(limit = 200): Promise<MemoSummary[]> {
     segmentsDone: r.seg_done,
     segmentsFailed: r.seg_failed,
     openRecordings: r.open_recs,
+    routeType: r.route_json ? (JSON.parse(r.route_json).type as string) : null,
     pendingEvents: r.pending_events,
     pendingObjects: r.pending_objects,
   }));
@@ -73,9 +76,11 @@ export interface RecordingRow {
 export interface SegmentRow {
   segmentId: string;
   recordingId: string;
+  path: string;
   index: number;
   startElapsedUs: number;
   durationMs: number;
+  peakDbfsX100: number;
   flags: string[];
   recovered: boolean;
   status: 'queued' | 'running' | 'done' | 'failed';
@@ -139,9 +144,11 @@ export async function getMemoDetail(memoId: string): Promise<MemoDetail | null> 
     segments: segs.map((s) => ({
       segmentId: s.segment_id,
       recordingId: s.recording_id,
+      path: s.path,
       index: s.idx,
       startElapsedUs: s.start_elapsed_us,
       durationMs: s.duration_ms,
+      peakDbfsX100: s.peak_dbfs_x100,
       flags: JSON.parse(s.flags),
       recovered: s.recovered === 1,
       status: s.t_status,

@@ -7,7 +7,7 @@ import { updateSetting, useSettings, type SourceChoice, type UiLang } from '../s
 import { useSyncStatus } from '../src/state/syncStatus';
 import { enrol } from '../src/sync/enrol';
 import { triggerSync } from '../src/sync/engine';
-import { BigButton, Row } from '../src/ui/components';
+import { BigButton, Row, useRouteText } from '../src/ui/components';
 import { formatTime } from '../src/ui/format';
 import { colors, s } from '../src/ui/theme';
 
@@ -77,6 +77,7 @@ function MiniButton(props: { label: string; a11y: string; disabled?: boolean; on
 
 export default function Settings() {
   const t = useT();
+  const routeText = useRouteText();
   const lang = useLang();
   const st = useSettings();
   const sync = useSyncStatus();
@@ -162,7 +163,7 @@ export default function Settings() {
         value={st.inputId}
         options={[
           { value: null, label: t('systemDefault') },
-          ...(caps?.inputs ?? []).map((i) => ({ value: i.id as number | null, label: `${i.productName || i.type} (${i.type})` })),
+          ...(caps?.inputs ?? []).map((i) => ({ value: i.id as number | null, label: routeText(i) })),
         ]}
         onChange={(v) => void updateSetting('inputId', v)}
       />

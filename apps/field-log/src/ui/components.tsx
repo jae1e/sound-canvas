@@ -1,6 +1,6 @@
 import React from 'react';
 import { Pressable, Text, View, type StyleProp, type ViewStyle } from 'react-native';
-import { deriveMemoState } from '../core';
+import { deriveMemoState, routeIcon, routeKind, routeLabel, type RouteNames } from '../core';
 import { useT, type Key } from '../i18n';
 import { colors, s } from './theme';
 
@@ -68,4 +68,31 @@ export function Row({ label, value }: { label: string; value: string }) {
       <Text style={s.body}>{value}</Text>
     </View>
   );
+}
+
+
+export function useRouteNames(): RouteNames {
+  const t = useT();
+  return {
+    builtin_mic: t('routeBuiltin'),
+    bluetooth_sco: t('routeSco'),
+    ble_headset: t('routeBle'),
+    wired_headset: t('routeWired'),
+    usb: t('routeUsb'),
+    other: t('routeOther'),
+  };
+}
+
+/** Full label with icon and text, e.g. "🎙 Phone microphone (SM-S931N)". */
+export function useRouteText(): (r: { type: string; productName?: string }) => string {
+  const names = useRouteNames();
+  return (r) => `${routeIcon(r.type)} ${routeLabel(r, names)}`;
+}
+
+export function RouteBadge({ type }: { type: string | null }) {
+  const t = useT();
+  if (!type) return null;
+  const kind = routeKind(type);
+  const label = kind === 'phone' ? t('badgePhone') : kind === 'headset' ? t('badgeHeadset') : t('badgeOther');
+  return <Chip glyph={kind === 'phone' ? '🎙' : '🎧'} label={label} active={false} />;
 }

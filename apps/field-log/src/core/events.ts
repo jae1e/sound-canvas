@@ -9,7 +9,10 @@ export type EventType =
   | 'recording_stopped'
   | 'clock_sync'
   | 'memo_note'
-  | 'memo_deleted';
+  | 'memo_deleted'
+  | 'recording_paused'
+  | 'recording_resumed'
+  | 'capture_state';
 
 export interface EventEnvelope {
   event_id: string;

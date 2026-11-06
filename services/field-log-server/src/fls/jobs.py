@@ -19,8 +19,12 @@ from .canon import canonical
 from .conditioning import condition
 from .config import MAX_JOB_RETRIES
 from .db import Database, now_ms
+from .engines.aligner import Aligner, safe_align
 from .engines.base import FinalEngine, StreamingEngine
-from .langs import DEFAULT_LANGUAGES, ISO_TO_QWEN, decode_with_policy, normalize_languages
+from .engines.base import FinalResult
+from .gate import silence_reason
+from .langs import (DEFAULT_LANGUAGES, ISO_TO_QWEN, decode_with_policy, guarded_decode,
+                    normalize_languages)
 from .store import ObjectStore
 
 log = logging.getLogger("fls.jobs")
@@ -40,26 +44,38 @@ def variant_list(languages: list[str]) -> list[tuple[str, str]]:
     ]
 
 
-def replay_stream(live: StreamingEngine, audio: np.ndarray, language: str, condition_input: bool) -> str:
-    """Feed stored audio through a fresh streaming recognizer (as fast as it decodes)."""
+def uses_raw_audio(engine: str, variant: str) -> bool:
+    """True when this variant's text was produced from the raw (unconditioned) audio."""
+    return variant == "raw"
+
+
+def replay_stream(live: StreamingEngine, audio: np.ndarray, language: str,
+                  condition_input: bool) -> tuple[str, list[dict]]:
+    """Feed stored audio through a fresh streaming recognizer (as fast as it decodes).
+
+    Returns the joined final text and the utterance spans [{text, start_ms, end_ms}]."""
     pcm = (np.clip(audio, -1, 1) * 32767).astype("<i2")
     pcm = np.concatenate([pcm, np.zeros(8000, dtype="<i2")])  # let trailing tokens flush
     stream = live.open_stream(language, condition_input)
-    texts: list[str] = []
+    finals = []
     try:
         for i in range(0, len(pcm), 1600):
-            texts += [e.text for e in stream.feed(pcm[i:i + 1600]) if e.kind == "final"]
-        texts += [e.text for e in stream.finish() if e.kind == "final"]
+            finals += [e for e in stream.feed(pcm[i:i + 1600]) if e.kind == "final"]
+        finals += [e for e in stream.finish() if e.kind == "final"]
     finally:
         stream.close()
-    return " ".join(t for t in texts if t)
+    finals = [e for e in finals if e.text]
+    return " ".join(e.text for e in finals), [
+        {"text": e.text, "start_ms": e.start_ms, "end_ms": e.end_ms} for e in finals]
 
 
 class Worker:
     def __init__(self, db: Database, store: ObjectStore, engine: FinalEngine,
                  live_engine: StreamingEngine | None = None,
+                 aligner: Aligner | None = None,
                  on_change: Callable[[], None] | None = None):
         self.db, self.store, self.engine, self.live = db, store, engine, live_engine
+        self.aligner = aligner
         self.on_change = on_change or (lambda: None)
         self._wake = threading.Event()
         self._stop = threading.Event()
@@ -126,6 +142,10 @@ class Worker:
         except ValueError:
             return list(DEFAULT_LANGUAGES)
 
+    def _peak_x100(self, dev: str, segment_id: str) -> int | None:
+        row = self.db.one("SELECT peak_dbfs_x100 FROM segments WHERE device_id=? AND segment_id=?", (dev, segment_id))
+        return row["peak_dbfs_x100"] if row else None
+
     # ------------------------------------------------------------------ final jobs
     def _process(self, job) -> None:
         dev, seg, sha = job["device_id"], job["segment_id"], job["object_sha256"]
@@ -133,9 +153,16 @@ class Worker:
         try:
             raw = load_16k_mono(self.store.path(sha))
             dur = len(raw) / 16000
-            res = decode_with_policy(self.engine, condition(raw), self._languages(dev, seg))
+            langs = self._languages(dev, seg)
+            gated = silence_reason(raw, self._peak_x100(dev, seg))
+            if gated:
+                res = FinalResult(text="", language="", no_speech=True, path=gated)
+            else:
+                res = decode_with_policy(self.engine, condition(raw), langs)
             proc = time.monotonic() - t0
             rtf = round(proc / dur, 4) if dur > 0 else None
+            if not res.no_speech:  # word timing never fails the job
+                res.words = safe_align(self.aligner, condition(raw), res.text, res.language, langs)
             t = now_ms()
             with self.db.tx() as c:
                 c.execute(
@@ -181,28 +208,37 @@ class Worker:
             dur = len(raw) / 16000
             langs = self._languages(dev, seg)
             lang, path = "", ""
-            if engine == "qwen3" and variant in ("raw", "conditioned"):
-                res = decode_with_policy(self.engine, raw if variant == "raw" else condition(raw), langs)
+            words, kind = None, "words"
+            used = raw if uses_raw_audio(engine, variant) else condition(raw)
+            gated = silence_reason(raw, self._peak_x100(dev, seg))
+            if gated:
+                text, lang, path = "", "", gated
+            elif engine == "qwen3" and variant in ("raw", "conditioned"):
+                res = decode_with_policy(self.engine, used, langs)
                 text, lang, path = res.text, res.language, res.path
             elif engine == "qwen3" and variant.startswith("forced-"):
                 iso = variant[len("forced-"):]
                 if iso not in ISO_TO_QWEN:
                     raise ValueError("unsupported language")
-                res = self.engine.decode(condition(raw), 16000, "", iso)
+                res = guarded_decode(self.engine, used, 16000, "", iso)
                 text, lang, path = res.text, res.language, f"forced:{iso}"
             elif engine == "nemotron-replay":
                 if self.live is None or not self.live.available:
                     raise RuntimeError("live engine unavailable")
-                text = replay_stream(self.live, raw, langs[0], variant == "conditioned")
+                text, spans = replay_stream(self.live, raw, langs[0], variant == "conditioned")
                 lang, path = langs[0], f"stream:{langs[0]}"
+                words, kind = spans, "utterances"
             else:
                 raise ValueError(f"unknown variant {engine}/{variant}")
             proc = time.monotonic() - t0
             rtf = round(proc / dur, 4) if dur > 0 else None
+            if words is None and text:
+                words = safe_align(self.aligner, used, text, lang, langs)
             upd = ("UPDATE alt_transcripts SET status='done', language=?, detect_path=?, text=?, rtf=?, "
-                   "processing_ms=?, error=NULL, updated_server_ms=? "
+                   "processing_ms=?, words=?, words_kind=?, error=NULL, updated_server_ms=? "
                    "WHERE device_id=? AND segment_id=? AND engine=? AND variant=?")
             self.db.execute(upd, (lang, path, text, None if rtf is None else str(rtf), int(proc * 1000),
+                                  canonical(words) if words else None, kind if words else None,
                                   now_ms(), dev, seg, engine, variant))
             log.info("compare done segment=%s variant=%s/%s proc_s=%.2f", seg, engine, variant, proc)
         except Exception as e:  # noqa: BLE001

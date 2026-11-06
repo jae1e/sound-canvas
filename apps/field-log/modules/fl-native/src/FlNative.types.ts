@@ -110,6 +110,10 @@ export interface RecorderStatus {
   /** Index of the segment being written, or -1 when idle. */
   segmentIndex: number;
   liveState: LiveState;
+  /** True between pauseRecording() and resumeRecording(); the microphone is released while paused. */
+  paused: boolean;
+  /** AudioRecordingConfiguration.isClientSilenced() for our capture (another app took the mic). */
+  silenced: boolean;
 }
 
 export type StopReason = 'user' | 'error' | 'interrupted' | 'recovered';
@@ -165,11 +169,28 @@ export interface JournalRecordingStopped extends JournalBase {
   location?: LocationPayload;
 }
 
+export interface JournalRecordingPaused extends JournalBase {
+  kind: 'recording_paused';
+}
+
+export interface JournalRecordingResumed extends JournalBase {
+  kind: 'recording_resumed';
+}
+
+/** Android silenced (or un-silenced) our capture because another app holds the microphone. */
+export interface JournalCaptureState extends JournalBase {
+  kind: 'capture_state';
+  silenced: boolean;
+}
+
 export type JournalRecord =
   | JournalRecordingStarted
   | JournalSegmentClosed
   | JournalRouteChanged
-  | JournalRecordingStopped;
+  | JournalRecordingStopped
+  | JournalRecordingPaused
+  | JournalRecordingResumed
+  | JournalCaptureState;
 
 export interface UploadResult {
   status: number;
@@ -191,8 +212,38 @@ export type LiveEvent =
   | { type: 'partial'; text: string; utterance: number }
   | { type: 'final'; text: string; utterance: number; startMs: number; endMs: number };
 
+/**
+ * Live waveform while recording, about 25 Hz: one value per 40 ms block of captured audio
+ * (max |sample| in dBFS x 100, integer, -9600 for digital zero). Usually one value per event;
+ * more when events were coalesced. Not sent while paused.
+ */
+export interface WaveEvent {
+  peaksDbfsX100: number[];
+  /** Recorded milliseconds (pauses excluded) at the end of the last block. */
+  recordedMs: number;
+}
+
+export interface CaptureEvent {
+  silenced: boolean;
+}
+
+export type PlaybackState = 'idle' | 'playing' | 'paused' | 'ended' | 'error';
+
+/** About 20 Hz while playing, and on every state change. Positions span all files of playFiles(). */
+export interface PlaybackEvent {
+  state: PlaybackState;
+  positionMs: number;
+  durationMs: number;
+  /** Index into the playFiles() list of the file being played. */
+  index: number;
+  error?: string;
+}
+
 export type FlNativeModuleEvents = {
   onLevel: (e: LevelEvent) => void;
   onJournal: (e: JournalEvent) => void;
   onLive: (e: LiveEvent) => void;
+  onWave: (e: WaveEvent) => void;
+  onCapture: (e: CaptureEvent) => void;
+  onPlayback: (e: PlaybackEvent) => void;
 };

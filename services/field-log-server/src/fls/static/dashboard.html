@@ -24,7 +24,24 @@ tr.memo-row { cursor:pointer; } tr.memo-row:hover { background:#8882; }
 .muted { color:var(--muted); } .good { color:var(--good); } .bad { color:var(--bad); } .warn { color:var(--warn); }
 .pill { display:inline-block; border:1px solid var(--line); border-radius:99px; padding:0 .6em; margin-right:.3em; font-size:.85rem; }
 canvas, img.spec { width:100%; display:block; border:1px solid var(--line); border-radius:6px; background:var(--bg); }
-canvas { height:180px; } img.spec { height:140px; image-rendering:auto; }
+canvas { height:200px; }
+.wave { position:relative; user-select:none; touch-action:none; cursor:col-resize; border-radius:6px; }
+.wave canvas { border-radius:6px; }
+.wave:focus-visible { outline:3px solid var(--warn); outline-offset:2px; }
+.layer { position:absolute; left:0; right:0; top:0; bottom:0; pointer-events:none; overflow:hidden; border-radius:6px; }
+.band { position:absolute; top:22px; bottom:0; background:var(--accent); opacity:.10; }
+.band.odd { opacity:.18; } .band.active { opacity:.38; } .band.utt { background:var(--good); opacity:.16; }
+.band.utt.active { opacity:.4; }
+.playhead { position:absolute; top:0; bottom:0; width:2px; background:var(--bad); box-shadow:0 0 0 1px var(--bg); display:none; }
+.lane { position:relative; height:36px; margin:4px 0 8px; border:1px solid var(--line); border-radius:6px; background:var(--bg); overflow:hidden; }
+.lane button.w { position:absolute; top:2px; bottom:2px; padding:0 3px; font-size:.85rem; line-height:1.1; overflow:hidden; white-space:nowrap; text-overflow:ellipsis; border:1px solid var(--line); border-radius:4px; background:var(--card); color:var(--fg); }
+.lane button.w:hover { background:#8883; color:var(--fg); }
+.lane button.w.active { background:var(--accent); color:var(--bg); border-color:var(--accent); }
+.lane button.w.utt { border-color:var(--good); }
+.lane button.w.utt.active { background:var(--good); border-color:var(--good); }
+.lane .empty { padding:6px 8px; color:var(--muted); font-size:.9rem; }
+.timebar { display:flex; gap:14px; align-items:center; flex-wrap:wrap; margin:.3rem 0; font-variant-numeric:tabular-nums; }
+select { font:inherit; background:var(--bg); color:var(--fg); border:1px solid var(--line); border-radius:6px; padding:.2em .4em; } img.spec { height:140px; image-rendering:auto; }
 audio { width:100%; margin:.3rem 0; }
 .grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:4px 18px; margin:.6rem 0; }
 .grid div b { color:var(--muted); font-weight:500; }
@@ -76,23 +93,36 @@ async function showList() {
       el("tbody", {}, rows)));
 }
 
+const fmtT = t => { t = Math.max(0, t || 0); return Math.floor(t / 60) + ":" + (t % 60).toFixed(1).padStart(4, "0"); };
+
+// Static layer: ruler (second ticks and labels), dBFS gridlines and the min/max waveform.
+const RULER = 22;
 function drawWave(canvas, pk) {
   const dpr = window.devicePixelRatio || 1, w = canvas.clientWidth, h = canvas.clientHeight;
   canvas.width = w * dpr; canvas.height = h * dpr;
   const g = canvas.getContext("2d"); g.scale(dpr, dpr);
   const css = getComputedStyle(document.documentElement);
-  const mid = h / 2;
+  const dur = pk.duration_ms / 1000, mid = RULER + (h - RULER) / 2, half = (h - RULER) / 2 - 2;
   g.font = "12px sans-serif"; g.fillStyle = css.getPropertyValue("--muted"); g.strokeStyle = css.getPropertyValue("--grid");
-  for (const db of [0, -6, -12, -24, -40]) {
-    const y = 10 ** (db / 20) * (mid - 2);
+  for (const db of [0, -6, -12, -24]) {
+    const y = 10 ** (db / 20) * half;
     for (const yy of [mid - y, mid + y]) { g.beginPath(); g.moveTo(0, yy); g.lineTo(w, yy); g.stroke(); }
     g.fillText(db + " dBFS", 4, mid - y - 2);
   }
+  // Ruler: a tick every second (labels thinned when crowded); minor ticks every 0.5 s.
+  g.strokeStyle = css.getPropertyValue("--muted");
+  const pxPerS = w / Math.max(dur, 0.001), labelEvery = pxPerS > 50 ? 1 : Math.ceil(50 / pxPerS);
+  for (let t = 0; t <= dur + 1e-6; t += 0.5) {
+    const x = Math.min(w - 0.5, t / dur * w), major = Number.isInteger(t);
+    g.beginPath(); g.moveTo(x, RULER); g.lineTo(x, RULER - (major ? 9 : 4)); g.stroke();
+    if (major && t % labelEvery === 0) { g.textAlign = x > w - 20 ? "right" : "left"; g.fillText(t + "s", x + (g.textAlign === "left" ? 3 : -3), 11); }
+  }
+  g.textAlign = "left";
   g.strokeStyle = css.getPropertyValue("--wave");
   const n = pk.min.length;
   for (let i = 0; i < n; i++) {
     const x = (i + 0.5) * w / n;
-    g.beginPath(); g.moveTo(x, mid - pk.max[i] * (mid - 2)); g.lineTo(x, mid - pk.min[i] * (mid - 2) + 1); g.stroke();
+    g.beginPath(); g.moveTo(x, mid - pk.max[i] * half); g.lineTo(x, mid - pk.min[i] * half + 1); g.stroke();
   }
 }
 
@@ -101,44 +131,158 @@ function fmtCer(c) { return c === null || c === undefined ? "-" : (c * 100).toFi
 function segmentCard(memoId, s) {
   const card = el("section", { class: "card", "aria-label": "Segment " + s.index });
   const canvas = el("canvas", { role: "img", "aria-label": "Waveform" });
+  const bands = el("div", { class: "layer" });
+  const playhead = el("div", { class: "playhead" });
+  const wave = el("div", { class: "wave", tabindex: "0", role: "application",
+    "aria-label": "Waveform. Click or drag to seek. Space plays or pauses, left and right arrows seek one second." },
+    canvas, bands, el("div", { class: "layer" }, playhead));
+  const lane = el("div", { class: "lane" });
+  const laneSel = el("select", { "aria-label": "Row shown on the timeline" });
+  const timeText = el("span", { "aria-live": "off" }, "0:00.0 / 0:00.0");
   const spec = el("img", { class: "spec", alt: "Spectrogram", loading: "lazy" });
   const condBox = el("input", { type: "checkbox", id: "c" + s.segment_id });
   const table = el("div");
   const refBox = el("textarea", { rows: "2", "aria-label": "Reference transcript" });
   refBox.value = s.reference || "";
   const refMsg = el("span", { class: "muted" });
-  let current = s;
+  const rawAudio = el("audio", { controls: "", preload: "metadata", src: "/dash/api/objects/" + s.object_sha256 });
+  const condAudio = el("audio", { controls: "", preload: "metadata", src: `/dash/api/segments/${s.segment_id}/conditioned.wav` });
+  const players = [rawAudio, condAudio];
+  let current = s, dur = (s.duration_ms || 0) / 1000, last = rawAudio, stopAt = null, raf = 0;
+  let rowKey = "final", laneWords = [], laneEls = [], bandEls = [], activeIdx = -1;
+
+  const playing = () => players.find(p => !p.paused && !p.ended);
+  const driver = () => playing() || last;
+  const xToT = ev => { const r = wave.getBoundingClientRect(); return Math.min(dur, Math.max(0, (ev.clientX - r.left) / r.width * dur)); };
+
+  const wordAt = t => { const ms = t * 1000; for (let i = 0; i < laneWords.length; i++) if (ms >= laneWords[i].start_ms && ms < laneWords[i].end_ms) return i; return -1; };
+  const setActive = i => {
+    if (i === activeIdx) return;
+    if (laneEls[activeIdx]) laneEls[activeIdx].classList.remove("active");
+    if (bandEls[activeIdx]) bandEls[activeIdx].classList.remove("active");
+    activeIdx = i;
+    if (laneEls[i]) laneEls[i].classList.add("active");
+    if (bandEls[i]) bandEls[i].classList.add("active");
+  };
+  const paint = () => {
+    const p = driver(), t = p.currentTime || 0;
+    if (!dur && isFinite(p.duration)) dur = p.duration;
+    playhead.style.display = (!p.paused || t > 0) ? "block" : "none";   // hidden while paused at 0
+    playhead.style.left = (dur ? Math.min(100, t / dur * 100) : 0) + "%";
+    timeText.textContent = `${fmtT(t)} / ${fmtT(dur || p.duration)}`;
+    setActive(wordAt(t));
+    if (stopAt !== null && t >= stopAt) { p.pause(); stopAt = null; }
+  };
+  const loop = () => { paint(); raf = playing() ? requestAnimationFrame(loop) : 0; };
+  const kick = () => { paint(); if (!raf && playing()) raf = requestAnimationFrame(loop); };
+  const seek = t => { stopAt = null; last.currentTime = t; paint(); };   // never starts playback
+
+  for (const p of players) {
+    p.addEventListener("play", () => {
+      last = p;
+      for (const o of players) if (o !== p && !o.paused) o.pause();
+      const other = players.find(o => o !== p);
+      if (isFinite(p.currentTime) && Math.abs(other.currentTime - p.currentTime) > 0.05) other.currentTime = p.currentTime;
+      kick();
+    });
+    p.addEventListener("pause", () => { paint(); });
+    p.addEventListener("seeked", paint);
+    p.addEventListener("ended", paint);
+    p.addEventListener("loadedmetadata", () => { if (!dur) dur = p.duration; paint(); });
+  }
+
+  // Click or drag on the waveform seeks the last-used player.
+  wave.addEventListener("pointerdown", ev => { wave.setPointerCapture(ev.pointerId); wave.focus(); seek(xToT(ev)); wave._drag = true; });
+  wave.addEventListener("pointermove", ev => { if (wave._drag) seek(xToT(ev)); });
+  const endDrag = ev => { wave._drag = false; };
+  wave.addEventListener("pointerup", endDrag); wave.addEventListener("pointercancel", endDrag);
+  wave.addEventListener("keydown", ev => {
+    if (ev.key === " " || ev.key === "Spacebar") {
+      ev.preventDefault();
+      const p = playing();
+      if (p) p.pause(); else { stopAt = null; last.play().catch(() => {}); }
+    } else if (ev.key === "ArrowLeft" || ev.key === "ArrowRight") {
+      ev.preventDefault();
+      seek(Math.min(dur || Infinity, Math.max(0, driver().currentTime + (ev.key === "ArrowLeft" ? -1 : 1))));
+    }
+  });
+
+  // ---- timeline lane: words or utterances of the selected row
+  const rows = () => {
+    const out = [];
+    if (current.final) out.push(["final", "Final transcript", current.final.words, "words", current.final.text]);
+    for (const a of current.alts) out.push(["alt:" + a.engine + "/" + a.variant, `${a.engine} / ${a.variant}`, a.words, a.words_kind || "words", a.text]);
+    if (current.reference) out.push(["reference", "Reference", current.reference_words, "words", current.reference]);
+    return out;
+  };
+  const renderLane = () => {
+    const all = rows();
+    laneSel.replaceChildren(...all.map(r => el("option", { value: r[0] }, r[1] + (r[2] ? ` (${r[2].length} ${r[3] === "utterances" ? "utterances" : "words"})` : " (no timing)"))));
+    if (!all.find(r => r[0] === rowKey)) rowKey = all.length ? all[0][0] : "final";
+    laneSel.value = rowKey;
+    const row = all.find(r => r[0] === rowKey);
+    lane.replaceChildren(); bands.replaceChildren(); laneEls = []; bandEls = []; activeIdx = -1;
+    laneWords = row && row[2] ? row[2] : [];
+    if (!row) { lane.append(el("div", { class: "empty" }, "No transcript yet.")); return; }
+    if (!laneWords.length) { lane.append(el("div", { class: "empty" }, row[4] ? "No timing for this row yet. Press Align." : "Nothing to show.")); return; }
+    const total = (dur || Math.max(...laneWords.map(w => w.end_ms)) / 1000) * 1000, utt = row[3] === "utterances";
+    laneWords.forEach((w, i) => {
+      const left = w.start_ms / total * 100, width = Math.max(0.4, (w.end_ms - w.start_ms) / total * 100);
+      bandEls.push(bands.appendChild(el("div", { class: "band" + (utt ? " utt" : (i % 2 ? " odd" : "")), style: `left:${left}%;width:${width}%` })));
+      const b = el("button", { class: "w" + (utt ? " utt" : ""), style: `left:${left}%;width:${width}%`, title: `${w.text}  ${(w.start_ms / 1000).toFixed(2)}-${(w.end_ms / 1000).toFixed(2)} s. Click: seek. Shift-click: play this span.`,
+        onclick: ev => {
+          if (ev.shiftKey) { stopAt = w.end_ms / 1000; last.currentTime = w.start_ms / 1000; last.play().catch(() => {}); kick(); }
+          else seek(w.start_ms / 1000);
+        } }, w.text);
+      laneEls.push(lane.appendChild(b));
+    });
+    paint();
+  };
+  laneSel.addEventListener("change", () => { rowKey = laneSel.value; renderLane(); });
+
+  const align = async (key, btn) => {
+    btn.disabled = true; const old = btn.textContent; btn.textContent = "Aligning...";
+    try {
+      await api(`/dash/api/segments/${s.segment_id}/align`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ row: key }) });
+      rowKey = key; await refresh();
+    } catch (e) { btn.textContent = "Failed: " + e.message.replace(/^.*-> /, ""); setTimeout(() => { btn.textContent = old; btn.disabled = false; }, 3000); return; }
+    btn.textContent = old; btn.disabled = false;
+  };
 
   const loadViz = async () => {
     if (!s.audio_present) return;
     const c = condBox.checked ? 1 : 0;
     const pk = await api(`/dash/api/segments/${s.segment_id}/peaks?n=1200&conditioned=${c}`);
+    if (!dur) dur = pk.duration_ms / 1000;
     drawWave(canvas, pk);
     spec.src = `/dash/api/segments/${s.segment_id}/spectrogram.png?conditioned=${c}`;
+    renderLane();
   };
   condBox.addEventListener("change", loadViz);
+  window.addEventListener("resize", () => loadViz().catch(() => {}));
 
   const renderTable = () => {
-    const rows = [];
+    const rowsT = [];
     if (current.final) {
       const f = current.final;
-      rows.push(["final", f.engine || "-", "production (conditioned, memo languages)", f.status, f.language || "-", f.detect_path || "-", f.no_speech ? "(no speech)" : (f.text ?? ""), f.rtf, null, f.cer]);
+      rowsT.push(["final", f.engine || "-", "final", f.status, f.language || "-", f.detect_path || "-", f.no_speech ? "(no speech)" : (f.text ?? ""), f.rtf, null, f.cer, f.words, "final", f.status === "done" && !f.no_speech]);
     }
-    for (const a of current.alts) rows.push([a.engine, a.variant, "", a.status, a.language || "-", a.detect_path || "-", a.status === "failed" ? "error: " + a.error : (a.text ?? ""), a.rtf, a.processing_ms, a.cer]);
+    for (const a of current.alts) rowsT.push([a.engine, a.engine, a.variant, a.status, a.language || "-", a.detect_path || "-", a.status === "failed" ? "error: " + a.error : (a.text ?? ""), a.rtf, a.processing_ms, a.cer, a.words, "alt:" + a.engine + "/" + a.variant, a.status === "done" && !!a.text]);
     table.replaceChildren(el("table", {},
-      el("thead", {}, el("tr", {}, ["Engine", "Variant", "Status", "Language", "Detection path", "Text", "RTF", "Time", "CER"].map(h => el("th", {}, h)))),
-      el("tbody", {}, rows.map(r => el("tr", {},
-        el("td", {}, r[0] === "final" ? r[1] : r[0]), el("td", {}, r[0] === "final" ? "final" : r[1]),
+      el("thead", {}, el("tr", {}, ["Engine", "Variant", "Status", "Language", "Detection path", "Text", "RTF", "Time", "CER", "Timing"].map(h => el("th", {}, h)))),
+      el("tbody", {}, rowsT.map(r => el("tr", {},
+        el("td", {}, r[1]), el("td", {}, r[2]),
         el("td", { class: statusClass(r[3]) }, r[3]), el("td", {}, r[4]), el("td", {}, r[5]),
         el("td", { class: "text" }, r[6]), el("td", {}, r[7] == null ? "-" : r[7].toFixed(3)),
-        el("td", {}, r[8] == null ? "-" : (r[8] / 1000).toFixed(1) + " s"), el("td", {}, fmtCer(r[9])))))));
+        el("td", {}, r[8] == null ? "-" : (r[8] / 1000).toFixed(1) + " s"), el("td", {}, fmtCer(r[9])),
+        el("td", {}, r[10] ? `${r[10].length} spans ` : "none ", r[12] ? el("button", { onclick: ev => align(r[11], ev.target) }, "Align") : null))))));
   };
 
   const refresh = async () => {
     const d = await api("/dash/api/memos/" + memoId);
     const seg = d.segments.find(x => x.segment_id === s.segment_id);
     if (!seg) return;
-    current = seg; renderTable();
+    current = seg; renderTable(); renderLane();
     const busy = seg.alts.some(a => a.status === "queued" || a.status === "running") || (seg.final && ["queued", "running"].includes(seg.final.status));
     clearTimeout(card._t); if (busy) card._t = setTimeout(refresh, 3000);
   };
@@ -147,13 +291,14 @@ function segmentCard(memoId, s) {
   const eff = s.effects ? `ns ${s.effects.ns}, agc ${s.effects.agc}, aec ${s.effects.aec}` : "-";
   card.append(
     el("h2", {}, `Segment ${s.index}  `, el("span", { class: "muted" }, `${((s.duration_ms || 0) / 1000).toFixed(1)} s`)),
-    s.audio_present ? [
-      canvas,
-      el("label", {}, condBox, " show conditioned signal"),
+    ...(s.audio_present ? [
+      wave,
+      el("div", { class: "timebar" }, timeText, el("label", {}, "Timeline row: ", laneSel), el("label", {}, condBox, " show conditioned signal")),
+      lane,
       spec,
-      el("div", {}, el("b", {}, "Raw audio"), el("audio", { controls: "", preload: "none", src: "/dash/api/objects/" + s.object_sha256 })),
-      el("div", {}, el("b", {}, "Conditioned audio (80 Hz high-pass, gain, limiter)"), el("audio", { controls: "", preload: "none", src: `/dash/api/segments/${s.segment_id}/conditioned.wav` })),
-    ] : el("p", { class: "warn" }, "Audio not uploaded yet."),
+      el("div", {}, el("b", {}, "Raw audio"), rawAudio),
+      el("div", {}, el("b", {}, "Conditioned audio (80 Hz high-pass, gain, limiter)"), condAudio),
+    ] : [el("p", { class: "warn" }, "Audio not uploaded yet.")]),
     el("div", { class: "grid" },
       metric("Peak", s.peak_dbfs == null ? null : s.peak_dbfs.toFixed(2) + " dBFS"), metric("Clipped samples", s.clipped_samples),
       metric("High band >4 kHz", s.hf_ratio_4k_ppm == null ? null : s.hf_ratio_4k_ppm + " ppm"),
@@ -168,7 +313,8 @@ function segmentCard(memoId, s) {
     refBox,
     el("p", {}, el("button", { onclick: async () => {
         await api(`/dash/api/segments/${s.segment_id}/reference`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ text: refBox.value }) });
-        refMsg.textContent = " saved"; await refresh(); } }, "Save reference and compute CER"), refMsg),
+        refMsg.textContent = " saved"; await refresh(); } }, "Save reference and compute CER"), " ",
+      el("button", { onclick: ev => align("reference", ev.target) }, "Align reference"), refMsg),
     el("p", { class: "formula" }, "CER = (substitutions + deletions + insertions) / characters in the reference, after removing spaces and punctuation and lowercasing Latin letters (edit distance on characters).")
   );
   renderTable();

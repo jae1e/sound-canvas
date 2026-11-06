@@ -133,6 +133,8 @@ class Database:
             "events": [("redacted", "INTEGER NOT NULL DEFAULT 0")],
             "memos": [("languages", "TEXT"), ("deleted_server_ms", "INTEGER")],
             "transcripts": [("detect_path", "TEXT")],
+            "alt_transcripts": [("words", "TEXT"), ("words_kind", "TEXT")],
+            "reference_transcripts": [("words", "TEXT")],
         }
         for table, cols in wanted.items():
             have = {r["name"] for r in self._conn.execute(f"PRAGMA table_info({table})")}

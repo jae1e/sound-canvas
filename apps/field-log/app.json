@@ -10,7 +10,7 @@
     "android": {
       "package": "com.jae1e.fieldvoicelog",
       "adaptiveIcon": {
-        "backgroundColor": "#F3F5F7",
+        "backgroundColor": "#B86E00",
         "foregroundImage": "./assets/android-icon-foreground.png",
         "backgroundImage": "./assets/android-icon-background.png",
         "monochromeImage": "./assets/android-icon-monochrome.png"

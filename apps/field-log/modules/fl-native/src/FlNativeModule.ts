@@ -25,6 +25,25 @@ declare class FlNativeModule extends NativeModule<FlNativeModuleEvents> {
   /** Closes the open segment (journal: segment_closed, then recording_stopped reason 'user'). */
   stopRecording(location?: LocationPayload): Promise<void>;
   getStatus(): Promise<RecorderStatus>;
+  /**
+   * Closes the open segment (segment_closed), journals recording_paused and releases the
+   * microphone; the foreground service stays with a "Paused" notification. No-op when paused.
+   */
+  pauseRecording(): Promise<void>;
+  /** Re-acquires the microphone, journals recording_resumed; segment indexes continue. */
+  resumeRecording(): Promise<void>;
+  /** Peak level per bucket (dBFS x 100, -9600 for silence) across a WAV file, for drawing. */
+  getWaveform(pathOrUri: string, buckets: number): Promise<number[]>;
+  /**
+   * Plays WAV files back to back, from startMs across the whole list. Media attributes
+   * (USAGE_MEDIA), system output route and media volume; never forces the loudspeaker.
+   * Call only from a user action. Replaces any current playback.
+   */
+  playFiles(pathsOrUris: string[], startMs?: number): Promise<void>;
+  pausePlayback(): Promise<void>;
+  resumePlayback(): Promise<void>;
+  stopPlayback(): Promise<void>;
+  seekPlayback(positionMs: number): Promise<void>;
   /** Journal records with journalSeq > afterJournalSeq, in order. */
   readJournal(afterJournalSeq: number): Promise<JournalRecord[]>;
   /**

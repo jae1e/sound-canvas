@@ -4,7 +4,7 @@ import numpy as np
 import pytest
 
 from fls.engines.base import FinalResult
-from fls.langs import context_hint, decode_with_policy, normalize_languages, qwen_name_to_iso
+from fls.langs import decode_with_policy, normalize_languages, qwen_name_to_iso
 from conftest import wav_bytes
 from test_flow import segment_event
 
@@ -14,7 +14,6 @@ def test_normalize_and_names():
     assert normalize_languages(["EN", "ko", "en", "xx", 3]) == ["en", "ko"]
     assert normalize_languages([]) == ["ko", "en"]
     assert qwen_name_to_iso("Korean,English") == "ko,en" and qwen_name_to_iso("") == ""
-    assert context_hint(["ko", "en"]) == "Languages in priority order: Korean, English."
 
 
 class Rec:
@@ -42,7 +41,7 @@ def test_policy_single_language_forced():
 def test_policy_auto_kept_when_detected_in_list():
     e = Rec("ko,en")
     r = decode_with_policy(e, A, ["ko", "en"])
-    assert e.calls == [("Languages in priority order: Korean, English.", None)] and r.path == "auto"
+    assert e.calls == [("", None)] and r.path == "auto"  # no language hint in the context
 
 
 def test_policy_redecode_when_detected_outside_list():

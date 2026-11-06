@@ -1,7 +1,7 @@
 import { getDb } from './db/db';
 import { ingestJournal } from './db/ingest';
 import FlNative from './native';
-import { applyLive, applyStatus, useRecorder } from './state/recorder';
+import { applyCapture, applyLevel, applyLive, applyPlayback, applyWave, applyStatus, useRecorder } from './state/recorder';
 import { loadSettings } from './state/settings';
 import { startSync, triggerSync } from './sync/engine';
 
@@ -25,8 +25,11 @@ export async function bootstrap(): Promise<() => void> {
         .then(() => triggerSync())
         .catch((e) => useRecorder.setState({ error: (e as Error).message }));
     }),
-    FlNative.addListener('onLevel', (e) => useRecorder.setState({ levelDbfsX100: e.rmsDbfsX100 })),
+    FlNative.addListener('onLevel', (e) => applyLevel(e.rmsDbfsX100)),
     FlNative.addListener('onLive', applyLive),
+    FlNative.addListener('onWave', applyWave),
+    FlNative.addListener('onCapture', (e) => applyCapture(e.silenced)),
+    FlNative.addListener('onPlayback', applyPlayback),
   ];
   const stopSync = startSync();
   return () => {

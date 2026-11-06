@@ -22,6 +22,7 @@ from . import __version__, auth
 from .config import (ALLOWED_OBJECT_TYPES, MAX_EVENTS_PER_BATCH, MAX_LIVE_STREAMS, MAX_OBJECT_BYTES,
                      Paths)
 from .db import Database, now_ms
+from .engines.aligner import Aligner
 from .engines.base import FinalEngine, StreamingEngine
 from .events import enqueue_for_object, ingest
 from .jobs import Worker
@@ -75,16 +76,19 @@ class State:
         default_factory=lambda: ThreadPoolExecutor(max_workers=MAX_LIVE_STREAMS, thread_name_prefix="fls-live")
     )
     live_error: str | None = None
+    aligner: Aligner | None = None
 
 
-def create_app(data_dir: Path, final_engine: FinalEngine, live_engine: StreamingEngine | None) -> FastAPI:
+def create_app(data_dir: Path, final_engine: FinalEngine, live_engine: StreamingEngine | None,
+               aligner: Aligner | None = None) -> FastAPI:
     paths = Paths(Path(data_dir))
     paths.ensure()
     db = Database(paths.db)
     store = ObjectStore(paths.objects)
     notifier = ChangeNotifier()
     state = State(paths, db, store, final_engine, live_engine,
-                  Worker(db, store, final_engine, live_engine, notifier.notify), notifier)
+                  Worker(db, store, final_engine, live_engine, aligner, notifier.notify), notifier,
+                  aligner=aligner)
 
     def _preload_live() -> None:
         try:

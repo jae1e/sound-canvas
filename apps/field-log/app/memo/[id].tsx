@@ -1,36 +1,107 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Alert, Image, ScrollView, Text, TextInput, View } from 'react-native';
-import { formatPlace, mergeTranscript, segmentStartsMs, type DraftUtt, type FinalSeg } from '../../src/core';
+import { Alert, Image, Modal, Pressable, ScrollView, Text, TextInput, ToastAndroid, View } from 'react-native';
+import { controlPhase, type ControlAction, formatPlace, isSilentPeak, mergeTranscript, segmentStartsMs, type DraftUtt, type FinalSeg } from '../../src/core';
 import { getMemoDetail, type MemoDetail, type SegmentRow } from '../../src/db/queries';
 import { useLang, useT, type Key } from '../../src/i18n';
 import { confirmDeleteMemo } from '../../src/memo/confirmDelete';
-import { saveNote, startMemoRecording, stopMemoRecording } from '../../src/memo/actions';
-import { useRecorder } from '../../src/state/recorder';
-import { BigButton, Chip, Row, TrustChips } from '../../src/ui/components';
+import { pauseMemoRecording, resumeMemoRecording, saveNote, startMemoRecording, stopMemoRecording } from '../../src/memo/actions';
+import { playRecording, stopPlayback, togglePlayback } from '../../src/memo/playback';
+import { usePlayback, useRecorder } from '../../src/state/recorder';
+import { BigButton, Chip, Row, TrustChips, useRouteText } from '../../src/ui/components';
+import { ControlPanel, LiveWave, RecordingPlayer } from '../../src/ui/recorderUi';
+import FlNative, { type Capabilities } from '../../src/native';
+import { updateSetting, useSettings } from '../../src/state/settings';
 import { formatElapsed, formatTime } from '../../src/ui/format';
 import { colors, s } from '../../src/ui/theme';
 import { useDbQuery } from '../../src/ui/useQuery';
 
 const NO_DRAFTS: DraftUtt[] = [];
 
-function Elapsed({ active }: { active: boolean }) {
-  const anchor = useRecorder((r) => r.anchorMs);
-  const [, tick] = useState(0);
-  useEffect(() => {
-    if (!active) return;
-    const id = setInterval(() => tick((n) => n + 1), 250);
-    return () => clearInterval(id);
-  }, [active]);
-  return <Text style={{ fontSize: 48, fontWeight: '700', color: colors.text, fontVariant: ['tabular-nums'] }}>{formatElapsed(active ? Date.now() - anchor : 0)}</Text>;
+function LevelBanner({ active }: { active: boolean }) {
+  const t = useT();
+  const alert = useRecorder((r) => r.monitor.alert);
+  const silenced = useRecorder((r) => r.silenced);
+  const paused = useRecorder((r) => r.paused);
+  if (!active || paused) return null;
+  const kind = silenced ? 'silenced' : alert;
+  if (kind === 'ok') return null;
+  const red = kind !== 'quiet';
+  return (
+    <View
+      accessibilityRole="alert"
+      style={{ alignSelf: 'stretch', marginVertical: 8, padding: 14, borderRadius: 12, backgroundColor: red ? colors.danger : '#FFB300' }}
+    >
+      <Text style={{ fontSize: 18, fontWeight: '700', color: red ? '#FFFFFF' : '#111418' }}>
+        {`${red ? '⚠ ' : '△ '}${kind === 'silenced' ? t('silencedBanner') : kind === 'silent' ? t('silentBanner') : t('quietBanner')}`}
+      </Text>
+    </View>
+  );
 }
 
-function LevelMeter({ active }: { active: boolean }) {
-  const db = useRecorder((r) => r.levelDbfsX100) / 100;
-  const frac = active ? Math.min(1, Math.max(0, (db + 60) / 60)) : 0;
+function InputChip({ active }: { active: boolean }) {
+  const t = useT();
+  const routeText = useRouteText();
+  const inputId = useSettings((x) => x.inputId);
+  const route = useRecorder((r) => r.route);
+  const [caps, setCaps] = useState<Capabilities | null>(null);
+  const [open, setOpen] = useState(false);
+
+  useEffect(() => {
+    FlNative.getCapabilities().then(setCaps, () => setCaps(null));
+  }, [open]);
+
+  const chosen = inputId !== null ? caps?.inputs.find((i) => i.id === inputId) : undefined;
+  const text = active && route
+    ? routeText(route)
+    : inputId === null
+      ? `🎙 ${t('inputDefaultLong')}`
+      : chosen
+        ? routeText(chosen)
+        : `🎧 #${inputId}`;
+
   return (
-    <View accessibilityLabel={`level ${Math.round(db)} dBFS`} style={{ height: 16, borderRadius: 8, borderWidth: 2, borderColor: colors.border, overflow: 'hidden', marginVertical: 8 }}>
-      <View style={{ width: `${Math.round(frac * 100)}%`, height: '100%', backgroundColor: frac > 0.95 ? colors.danger : colors.primary }} />
+    <View style={{ alignSelf: 'stretch', marginVertical: 8 }}>
+      <Text style={s.small}>{t('inputWillUse')}</Text>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={`${t('chooseInput')}: ${text}`}
+        disabled={active}
+        onPress={() => setOpen(true)}
+        style={{ minHeight: 64, borderWidth: 2, borderColor: colors.primary, borderRadius: 12, justifyContent: 'center', paddingHorizontal: 14, backgroundColor: colors.surface }}
+      >
+        <Text style={{ fontSize: 20, fontWeight: '700', color: colors.text }}>{text}</Text>
+      </Pressable>
+      <Text style={[s.small, { marginTop: 4 }]}>{t('inputBtNote')}</Text>
+      <Modal visible={open} transparent animationType="fade" onRequestClose={() => setOpen(false)}>
+        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', padding: 20 }}>
+          <View style={{ backgroundColor: colors.bg, borderRadius: 14, padding: 16 }}>
+            <Text style={s.h1}>{t('chooseInput')}</Text>
+            <BigButton
+              label={`${inputId === null ? '◉' : '○'} ${t('systemDefault')}`}
+              variant={inputId === null ? 'solid' : 'outline'}
+              style={{ minHeight: 56 }}
+              onPress={() => {
+                void updateSetting('inputId', null);
+                setOpen(false);
+              }}
+            />
+            {(caps?.inputs ?? []).map((i) => (
+              <BigButton
+                key={i.id}
+                label={`${inputId === i.id ? '◉' : '○'} ${routeText(i)}`}
+                variant={inputId === i.id ? 'solid' : 'outline'}
+                style={{ minHeight: 56 }}
+                onPress={() => {
+                  void updateSetting('inputId', i.id);
+                  setOpen(false);
+                }}
+              />
+            ))}
+            <BigButton label={t('cancel')} variant="outline" style={{ minHeight: 52 }} onPress={() => setOpen(false)} />
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -74,33 +145,32 @@ const statusKey = (seg: FinalSeg): Key =>
     ? 'segNoSpeech'
     : ({ queued: 'segQueued', running: 'segRunning', done: 'segDone', failed: 'segFailed' } as const)[seg.status];
 
-function SegmentLine({ seg, row, label }: { seg: FinalSeg; row?: SegmentRow; label: string }) {
+function SegmentLine({ seg, row, label, onPlay }: { seg: FinalSeg; row?: SegmentRow; label: string; onPlay: () => void }) {
   const t = useT();
   const showText = seg.status === 'done' && !seg.noSpeech && seg.text.trim().length > 0;
   return (
-    <View style={[s.card, { marginVertical: 4 }]}>
+    <Pressable accessibilityRole="button" onPress={onPlay} style={[s.card, { marginVertical: 4 }]}>
       <View style={{ flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center' }}>
-        <Text style={s.small}>{label}</Text>
+        <Text style={s.small}>{`▶ ${label}`}</Text>
         <Chip glyph={seg.status === 'done' ? '✓' : seg.status === 'failed' ? '✕' : '…'} label={t(statusKey(seg))} active={seg.status === 'failed'} />
+        {row && isSilentPeak(row.peakDbfsX100) && <Chip glyph="✕" label={t('silentSegment')} active />}
         {row?.flags.includes('clipped') && <Chip glyph="▲" label={t('clipped')} active />}
         {row?.flags.includes('narrowband') && <Chip glyph="▼" label={t('narrowband')} active />}
       </View>
       {showText && <Text style={[s.body, { marginTop: 4 }]}>{seg.text}</Text>}
       {seg.status === 'failed' && row?.error ? <Text style={s.small}>{row.error}</Text> : null}
-    </View>
+    </Pressable>
   );
 }
 
-function TranscriptView({ detail, activeRecordingId }: { detail: MemoDetail; activeRecordingId: string | null }) {
+function TranscriptView({ detail, activeRecordingId, onPlayAt }: { detail: MemoDetail; activeRecordingId: string | null; onPlayAt: (recordingId: string, ms: number) => void }) {
   const t = useT();
   const drafts = useRecorder((r) => r.drafts);
   const blocks = useMemo(() => {
     return detail.recordings.map((rec) => {
       const rows = detail.segments.filter((x) => x.recordingId === rec.recordingId);
-      const starts = segmentStartsMs(
-        rows.map((x) => ({ index: x.index, durationMs: x.durationMs, startElapsedUs: x.startElapsedUs })),
-        rec.startElapsedUs,
-      );
+      // Recorded time: the sum of earlier segment durations, so pauses do not shift later segments.
+      const starts = segmentStartsMs(rows.map((x) => ({ index: x.index, durationMs: x.durationMs })));
       const finals: FinalSeg[] = rows.map((x, i) => ({
         segmentId: x.segmentId,
         index: x.index,
@@ -128,10 +198,12 @@ function TranscriptView({ detail, activeRecordingId }: { detail: MemoDetail; act
                   seg={it.seg}
                   row={byId.get(it.seg.segmentId)}
                   label={`${t('segment')} ${it.seg.index + 1} · ${formatElapsed(it.seg.startMs)}`}
+                  onPlay={() => onPlayAt(rec.recordingId, it.seg.startMs)}
                 />
               ) : (
                 <Text
                   key={`d${it.utt.utterance}`}
+                  onPress={it.utt.startMs !== undefined ? () => onPlayAt(rec.recordingId, it.utt.startMs ?? 0) : undefined}
                   style={{ fontSize: 18, fontStyle: 'italic', color: colors.draft, marginVertical: 4 }}
                 >
                   {it.utt.text}
@@ -152,34 +224,27 @@ export default function MemoScreen() {
   const router = useRouter();
   const detail = useDbQuery(() => getMemoDetail(id), [id]);
   const rec = useRecorder();
+  const play = usePlayback();
+  const routeText = useRouteText();
   const active = rec.recording && rec.memoId === id;
   const otherActive = rec.recording && rec.memoId !== id;
   const [busy, setBusy] = useState(false);
   const [note, setNote] = useState('');
   const started = useRef(false);
 
-  const start = async () => {
+  const run = async (fn: () => Promise<void>) => {
     setBusy(true);
     try {
-      await startMemoRecording(id);
+      await fn();
     } catch (e) {
       const m = (e as Error).message;
-      Alert.alert(t('error'), m === 'MIC_DENIED' ? t('micDenied') : m);
+      Alert.alert(t('error'), m === 'MIC_DENIED' ? t('micDenied') : m === 'PLAY_WHILE_RECORDING' ? t('playRefuse') : m);
     } finally {
       setBusy(false);
     }
   };
-
-  const stop = async () => {
-    setBusy(true);
-    try {
-      await stopMemoRecording();
-    } catch (e) {
-      Alert.alert(t('error'), (e as Error).message);
-    } finally {
-      setBusy(false);
-    }
-  };
+  const start = () => run(() => startMemoRecording(id));
+  const stop = () => run(stopMemoRecording);
 
   useEffect(() => {
     if (autostart === '1' && !started.current) {
@@ -189,6 +254,8 @@ export default function MemoScreen() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [autostart]);
 
+  useEffect(() => () => void stopPlayback().catch(() => undefined), []);
+
   useEffect(() => {
     if (detail?.note && note === '') setNote(detail.note);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -196,9 +263,40 @@ export default function MemoScreen() {
 
   if (!detail) return <View style={s.screen} />;
 
-  const lastRec = detail.recordings[detail.recordings.length - 1];
   const totalMs = detail.segments.reduce((a, x) => a + x.durationMs, 0);
   const photo = detail.photos[0];
+  const phase = controlPhase({ active, paused: rec.paused, hasRecordings: detail.recordings.length > 0 });
+  const latest = detail.recordings[detail.recordings.length - 1];
+  const latestRows = latest ? detail.segments.filter((x) => x.recordingId === latest.recordingId).sort((a, b) => a.index - b.index) : [];
+  const latestPaths = latestRows.map((x) => x.path);
+  const latestPlaying = !!latest && play.recordingId === latest.recordingId && play.state === 'playing';
+
+  const onAction = (a: ControlAction) => {
+    if (a === 'record' || a === 'recordMore') void start();
+    else if (a === 'pause') void run(pauseMemoRecording);
+    else if (a === 'resume') void run(resumeMemoRecording);
+    else if (a === 'stop') void stop();
+    else if (a === 'play' && latest) void run(() => togglePlayback(latest.recordingId, latestPaths, 0));
+  };
+
+  const playAt = (recordingId: string, ms: number) => {
+    const paths = detail.segments.filter((x) => x.recordingId === recordingId).sort((a, b) => a.index - b.index).map((x) => x.path);
+    void run(() => playRecording(recordingId, paths, ms));
+  };
+
+  const finish = async () => {
+    await stopPlayback().catch(() => undefined);
+    ToastAndroid.show(t('savedToast'), ToastAndroid.SHORT);
+    router.replace('/');
+  };
+
+  const saveAndClose = () => {
+    if (!active) return void finish();
+    Alert.alert(t('closeRecTitle'), t('closeRecBody'), [
+      { text: t('cancel'), style: 'cancel' },
+      { text: t('saveClose'), onPress: () => void run(async () => { await stopMemoRecording(); await finish(); }) },
+    ]);
+  };
   const loc = formatPlace(detail.location) ?? t('noLocation');
   const done = detail.segments.filter((x) => x.status === 'done').length;
   const failed = detail.segments.filter((x) => x.status === 'failed').length;
@@ -210,19 +308,23 @@ export default function MemoScreen() {
       )}
 
       <View style={{ alignItems: 'center', marginTop: 12 }}>
-        <Elapsed active={active} />
-        <LevelMeter active={active} />
+        <ControlPanel
+          phase={phase}
+          recordedMs={rec.recordedMs}
+          savedMs={totalMs}
+          busy={busy}
+          blocked={otherActive}
+          playing={latestPlaying}
+          canPlay={!!latest && latestRows.length > 0 && !rec.recording}
+          onAction={onAction}
+        />
+        {otherActive && <Text style={s.small}>{t('otherRecording')}</Text>}
+        <InputChip active={active} />
+        <LevelBanner active={active} />
+        {active && <LiveWave active={active} />}
         <LiveBadge active={active} />
         <LiveLine active={active} />
       </View>
-
-      <BigButton
-        label={active ? t('stop') : detail.kind !== 'voice' ? t('recordVoice') : t('start')}
-        variant={active ? 'danger' : 'solid'}
-        disabled={busy || otherActive}
-        onPress={active ? stop : start}
-        style={{ minHeight: 96 }}
-      />
       {rec.error && <Text style={{ color: colors.danger, fontSize: 16 }}>{rec.error}</Text>}
 
       <TrustChips
@@ -234,9 +336,16 @@ export default function MemoScreen() {
         pendingObjects={detail.pendingObjects}
       />
 
+      {detail.recordings.map((r, i) => {
+        const rows = detail.segments.filter((x) => x.recordingId === r.recordingId);
+        return rows.length > 0 && !(active && rec.recordingId === r.recordingId) ? (
+          <RecordingPlayer key={r.recordingId} index={i} rec={r} rows={rows} />
+        ) : null;
+      })}
+
       <Text style={s.h2}>{t('transcript')}</Text>
       <Text style={s.small}>{t('draftHint')}</Text>
-      <TranscriptView detail={detail} activeRecordingId={active ? rec.recordingId : null} />
+      <TranscriptView detail={detail} activeRecordingId={active ? rec.recordingId : null} onPlayAt={playAt} />
 
       <Text style={s.h2}>{t('note')}</Text>
       <TextInput
@@ -253,28 +362,20 @@ export default function MemoScreen() {
       <View style={s.card}>
         <Row label={t('created')} value={`${formatTime(detail.createdWallMs, lang, detail.tz)} (${detail.tz})`} />
         <Row label={t('location')} value={loc} />
-        {lastRec && (
-          <>
-            <Row
-              label={t('route')}
-              value={`${lastRec.route.type}${lastRec.route.productName ? ` · ${lastRec.route.productName}` : ''}`}
-            />
-            <Row label={t('source')} value={lastRec.source} />
-            <Row label={t('effects')} value={`NS ${lastRec.effects.ns} · AGC ${lastRec.effects.agc} · AEC ${lastRec.effects.aec}`} />
-          </>
-        )}
+        {detail.recordings.map((r, i) => (
+          <View key={r.recordingId} style={{ marginVertical: 4, paddingLeft: 8, borderLeftWidth: 3, borderLeftColor: colors.border }}>
+            <Row label={`${t('route')} #${i + 1}`} value={routeText(r.route)} />
+            <Row label={t('source')} value={r.source} />
+            <Row label={t('effects')} value={`NS ${r.effects.ns} · AGC ${r.effects.agc} · AEC ${r.effects.aec}`} />
+          </View>
+        ))}
         <Row label={t('segments')} value={String(detail.segments.length)} />
         <Row label={t('duration')} value={formatElapsed(totalMs)} />
       </View>
 
-      <BigButton label={t('deleteMemo')} variant="outline" disabled={active} onPress={() => confirmDeleteMemo(t, id, () => router.replace('/'))} />
-      <BigButton
-        label={t('done')}
-        variant="outline"
-        disabled={active}
-        onPress={() => router.replace('/')}
-        style={{ marginTop: 16 }}
-      />
+      <Text style={[s.small, { marginTop: 16 }]}>{t('autoSaveNote')}</Text>
+      <BigButton label={t('saveClose')} onPress={saveAndClose} disabled={busy} style={{ minHeight: 88 }} />
+      <BigButton label={t('deleteBtn')} variant="outline" disabled={active} onPress={() => confirmDeleteMemo(t, id, () => router.replace('/'))} />
     </ScrollView>
   );
 }

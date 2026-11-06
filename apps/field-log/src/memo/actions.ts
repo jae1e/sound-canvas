@@ -2,11 +2,11 @@ import { getCalendars } from 'expo-localization';
 import { Directory, File, Paths } from 'expo-file-system';
 import type { ImagePickerAsset } from 'expo-image-picker';
 import { PermissionsAndroid, Platform } from 'react-native';
-import { exifToWallMs, objectsToSkip, type LocationPayload } from '../core';
+import { exifToWallMs, initialLevelMonitor, objectsToSkip, type LocationPayload } from '../core';
 import { writeTx } from '../db/db';
 import { appendEvent, newId } from '../db/events';
 import FlNative, { type LiveLanguage } from '../native';
-import { applyStatus, useRecorder } from '../state/recorder';
+import { applyStatus, setRoute, useRecorder } from '../state/recorder';
 import { useSettings } from '../state/settings';
 import { liveUrl } from '../sync/api';
 import { triggerSync } from '../sync/engine';
@@ -165,10 +165,11 @@ async function ensureAudioPermissions(): Promise<void> {
 export async function startMemoRecording(memoId: string): Promise<void> {
   const s = useSettings.getState();
   await ensureAudioPermissions();
+  await FlNative.stopPlayback().catch(() => undefined);
   // A cached fix only, with a short cap: tap-to-recording must stay within about 2 s (A1).
   const location = await fastLocation(400);
   const recordingId = newId();
-  await FlNative.startRecording({
+  const started = await FlNative.startRecording({
     memoId,
     recordingId,
     preferredInputId: s.inputId ?? undefined,
@@ -180,6 +181,8 @@ export async function startMemoRecording(memoId: string): Promise<void> {
         : undefined,
   });
   applyStatus(await FlNative.getStatus());
+  setRoute(started.route);
+  useRecorder.setState({ monitor: initialLevelMonitor() });
 }
 
 export async function stopMemoRecording(): Promise<void> {
@@ -244,4 +247,16 @@ export async function deleteMemo(memoId: string): Promise<void> {
     }
   }
   triggerSync();
+}
+
+export async function pauseMemoRecording(): Promise<void> {
+  await FlNative.pauseRecording();
+  useRecorder.setState({ monitor: initialLevelMonitor() });
+  applyStatus(await FlNative.getStatus());
+}
+
+export async function resumeMemoRecording(): Promise<void> {
+  await FlNative.resumeRecording();
+  useRecorder.setState({ monitor: initialLevelMonitor() });
+  applyStatus(await FlNative.getStatus());
 }

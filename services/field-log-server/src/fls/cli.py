@@ -30,13 +30,14 @@ def cmd_serve(args) -> None:
 
     from .app import create_app
     from .dashboard import DASHBOARD_HOST, create_dashboard
-    from .engines import make_final_engine, make_live_engine
+    from .engines import make_aligner, make_final_engine, make_live_engine
     from .net import tailscale_ipv4, validate_host
 
     host = validate_host(args.host or tailscale_ipv4())
     paths = _paths(args)
     app = create_app(paths.root, make_final_engine(args.final_engine),
-                     make_live_engine(args.live_engine, paths.models))
+                     make_live_engine(args.live_engine, paths.models),
+                     make_aligner(args.final_engine))
     log = logging.getLogger("fls")
     log.info("serving on %s:%d data=%s", host, args.port, paths.root)
     main_server = uvicorn.Server(uvicorn.Config(app, host=host, port=args.port, log_level="info"))
@@ -89,6 +90,33 @@ def cmd_revoke(args) -> None:
         print(f"revoked {args.device_id}")
     else:
         raise SystemExit(f"no active device {args.device_id}")
+
+
+def cmd_rerun(args) -> None:
+    """Re-queue final jobs (the running server's worker picks them up within a few seconds)."""
+    from .db import now_ms
+
+    db = Database(_paths(args).db)
+    if args.silent:
+        rows = db.query(
+            "SELECT s.device_id, s.segment_id FROM segments s JOIN memos m ON m.device_id=s.device_id "
+            "AND m.memo_id=s.memo_id WHERE s.peak_dbfs_x100 <= -9500 AND m.deleted_server_ms IS NULL")
+        targets = [(r["device_id"], r["segment_id"]) for r in rows]
+    else:
+        targets = [(r["device_id"], r["segment_id"]) for r in db.query(
+            "SELECT device_id, segment_id FROM segments WHERE segment_id IN (%s)" % ",".join("?" * len(args.segment_ids)),
+            tuple(args.segment_ids))] if args.segment_ids else []
+    t = now_ms()
+    with db.tx() as c:
+        for dev, seg in targets:
+            sha = c.execute("SELECT object_sha256 FROM segments WHERE device_id=? AND segment_id=?", (dev, seg)).fetchone()[0]
+            c.execute("INSERT INTO jobs(device_id, segment_id, object_sha256, status, created_server_ms, updated_server_ms) "
+                      "VALUES (?,?,?, 'queued', ?, ?) ON CONFLICT(device_id, segment_id) DO UPDATE SET "
+                      "status='queued', attempts=0, error=NULL, updated_server_ms=excluded.updated_server_ms",
+                      (dev, seg, sha, t, t))
+            c.execute("UPDATE transcripts SET status='queued', updated_server_ms=? WHERE device_id=? AND segment_id=?",
+                      (t, dev, seg))
+    print(f"re-queued {len(targets)} segment(s):", *[s for _, s in targets])
 
 
 def cmd_fetch_models(args) -> None:
@@ -154,6 +182,21 @@ def cmd_smoke_final(args) -> None:
     print(f"engine={eng.name} audio_s={dur:.2f} lang={r.language!r} path={r.path} no_speech={r.no_speech} "
           f"conditioned={not args.raw}")
     print(f"text={r.text!r}")
+    if not args.no_align and not r.no_speech:
+        from .engines import make_aligner
+        from .engines.aligner import safe_align
+
+        al = make_aligner(args.engine)
+        t = time.monotonic()
+        words = safe_align(al, audio, r.text, r.language, langs)
+        t1 = time.monotonic() - t
+        t = time.monotonic()
+        safe_align(al, audio, r.text, r.language, langs)
+        print(f"align_first_s={t1:.2f} align_warm_s={time.monotonic() - t:.2f}")
+        for w in words or []:
+            print(f"  {w['start_ms']:6d}-{w['end_ms']:6d} ms  {w['text']}")
+        if words is None:
+            print("  (alignment failed or unavailable)")
     print(f"first_call_s={first:.2f} (includes model load) warm_call_s={second:.2f} rtf_warm={second / dur:.3f}")
     try:
         import torch
@@ -224,6 +267,10 @@ def main(argv: list[str] | None = None) -> None:
     r = sub.add_parser("revoke")
     r.add_argument("device_id")
     r.set_defaults(fn=cmd_revoke)
+    rr = sub.add_parser("rerun", help="re-queue final transcription jobs")
+    rr.add_argument("segment_ids", nargs="*")
+    rr.add_argument("--silent", action="store_true", help="all segments the phone reported as digital silence")
+    rr.set_defaults(fn=cmd_rerun)
     f = sub.add_parser("fetch-models")
     f.add_argument("--keep-archive", action="store_true")
     f.set_defaults(fn=cmd_fetch_models)
@@ -232,6 +279,7 @@ def main(argv: list[str] | None = None) -> None:
     sf.add_argument("--engine", default="qwen3", choices=["qwen3", "fake"])
     for sp in (sf,):
         sp.add_argument("--languages", default="ko,en", help="memo language list, priority order")
+        sp.add_argument("--no-align", action="store_true", help="skip word timestamps")
     sf.set_defaults(fn=cmd_smoke_final)
     sl = sub.add_parser("smoke-live")
     sl.add_argument("wav")
