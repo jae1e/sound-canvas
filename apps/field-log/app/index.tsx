@@ -1,15 +1,16 @@
 import { Link, useRouter } from 'expo-router';
-import React from 'react';
+import React, { useEffect } from 'react';
 import { FlatList, Image, Pressable, Text, View } from 'react-native';
-import { autoTitle, composeRowLines, dateLabel, durationLabel, formatPlace } from '../src/core';
+import { deriveMemoStatus, hasStaleRecording, type MemoFacts, autoTitle, composeRowLines, dateLabel, durationLabel, formatPlace } from '../src/core';
 import { useRecorder } from '../src/state/recorder';
+import { reconcile } from '../src/sync/reconcile';
 import { listMemos, type MemoSummary } from '../src/db/queries';
 import { useLang, useT } from '../src/i18n';
 import { confirmDeleteMemo } from '../src/memo/confirmDelete';
 import { useSettings } from '../src/state/settings';
 import { useSyncStatus } from '../src/state/syncStatus';
 import { LeftAppNotice } from '../src/ui/LeftAppNotice';
-import { BigButton, RouteBadge, TrustChips, labelKey } from '../src/ui/components';
+import { BigButton, RouteBadge, StatusPill, useLiveFacts } from '../src/ui/components';
 import { formatTime } from '../src/ui/format';
 import { colors, s } from '../src/ui/theme';
 import { useDbQuery } from '../src/ui/useQuery';
@@ -56,6 +57,27 @@ function MemoRow({ m }: { m: MemoSummary }) {
     fallbacks: { voice: t('memoVoice'), photo: t('memoPhoto') },
   });
   const { line1, noteLine, preview } = composeRowLines({ userTitle: m.title, auto, note: m.note, transcript: m.transcript });
+  const live = useLiveFacts(m.memoId);
+  const facts: MemoFacts = {
+    isRecording: live.isRecording,
+    paused: live.paused,
+    recordedMs: live.recordedMs,
+    offline: live.offline,
+    segmentCount: m.segmentCount,
+    segmentsDone: m.segmentsDone,
+    segmentsFailed: m.segmentsFailed,
+    segmentsUploaded: m.segmentsUploaded,
+    segmentsNoSpeech: m.segmentsNoSpeech,
+    recordingCount: m.recordingCount,
+    hasOpenRecordingRows: m.openRecordings > 0,
+    pendingEvents: m.pendingEvents,
+    pendingObjects: m.pendingObjects,
+  };
+  const status = deriveMemoStatus(facts);
+  const stale = hasStaleRecording(facts);
+  useEffect(() => {
+    if (stale) void reconcile().catch(() => undefined);
+  }, [stale]);
   const meta = [
     dateLabel(m.createdWallMs, Date.now(), lang),
     m.durationMs > 0 ? durationLabel(m.durationMs) : null,
@@ -81,14 +103,7 @@ function MemoRow({ m }: { m: MemoSummary }) {
         <View style={{ flexDirection: 'row' }}>
           <RouteBadge type={m.routeType} />
         </View>
-        <TrustChips
-          isRecording={m.openRecordings > 0}
-          segmentCount={m.segmentCount}
-          segmentsDone={m.segmentsDone}
-          segmentsFailed={m.segmentsFailed}
-          pendingEvents={m.pendingEvents}
-          pendingObjects={m.pendingObjects}
-        />
+        <StatusPill status={status} />
         {noteLine ? (
           <Text style={[s.body, { marginTop: 6 }]} numberOfLines={2}>
             {noteLine}

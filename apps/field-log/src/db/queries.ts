@@ -18,6 +18,9 @@ export interface MemoSummary {
   segmentsDone: number;
   segmentsFailed: number;
   openRecordings: number;
+  recordingCount: number;
+  segmentsUploaded: number;
+  segmentsNoSpeech: number;
   routeType: string | null;
   pendingEvents: number;
   pendingObjects: number;
@@ -40,6 +43,9 @@ export async function listMemos(limit = 200): Promise<MemoSummary[]> {
       (SELECT COUNT(*) FROM segments s WHERE s.memo_id = m.memo_id AND s.t_status = 'done') AS seg_done,
       (SELECT COUNT(*) FROM segments s WHERE s.memo_id = m.memo_id AND s.t_status = 'failed') AS seg_failed,
       (SELECT COUNT(*) FROM recordings r WHERE r.memo_id = m.memo_id AND r.stopped = 0) AS open_recs,
+      (SELECT COUNT(*) FROM recordings r WHERE r.memo_id = m.memo_id) AS rec_count,
+      (SELECT COUNT(*) FROM segments s JOIN objects o ON o.sha256 = s.sha256 WHERE s.memo_id = m.memo_id AND o.uploaded = 1) AS seg_uploaded,
+      (SELECT COUNT(*) FROM segments s WHERE s.memo_id = m.memo_id AND s.t_status = 'done' AND s.t_no_speech = 1) AS seg_nospeech,
       (SELECT route_json FROM recordings r WHERE r.memo_id = m.memo_id ORDER BY r.start_elapsed_us DESC LIMIT 1) AS route_json,
       (SELECT COUNT(*) FROM events e WHERE e.memo_id = m.memo_id AND e.acked = 0) AS pending_events,
       (SELECT COUNT(*) FROM objects o WHERE o.memo_id = m.memo_id AND o.uploaded = 0 AND o.skipped = 0) AS pending_objects
@@ -62,6 +68,9 @@ export async function listMemos(limit = 200): Promise<MemoSummary[]> {
     segmentsDone: r.seg_done,
     segmentsFailed: r.seg_failed,
     openRecordings: r.open_recs,
+    recordingCount: r.rec_count,
+    segmentsUploaded: r.seg_uploaded,
+    segmentsNoSpeech: r.seg_nospeech,
     routeType: r.route_json ? (JSON.parse(r.route_json).type as string) : null,
     pendingEvents: r.pending_events,
     pendingObjects: r.pending_objects,
@@ -124,6 +133,7 @@ export interface MemoDetail {
   pendingObjects: number;
   /** Whether the latest memo_note event was acknowledged by the server; null when there is none. */
   noteSynced: boolean | null;
+  segmentsUploaded: number;
 }
 
 export async function getMemoDetail(memoId: string): Promise<MemoDetail | null> {
@@ -139,6 +149,7 @@ export async function getMemoDetail(memoId: string): Promise<MemoDetail | null> 
   const pe = await db.getFirstAsync<{ n: number }>('SELECT COUNT(*) AS n FROM events WHERE memo_id = ? AND acked = 0', memoId);
   const po = await db.getFirstAsync<{ n: number }>('SELECT COUNT(*) AS n FROM objects WHERE memo_id = ? AND uploaded = 0 AND skipped = 0', memoId);
   const ns = await db.getFirstAsync<{ acked: number }>("SELECT acked FROM events WHERE memo_id = ? AND type = 'memo_note' ORDER BY seq DESC LIMIT 1", memoId);
+  const su = await db.getFirstAsync<{ n: number }>('SELECT COUNT(*) AS n FROM segments s JOIN objects o ON o.sha256 = s.sha256 WHERE s.memo_id = ? AND o.uploaded = 1', memoId);
   return {
     memoId,
     kind: m.kind,
@@ -185,6 +196,7 @@ export async function getMemoDetail(memoId: string): Promise<MemoDetail | null> 
       language: s.t_language,
       error: s.t_error,
     })),
+    segmentsUploaded: su?.n ?? 0,
     noteSynced: ns ? ns.acked === 1 : null,
     pendingEvents: pe?.n ?? 0,
     pendingObjects: po?.n ?? 0,

@@ -1,14 +1,15 @@
 import { useFocusEffect, useLocalSearchParams, useNavigation, useRouter } from 'expo-router';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Alert, BackHandler, Image, Modal, Pressable, ScrollView, Text, TextInput, ToastAndroid, View } from 'react-native';
-import { noteButtonState, noteSyncState, noSpeechChip, autoTitle, durationLabel, stampLabel, controlPhase, type ControlAction, formatPlace, isSilentPeak, mergeTranscript, segmentStartsMs, type DraftUtt, type FinalSeg } from '../../src/core';
+import { deriveMemoStatus, memoProgress, type MemoFacts, noteButtonState, noteSyncState, noSpeechChip, autoTitle, durationLabel, stampLabel, controlPhase, type ControlAction, formatPlace, isSilentPeak, mergeTranscript, segmentStartsMs, type DraftUtt, type FinalSeg } from '../../src/core';
 import { getMemoDetail, type MemoDetail, type SegmentRow } from '../../src/db/queries';
+import { goHome } from '../../src/ui/nav';
 import { useLang, useT, type Key } from '../../src/i18n';
 import { confirmDeleteMemo } from '../../src/memo/confirmDelete';
 import { transcribeAnyway, stopOnLeaveScreen, pauseMemoRecording, resumeMemoRecording, saveNote, startMemoRecording, stopMemoRecording } from '../../src/memo/actions';
 import { playRecording, stopPlayback, togglePlayback } from '../../src/memo/playback';
 import { usePlayback, useRecorder } from '../../src/state/recorder';
-import { BigButton, Chip, Row, TrustChips, useRouteText } from '../../src/ui/components';
+import { BigButton, Chip, ProgressLine, Row, StatusPill, useLiveFacts, useRouteText } from '../../src/ui/components';
 import { TitleEditor } from '../../src/ui/TitleEditor';
 import { InputChip } from '../../src/ui/inputUi';
 import { LeftAppNotice } from '../../src/ui/LeftAppNotice';
@@ -116,6 +117,14 @@ function SegmentLine({ seg, row, label, onPlay }: { seg: FinalSeg; row?: Segment
       {row?.route && <Text style={s.small}>{`${t('segmentInput')}: ${routeText(row.route)}`}</Text>}
       {showText && <Text style={[s.body, { marginTop: 4 }]}>{seg.text}</Text>}
       {seg.status === 'failed' && row?.error ? <Text style={s.small}>{row.error}</Text> : null}
+      {seg.status === 'failed' && (
+        <BigButton
+          label={t('retry')}
+          variant="outline"
+          onPress={() => transcribeAnyway(seg.segmentId).catch((e: Error) => Alert.alert(t('error'), e.message))}
+          style={{ minHeight: 48, marginTop: 6 }}
+        />
+      )}
     </Pressable>
   );
 }
@@ -262,6 +271,26 @@ export default function MemoScreen() {
   if (!detail) return <View style={s.screen} />;
 
   const totalMs = detail.segments.reduce((a, x) => a + x.durationMs, 0);
+  const done = detail.segments.filter((x) => x.status === 'done').length;
+  const failed = detail.segments.filter((x) => x.status === 'failed').length;
+  const live = useLiveFacts(id);
+  const facts: MemoFacts = {
+    isRecording: active,
+    paused: live.paused,
+    recordedMs: live.recordedMs,
+    offline: live.offline,
+    segmentCount: detail.segments.length,
+    segmentsDone: done,
+    segmentsFailed: failed,
+    segmentsUploaded: detail.segmentsUploaded,
+    segmentsNoSpeech: detail.segments.filter((x) => x.status === 'done' && x.noSpeech).length,
+    recordingCount: detail.recordings.length,
+    hasOpenRecordingRows: detail.recordings.some((r) => !r.stopped),
+    pendingEvents: detail.pendingEvents,
+    pendingObjects: detail.pendingObjects,
+  };
+  const status = deriveMemoStatus(facts);
+  const steps = memoProgress(facts);
   const nb = noteButtonState(detail.note, note, savingNote);
   const noteSync = noteSyncState(!!detail.note, detail.noteSynced);
   const photo = detail.photos[0];
@@ -296,7 +325,7 @@ export default function MemoScreen() {
   const finish = async () => {
     await stopPlayback().catch(() => undefined);
     ToastAndroid.show(t('savedToast'), ToastAndroid.SHORT);
-    router.replace('/');
+    goHome(router);
   };
 
   const saveAndClose = () => {
@@ -307,8 +336,6 @@ export default function MemoScreen() {
     ]);
   };
   const loc = formatPlace(detail.location) ?? t('noLocation');
-  const done = detail.segments.filter((x) => x.status === 'done').length;
-  const failed = detail.segments.filter((x) => x.status === 'failed').length;
 
   return (
     <ScrollView style={s.screen} contentContainerStyle={[s.pad, { paddingBottom: 48 }]} keyboardShouldPersistTaps="handled">
@@ -340,14 +367,9 @@ export default function MemoScreen() {
       </View>
       {rec.error && <Text style={{ color: colors.danger, fontSize: 16 }}>{rec.error}</Text>}
 
-      <TrustChips
-        isRecording={detail.recordings.some((r) => !r.stopped) || active}
-        segmentCount={detail.segments.length}
-        segmentsDone={done}
-        segmentsFailed={failed}
-        pendingEvents={detail.pendingEvents}
-        pendingObjects={detail.pendingObjects}
-      />
+      <StatusPill status={status} />
+      <ProgressLine steps={steps} />
+      {status.kind === 'failed' && <Text style={[s.small, { color: colors.danger }]}>{t('failedHint')}</Text>}
 
       {detail.recordings.map((r, i) => {
         const rows = detail.segments.filter((x) => x.recordingId === r.recordingId);
@@ -397,7 +419,7 @@ export default function MemoScreen() {
 
       <Text style={[s.small, { marginTop: 16 }]}>{t('autoSaveNote')}</Text>
       <BigButton label={t('saveClose')} onPress={saveAndClose} disabled={busy} style={{ minHeight: 88 }} />
-      <BigButton label={t('deleteBtn')} variant="outline" disabled={active} onPress={() => confirmDeleteMemo(t, id, () => router.replace('/'))} />
+      <BigButton label={t('deleteBtn')} variant="outline" disabled={active} onPress={() => confirmDeleteMemo(t, id, () => goHome(router))} />
     </ScrollView>
   );
 }

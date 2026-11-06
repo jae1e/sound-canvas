@@ -5,6 +5,7 @@ import { applyCapture, applyLevel, applyLive, applyPlayback, applyWave, applySta
 import { applyInputs, refreshInputs } from './state/inputs';
 import { AppState } from 'react-native';
 import { loadSettings, pushAutoStop, useSettings } from './state/settings';
+import { reconcile } from './sync/reconcile';
 import { startSync, triggerSync } from './sync/engine';
 
 /** One-time app start: database, settings, crash recovery, journal ingest, listeners, sync loop. */
@@ -17,7 +18,7 @@ export async function bootstrap(): Promise<() => void> {
     useRecorder.setState({ error: `Recovery failed: ${(e as Error).message}` });
   }
   await ingestJournal().catch((e) => useRecorder.setState({ error: `Journal: ${(e as Error).message}` }));
-  applyStatus(await FlNative.getStatus());
+  await reconcile().catch(() => undefined);
   await FlNative.setInputPreference(useSettings.getState().inputPref).then(applyInputs, () => undefined);
   await refreshInputs().catch(() => undefined);
   await pushAutoStop().catch(() => undefined);
@@ -40,11 +41,7 @@ export async function bootstrap(): Promise<() => void> {
   // Native decides when to stop on leaving the app; JS only resyncs its view when it comes back.
   const appSub = AppState.addEventListener('change', (st) => {
     if (st !== 'active') return;
-    void ingestJournal()
-      .then(() => FlNative.getStatus())
-      .then(applyStatus)
-      .then(() => refreshInputs())
-      .catch(() => undefined);
+    void reconcile().catch(() => undefined);
   });
   const stopSync = startSync();
   return () => {

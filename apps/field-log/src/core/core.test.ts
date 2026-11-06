@@ -17,6 +17,10 @@ import {
   journalRecordToEvent,
   mergeTranscript,
   segmentStartsMs,
+  homeAction,
+  deriveMemoStatus,
+  hasStaleRecording,
+  memoProgress,
   noteChanged,
   noteButtonState,
   noteSyncState,
@@ -691,5 +695,65 @@ describe('notes', () => {
     const r = composeRowLines({ userTitle: null, auto: 'Check valve', note: '  bring\nwrench ', transcript: 'Check valve three is leaking' });
     expect(r).toEqual({ line1: 'Check valve', noteLine: '📝 bring wrench', preview: 'Check valve three is leaking' });
     expect(composeRowLines({ userTitle: 'T', auto: 'a', note: null, transcript: null })).toEqual({ line1: 'T', noteLine: null, preview: null });
+  });
+});
+
+describe('memo status', () => {
+  const base = { isRecording: false, segmentCount: 3, segmentsDone: 3, segmentsFailed: 0, pendingEvents: 0, pendingObjects: 0, segmentsNoSpeech: 0, segmentsUploaded: 3 };
+  const kind = (o: object) => deriveMemoStatus({ ...base, ...o }).kind;
+  it('covers every state', () => {
+    expect(kind({ isRecording: true, recordedMs: 12000 })).toBe('recording');
+    expect(deriveMemoStatus({ ...base, isRecording: true, recordedMs: 12000 }).recordedMs).toBe(12000);
+    expect(kind({ isRecording: true, paused: true })).toBe('paused');
+    expect(kind({ deleted: true })).toBe('deleted');
+    expect(kind({ pendingObjects: 2, segmentsUploaded: 1 })).toBe('uploading');
+    expect(kind({ pendingEvents: 1, offline: true })).toBe('uploadWaiting');
+    expect(kind({ segmentsDone: 1 })).toBe('transcribing');
+    expect(kind({ segmentsDone: 2, segmentsFailed: 1 })).toBe('failed');
+    expect(kind({ segmentsNoSpeech: 3 })).toBe('noSpeech');
+    expect(kind({})).toBe('done');
+    expect(kind({ segmentCount: 2, segmentsDone: 2, segmentsNoSpeech: 1 })).toBe('done');
+    expect(kind({ segmentCount: 0, segmentsDone: 0 })).toBe('saved');
+  });
+  it('reports upload counts and tones', () => {
+    const st = deriveMemoStatus({ ...base, segmentCount: 5, segmentsDone: 0, segmentsUploaded: 2, pendingObjects: 3 });
+    expect(st).toMatchObject({ kind: 'uploading', uploaded: 2, total: 5, tone: 'blue', glyph: '⬆' });
+    expect(deriveMemoStatus({ ...base, isRecording: true }).tone).toBe('red');
+    expect(deriveMemoStatus({ ...base }).tone).toBe('green');
+  });
+  it('follows the priority order', () => {
+    expect(kind({ isRecording: true, deleted: true, pendingEvents: 3 })).toBe('recording');
+    expect(kind({ deleted: true, pendingEvents: 3 })).toBe('deleted');
+    expect(kind({ pendingEvents: 3, segmentsDone: 0, segmentsFailed: 1 })).toBe('uploading');
+    expect(kind({ segmentsDone: 1, segmentsFailed: 1 })).toBe('transcribing');
+    expect(kind({ segmentsFailed: 1, segmentsDone: 2, segmentsNoSpeech: 2 })).toBe('failed');
+  });
+  it('never shows recording for a stale open recording', () => {
+    const f = { ...base, isRecording: false, hasOpenRecordingRows: true };
+    expect(hasStaleRecording(f)).toBe(true);
+    expect(deriveMemoStatus(f).kind).toBe('done');
+    expect(hasStaleRecording({ ...f, isRecording: true })).toBe(false);
+    expect(hasStaleRecording({ ...base, hasOpenRecordingRows: false })).toBe(false);
+  });
+  it('handles photo-only memos', () => {
+    const photo = { isRecording: false, segmentCount: 0, segmentsDone: 0, segmentsFailed: 0, pendingEvents: 0, pendingObjects: 0, recordingCount: 0 };
+    expect(deriveMemoStatus(photo).kind).toBe('saved');
+    expect(deriveMemoStatus({ ...photo, pendingObjects: 1 }).kind).toBe('uploading');
+    expect(deriveMemoStatus({ ...photo, pendingObjects: 1, offline: true }).kind).toBe('uploadWaiting');
+  });
+  it('builds the progress line', () => {
+    const steps = (o: object) => memoProgress({ ...base, ...o }).map((x) => `${x.key}:${x.done ? 'y' : 'n'}${x.current ? '*' : ''}`);
+    expect(steps({ isRecording: true })).toEqual(['recorded:n*', 'saved:n', 'synced:n', 'transcribed:n']);
+    expect(memoProgress({ ...base, isRecording: true })[0].inProgress).toBe(true);
+    expect(steps({ pendingEvents: 1, segmentsDone: 0 })).toEqual(['recorded:y', 'saved:y', 'synced:n*', 'transcribed:n']);
+    expect(steps({ segmentsDone: 1 })).toEqual(['recorded:y', 'saved:y', 'synced:y', 'transcribed:n*']);
+    expect(steps({})).toEqual(['recorded:y', 'saved:y', 'synced:y', 'transcribed:y*']);
+  });
+});
+
+describe('navigation', () => {
+  it('pops when it can and replaces only as a last resort', () => {
+    expect(homeAction(true)).toBe('back');
+    expect(homeAction(false)).toBe('replaceHome');
   });
 });

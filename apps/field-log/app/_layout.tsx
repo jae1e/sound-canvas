@@ -6,6 +6,9 @@ import { bootstrap } from '../src/bootstrap';
 import { useT } from '../src/i18n';
 import { colors } from '../src/ui/theme';
 
+// Home is always the root of the stack, even when a deep link opens /memo/[id].
+export const unstable_settings = { initialRouteName: 'index' };
+
 export default function RootLayout() {
   const [ready, setReady] = useState(false);
   const [failure, setFailure] = useState<string | null>(null);
