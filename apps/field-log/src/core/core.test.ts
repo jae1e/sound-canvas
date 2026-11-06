@@ -17,6 +17,12 @@ import {
   journalRecordToEvent,
   mergeTranscript,
   segmentStartsMs,
+  selectUploadable,
+  objectsToSkip,
+  toggleLanguage,
+  moveLanguage,
+  migrateLegacyLanguage,
+  normaliseLanguages,
   selectBatch,
   verifyChain,
   type FinalSeg,
@@ -289,5 +295,53 @@ describe('transcript merge', () => {
         4_900_000,
       ),
     ).toEqual([100, 1200]);
+  });
+});
+
+describe('deletion', () => {
+  it('upload planner skips objects of deleted memos and skipped objects', () => {
+    const objs = [
+      { sha256: 'a' },
+      { sha256: 'b', skipped: true },
+      { sha256: 'c', memoDeleted: true },
+      { sha256: 'd', skipped: false, memoDeleted: false },
+    ];
+    expect(selectUploadable(objs).map((o) => o.sha256)).toEqual(['a', 'd']);
+  });
+  it('skips only pending, unshared objects of the memo', () => {
+    const objs = [
+      { sha256: 'a', memoId: 'm', uploaded: false },
+      { sha256: 'b', memoId: 'm', uploaded: true },
+      { sha256: 'c', memoId: 'm', uploaded: false },
+      { sha256: 'd', memoId: 'x', uploaded: false },
+    ];
+    expect(objectsToSkip(objs, 'm', new Set(['c'])).map((o) => o.sha256)).toEqual(['a']);
+  });
+  it('derives a deleted state with no chips', () => {
+    const st = deriveMemoState({ isRecording: false, segmentCount: 2, segmentsDone: 2, segmentsFailed: 1, pendingEvents: 0, pendingObjects: 0, deleted: true });
+    expect(st).toEqual({ recording: false, savedOnPhone: false, synced: false, transcribed: false, failed: false, current: 'deleted' });
+  });
+});
+
+describe('languages', () => {
+  it('toggles, keeping at least one', () => {
+    expect(toggleLanguage(['ko', 'en'], 'ko')).toEqual(['en']);
+    expect(toggleLanguage(['en'], 'en')).toEqual(['en']);
+    expect(toggleLanguage(['en'], 'ko')).toEqual(['en', 'ko']);
+  });
+  it('moves within bounds', () => {
+    expect(moveLanguage(['ko', 'en'], 'en', -1)).toEqual(['en', 'ko']);
+    expect(moveLanguage(['ko', 'en'], 'ko', -1)).toEqual(['ko', 'en']);
+    expect(moveLanguage(['ko', 'en'], 'en', 1)).toEqual(['ko', 'en']);
+  });
+  it('migrates and normalises', () => {
+    expect(migrateLegacyLanguage('en')).toEqual(['en', 'ko']);
+    expect(migrateLegacyLanguage('auto')).toEqual(['ko', 'en']);
+    expect(migrateLegacyLanguage(null)).toEqual(['ko', 'en']);
+    expect(normaliseLanguages(['en', 'en', 'xx1', 5, 'ja'])).toEqual(['en', 'ja']);
+    expect(normaliseLanguages('bad')).toEqual(['ko', 'en']);
+  });
+  it('memo_created languages stay canonical-safe', () => {
+    expect(canonicalJson({ languages: ['ko', 'en'] })).toBe('{"languages":["ko","en"]}');
   });
 });

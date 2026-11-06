@@ -4,6 +4,7 @@ import { Alert, Image, ScrollView, Text, TextInput, View } from 'react-native';
 import { formatPlace, mergeTranscript, segmentStartsMs, type DraftUtt, type FinalSeg } from '../../src/core';
 import { getMemoDetail, type MemoDetail, type SegmentRow } from '../../src/db/queries';
 import { useLang, useT, type Key } from '../../src/i18n';
+import { confirmDeleteMemo } from '../../src/memo/confirmDelete';
 import { saveNote, startMemoRecording, stopMemoRecording } from '../../src/memo/actions';
 import { useRecorder } from '../../src/state/recorder';
 import { BigButton, Chip, Row, TrustChips } from '../../src/ui/components';
@@ -50,6 +51,22 @@ function LiveBadge({ active }: { active: boolean }) {
             : 'draftOff';
   const glyph = label === 'draftLive' ? '●' : label === 'draftPaused' || label === 'draftConnecting' ? '◐' : '○';
   return <Chip glyph={glyph} label={t(label)} active={label === 'draftLive'} />;
+}
+
+function LiveLine({ active }: { active: boolean }) {
+  const t = useT();
+  const live = useRecorder((r) => r.liveState);
+  const last = useRecorder((r) => r.lastDraftAtMs);
+  const [, tick] = useState(0);
+  useEffect(() => {
+    if (!active) return;
+    const id = setInterval(() => tick((n) => n + 1), 1000);
+    return () => clearInterval(id);
+  }, [active]);
+  if (!active) return null;
+  const stateKey: Key = ({ live: 'draftLive', paused: 'draftPaused', connecting: 'draftConnecting', busy: 'draftBusy', off: 'draftOff' } as const)[live];
+  const ago = last > 0 ? t('lastTextAgo').replace('{n}', String(Math.max(0, Math.round((Date.now() - last) / 1000)))) : t('noTextYet');
+  return <Text style={[s.small, { marginTop: 4 }]}>{`${t(stateKey)} · ${ago}`}</Text>;
 }
 
 const statusKey = (seg: FinalSeg): Key =>
@@ -196,6 +213,7 @@ export default function MemoScreen() {
         <Elapsed active={active} />
         <LevelMeter active={active} />
         <LiveBadge active={active} />
+        <LiveLine active={active} />
       </View>
 
       <BigButton
@@ -249,6 +267,7 @@ export default function MemoScreen() {
         <Row label={t('duration')} value={formatElapsed(totalMs)} />
       </View>
 
+      <BigButton label={t('deleteMemo')} variant="outline" disabled={active} onPress={() => confirmDeleteMemo(t, id, () => router.replace('/'))} />
       <BigButton
         label={t('done')}
         variant="outline"

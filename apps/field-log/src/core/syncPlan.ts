@@ -60,3 +60,17 @@ export function backoffMs(failures: number, baseMs = 5000, maxMs = 60000): numbe
 export function clockExchangeDue(lastAtMs: number | null, nowMs: number, intervalMs = CLOCK_INTERVAL_MS): boolean {
   return lastAtMs === null || nowMs - lastAtMs >= intervalMs || nowMs < lastAtMs;
 }
+
+/** Objects worth uploading: never those marked skipped or belonging to a deleted memo. */
+export function selectUploadable<T extends { skipped?: boolean; memoDeleted?: boolean }>(objects: T[]): T[] {
+  return objects.filter((o) => !o.skipped && !o.memoDeleted);
+}
+
+/** Objects of `memoId` to skip on deletion: pending ones that no other live memo references. */
+export function objectsToSkip<T extends { sha256: string; memoId: string | null; uploaded: boolean }>(
+  objects: T[],
+  memoId: string,
+  referencedByOtherLive: Set<string>,
+): T[] {
+  return objects.filter((o) => o.memoId === memoId && !o.uploaded && !referencedByOtherLive.has(o.sha256));
+}

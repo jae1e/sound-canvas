@@ -4,11 +4,13 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import sqlite3
 from typing import Any, Callable
 
 from .canon import canonical, find_problem, record_hash
 from .db import Database, now_ms
+from .langs import normalize_languages
 
 log = logging.getLogger("fls.events")
 
@@ -44,18 +46,19 @@ def ingest(
     device_id: str,
     events: list[Any],
     object_exists: Callable[[str], bool],
+    object_path: Callable[[str], Any] | None = None,
 ) -> tuple[list[dict[str, Any]], int, bool]:
     """Process events in order. Returns (results, last_seq, jobs_enqueued)."""
     results: list[dict[str, Any]] = []
     enqueued = False
     for ev in events:
-        res, enq = _ingest_one(db, device_id, ev, object_exists)
+        res, enq = _ingest_one(db, device_id, ev, object_exists, object_path)
         results.append(res)
         enqueued = enqueued or enq
     return results, last_seq(db, device_id), enqueued
 
 
-def _ingest_one(db, device_id, ev, object_exists) -> tuple[dict[str, Any], bool]:
+def _ingest_one(db, device_id, ev, object_exists, object_path=None) -> tuple[dict[str, Any], bool]:
     event_id = ev.get("event_id") if isinstance(ev, dict) else None
     out: dict[str, Any] = {"event_id": event_id if isinstance(event_id, str) else None}
 
@@ -113,9 +116,10 @@ def _ingest_one(db, device_id, ev, object_exists) -> tuple[dict[str, Any], bool]
              ev["boot_count"], canonical(ev["payload"]), ev["prev_hash"], ev["record_hash"], t),
         )
         enq = False
+        unlink: list[str] = []
         try:
             c.execute("SAVEPOINT proj")
-            enq = _project(c, device_id, ev, t, object_exists)
+            enq = _project(c, device_id, ev, t, object_exists, unlink)
             c.execute("RELEASE proj")
         except (KeyError, TypeError, ValueError, sqlite3.Error) as e:
             # The event is valid and chained; a malformed payload must not stall the device.
@@ -123,20 +127,31 @@ def _ingest_one(db, device_id, ev, object_exists) -> tuple[dict[str, Any], bool]
             c.execute("RELEASE proj")
             log.warning("projection skipped event=%s type=%s err=%s", ev["event_id"], ev["type"],
                         type(e).__name__)
+    if object_path is not None:
+        for sha in unlink:  # after commit; deleting a missing file is fine
+            try:
+                os.unlink(object_path(sha))
+            except FileNotFoundError:
+                pass
     out["status"] = "accepted"
     return out, enq
 
 
-def _project(c: sqlite3.Connection, dev: str, ev: dict[str, Any], t: int, object_exists) -> bool:
+def _project(c: sqlite3.Connection, dev: str, ev: dict[str, Any], t: int, object_exists,
+             unlink: list[str]) -> bool:
     typ, p = ev["type"], ev["payload"]
     if typ == "memo_created":
         c.execute(
             "INSERT OR IGNORE INTO memos(device_id, memo_id, kind, tz, retention_class, "
-            "created_wall_ms, location) VALUES (?,?,?,?,?,?,?)",
+            "created_wall_ms, location, languages) VALUES (?,?,?,?,?,?,?,?)",
             (dev, p["memo_id"], p.get("kind"), p.get("tz"), p.get("retention_class"),
-             ev["wall_ms"], _j(p.get("location"))),
+             ev["wall_ms"], _j(p.get("location")), _j(normalize_languages(p.get("languages")))),
         )
+    elif typ == "memo_deleted":
+        _delete_memo(c, dev, p["memo_id"], t, unlink)
     elif typ == "photo_added":
+        if _memo_deleted(c, dev, p["memo_id"]):
+            return False
         c.execute(
             "INSERT OR IGNORE INTO photos(device_id, photo_id, memo_id, object_sha256, mime, bytes, "
             "width, height, source, taken_wall_ms, location) VALUES (?,?,?,?,?,?,?,?,?,?,?)",
@@ -160,9 +175,11 @@ def _project(c: sqlite3.Connection, dev: str, ev: dict[str, Any], t: int, object
             (ev["wall_ms"], p.get("reason"), dev, p["recording_id"]),
         )
     elif typ == "memo_note":
-        c.execute("UPDATE memos SET note=? WHERE device_id=? AND memo_id=?",
+        c.execute("UPDATE memos SET note=? WHERE device_id=? AND memo_id=? AND deleted_server_ms IS NULL",
                   (p["text"], dev, p["memo_id"]))
     elif typ == "segment_closed":
+        if _memo_deleted(c, dev, p["memo_id"]):
+            return False
         sha = p["object_sha256"]
         c.execute(
             "INSERT OR IGNORE INTO segments(device_id, segment_id, memo_id, recording_id, idx, "
@@ -200,6 +217,48 @@ def enqueue_for_object(db: Database, sha: str) -> bool:
     t = now_ms()
     any_new = False
     with db.tx() as c:
-        for r in c.execute("SELECT device_id, segment_id FROM segments WHERE object_sha256=?", (sha,)).fetchall():
+        for r in c.execute(
+            "SELECT s.device_id, s.segment_id FROM segments s LEFT JOIN memos m "
+            "ON m.device_id=s.device_id AND m.memo_id=s.memo_id "
+            "WHERE s.object_sha256=? AND m.deleted_server_ms IS NULL", (sha,)).fetchall():
             any_new = enqueue_job(c, r["device_id"], r["segment_id"], sha, t) or any_new
     return any_new
+
+
+def _memo_deleted(c: sqlite3.Connection, dev: str, memo_id: str) -> bool:
+    row = c.execute("SELECT deleted_server_ms FROM memos WHERE device_id=? AND memo_id=?",
+                    (dev, memo_id)).fetchone()
+    return row is not None and row["deleted_server_ms"] is not None
+
+
+def _delete_memo(c: sqlite3.Connection, dev: str, memo_id: str, t: int, unlink: list[str]) -> None:
+    """Contract section 8: remove content, keep a tombstone (memo id, envelopes, hashes)."""
+    c.execute("INSERT OR IGNORE INTO memos(device_id, memo_id) VALUES (?,?)", (dev, memo_id))
+    c.execute("UPDATE memos SET deleted_server_ms=?, note=NULL WHERE device_id=? AND memo_id=? "
+              "AND deleted_server_ms IS NULL", (t, dev, memo_id))
+    segs = [r["segment_id"] for r in c.execute(
+        "SELECT segment_id FROM segments WHERE device_id=? AND memo_id=?", (dev, memo_id))]
+    for seg in segs:
+        c.execute("UPDATE jobs SET status='cancelled', updated_server_ms=? WHERE device_id=? "
+                  "AND segment_id=? AND status IN ('queued','running')", (t, dev, seg))
+        c.execute("DELETE FROM alt_transcripts WHERE device_id=? AND segment_id=?", (dev, seg))
+        c.execute("DELETE FROM reference_transcripts WHERE device_id=? AND segment_id=?", (dev, seg))
+    c.execute("DELETE FROM transcripts WHERE device_id=? AND memo_id=?", (dev, memo_id))
+    c.execute("UPDATE events SET payload='{}', redacted=1 WHERE device_id=? AND type='memo_note' "
+              "AND json_extract(payload,'$.memo_id')=?", (dev, memo_id))
+    shas = {r[0] for r in c.execute(
+        "SELECT object_sha256 FROM segments WHERE device_id=? AND memo_id=? "
+        "UNION SELECT object_sha256 FROM photos WHERE device_id=? AND memo_id=?",
+        (dev, memo_id, dev, memo_id)) if r[0]}
+    for sha in shas:
+        still = c.execute(
+            "SELECT 1 FROM (SELECT device_id, memo_id, object_sha256 FROM segments "
+            "UNION ALL SELECT device_id, memo_id, object_sha256 FROM photos) x "
+            "JOIN memos m ON m.device_id=x.device_id AND m.memo_id=x.memo_id "
+            "WHERE x.object_sha256=? AND m.deleted_server_ms IS NULL LIMIT 1", (sha,)).fetchone()
+        if still:
+            continue
+        c.execute("DELETE FROM objects WHERE sha256=?", (sha,))
+        c.execute("DELETE FROM object_owners WHERE sha256=?", (sha,))
+        c.execute("INSERT OR IGNORE INTO object_tombstones(sha256, deleted_server_ms) VALUES (?,?)", (sha, t))
+        unlink.append(sha)

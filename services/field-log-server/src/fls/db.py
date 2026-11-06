@@ -85,6 +85,23 @@ CREATE TABLE IF NOT EXISTS transcripts (
   PRIMARY KEY (device_id, segment_id)
 );
 CREATE INDEX IF NOT EXISTS transcripts_updated ON transcripts(device_id, updated_server_ms);
+CREATE TABLE IF NOT EXISTS object_tombstones (
+  sha256 TEXT PRIMARY KEY,
+  deleted_server_ms INTEGER NOT NULL
+);
+CREATE TABLE IF NOT EXISTS alt_transcripts (
+  device_id TEXT NOT NULL, segment_id TEXT NOT NULL,
+  engine TEXT NOT NULL, variant TEXT NOT NULL,
+  status TEXT NOT NULL, language TEXT, detect_path TEXT, text TEXT,
+  rtf TEXT, processing_ms INTEGER, error TEXT, attempts INTEGER NOT NULL DEFAULT 0,
+  created_server_ms INTEGER NOT NULL, updated_server_ms INTEGER NOT NULL,
+  PRIMARY KEY (device_id, segment_id, engine, variant)
+);
+CREATE TABLE IF NOT EXISTS reference_transcripts (
+  device_id TEXT NOT NULL, segment_id TEXT NOT NULL, text TEXT NOT NULL,
+  updated_server_ms INTEGER NOT NULL,
+  PRIMARY KEY (device_id, segment_id)
+);
 CREATE TABLE IF NOT EXISTS jobs (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   device_id TEXT NOT NULL, segment_id TEXT NOT NULL, object_sha256 TEXT NOT NULL,
@@ -108,6 +125,20 @@ class Database:
         self._conn.execute("PRAGMA foreign_keys=ON")
         self._lock = threading.RLock()
         self._conn.executescript(SCHEMA)
+        self._migrate()
+
+    def _migrate(self) -> None:
+        """Add columns introduced after the first release (CREATE TABLE IF NOT EXISTS keeps old tables)."""
+        wanted = {
+            "events": [("redacted", "INTEGER NOT NULL DEFAULT 0")],
+            "memos": [("languages", "TEXT"), ("deleted_server_ms", "INTEGER")],
+            "transcripts": [("detect_path", "TEXT")],
+        }
+        for table, cols in wanted.items():
+            have = {r["name"] for r in self._conn.execute(f"PRAGMA table_info({table})")}
+            for name, decl in cols:
+                if name not in have:
+                    self._conn.execute(f"ALTER TABLE {table} ADD COLUMN {name} {decl}")
 
     @contextmanager
     def tx(self) -> Iterator[sqlite3.Connection]:

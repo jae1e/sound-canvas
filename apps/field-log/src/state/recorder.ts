@@ -12,6 +12,8 @@ export interface RecorderState {
   liveState: LiveState;
   /** Draft utterances by recording id. */
   drafts: Record<string, DraftUtt[]>;
+  /** Date.now() when the last draft text (partial or final) arrived; 0 = none this session. */
+  lastDraftAtMs: number;
   error: string | null;
 }
 
@@ -23,6 +25,7 @@ export const useRecorder = create<RecorderState>(() => ({
   levelDbfsX100: -9600,
   liveState: 'off',
   drafts: {},
+  lastDraftAtMs: 0,
   error: null,
 }));
 
@@ -32,6 +35,7 @@ export function applyStatus(s: RecorderStatus): void {
     recordingId: s.recordingId ?? null,
     memoId: s.memoId ?? null,
     anchorMs: s.recording ? Date.now() - s.elapsedMs : 0,
+    ...(s.recording && s.recordingId === useRecorder.getState().recordingId ? {} : { lastDraftAtMs: 0 }),
     liveState: s.recording ? s.liveState : 'off',
     ...(s.recording ? {} : { levelDbfsX100: -9600 }),
   });
@@ -45,6 +49,6 @@ export function applyLive(e: LiveEvent): void {
     const list = (st.drafts[rec] ?? []).filter((d) => d.utterance !== e.utterance);
     if (e.type === 'partial') list.push({ utterance: e.utterance, text: e.text, partial: true });
     else list.push({ utterance: e.utterance, text: e.text, startMs: e.startMs, endMs: e.endMs, partial: false });
-    return { drafts: { ...st.drafts, [rec]: list } };
+    return { drafts: { ...st.drafts, [rec]: list }, lastDraftAtMs: Date.now() };
   });
 }

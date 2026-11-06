@@ -65,11 +65,11 @@ def test_retry_then_fail_and_requeue_on_startup(client, dev, monkeypatch):
     st = client.app.state.fls
     calls = []
 
-    def boom(audio, sr, context=""):
+    def boom(audio, sr, context="", language=None):
         calls.append(1)
         raise RuntimeError("engine exploded")
 
-    monkeypatch.setattr(st.final_engine, "transcribe", boom)
+    monkeypatch.setattr(st.final_engine, "decode", boom)
     data = wav_bytes()
     dev.put(data)
     dev.post(segment_event(dev, "m5", "s5", data))

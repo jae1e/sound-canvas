@@ -2,7 +2,8 @@ import * as SecureStore from 'expo-secure-store';
 import { create } from 'zustand';
 import { kvGet, kvSet } from '../db/kv';
 import { newId } from '../db/events';
-import type { AudioSourceName, LiveLanguage } from '../native';
+import { DEFAULT_LANGUAGES, migrateLegacyLanguage, normaliseLanguages } from '../core';
+import type { AudioSourceName } from '../native';
 
 export const DEFAULT_SERVER_URL = 'http://100.84.83.35:8787';
 const TOKEN_KEY = 'fvl_device_token';
@@ -17,7 +18,8 @@ export interface SettingsState {
   token: string | null;
   installId: string;
   liveEnabled: boolean;
-  language: LiveLanguage;
+  /** Ordered ISO 639-1 codes, first = highest priority. */
+  languages: string[];
   inputId: number | null;
   source: SourceChoice;
   locationEnabled: boolean;
@@ -31,7 +33,7 @@ export const useSettings = create<SettingsState>(() => ({
   token: null,
   installId: '',
   liveEnabled: true,
-  language: 'auto',
+  languages: [...DEFAULT_LANGUAGES],
   inputId: null,
   source: 'AUTO',
   locationEnabled: true,
@@ -46,6 +48,18 @@ export async function loadSettings(): Promise<void> {
     await kvSet('install_id', installId);
   }
   const inputId = await g('input_id');
+  const storedLanguages = await g('languages');
+  let languages: string[];
+  if (storedLanguages) {
+    try {
+      languages = normaliseLanguages(JSON.parse(storedLanguages));
+    } catch {
+      languages = [...DEFAULT_LANGUAGES];
+    }
+  } else {
+    languages = migrateLegacyLanguage(await g('language'));
+    await kvSet('languages', JSON.stringify(languages));
+  }
   useSettings.setState({
     loaded: true,
     serverUrl: (await g('server_url')) ?? DEFAULT_SERVER_URL,
@@ -53,7 +67,7 @@ export async function loadSettings(): Promise<void> {
     token: await SecureStore.getItemAsync(TOKEN_KEY),
     installId,
     liveEnabled: ((await g('live_enabled')) ?? '1') === '1',
-    language: ((await g('language')) as LiveLanguage | null) ?? 'auto',
+    languages,
     inputId: inputId === null || inputId === '' ? null : Number(inputId),
     source: ((await g('source')) as SourceChoice | null) ?? 'AUTO',
     locationEnabled: ((await g('location_enabled')) ?? '1') === '1',
@@ -64,7 +78,7 @@ export async function loadSettings(): Promise<void> {
 const KEYS: Record<string, string> = {
   serverUrl: 'server_url',
   liveEnabled: 'live_enabled',
-  language: 'language',
+  languages: 'languages',
   inputId: 'input_id',
   source: 'source',
   locationEnabled: 'location_enabled',
@@ -73,7 +87,9 @@ const KEYS: Record<string, string> = {
 
 export async function updateSetting<K extends keyof typeof KEYS>(key: K, value: SettingsState[K & keyof SettingsState]): Promise<void> {
   useSettings.setState({ [key]: value } as Partial<SettingsState>);
-  const stored = typeof value === 'boolean' ? (value ? '1' : '0') : value === null ? '' : String(value);
+  const stored = Array.isArray(value)
+    ? JSON.stringify(value)
+    : typeof value === 'boolean' ? (value ? '1' : '0') : value === null ? '' : String(value);
   await kvSet(KEYS[key], stored);
 }
 

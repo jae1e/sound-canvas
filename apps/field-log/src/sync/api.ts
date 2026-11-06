@@ -86,7 +86,13 @@ export const objectUrl = (c: ServerConfig, sha256: string) => `${normaliseBaseUr
 export const apiPostEvents = async (c: ServerConfig, events: EventEnvelope[]) =>
   json<PostResponse>(await request(c, 'POST', '/v1/events', { events }, 20000));
 
-export const apiTranscriptsSince = async (c: ServerConfig, sinceServerMs: number) =>
+export const apiTranscriptsSince = async (c: ServerConfig, sinceServerMs: number, waitS?: number) =>
   json<{ segments: TranscriptSegmentWire[]; now_server_ms: number }>(
-    await request(c, 'GET', `/v1/transcripts?since_server_ms=${Math.max(0, Math.floor(sinceServerMs))}`),
+    await request(
+      c,
+      'GET',
+      `/v1/transcripts?since_server_ms=${Math.max(0, Math.floor(sinceServerMs))}${waitS ? `&wait_s=${waitS}` : ''}`,
+      undefined,
+      waitS ? (waitS + 10) * 1000 : 8000,
+    ),
   );

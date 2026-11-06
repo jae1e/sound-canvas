@@ -6,6 +6,7 @@ export interface MemoFacts {
   segmentsFailed: number;
   pendingEvents: number;
   pendingObjects: number;
+  deleted?: boolean;
 }
 
 export interface MemoTrust {
@@ -18,10 +19,13 @@ export interface MemoTrust {
   transcribed: boolean;
   failed: boolean;
   /** The highest state reached. */
-  current: 'recording' | 'saved' | 'synced' | 'transcribed';
+  current: 'recording' | 'saved' | 'synced' | 'transcribed' | 'deleted';
 }
 
 export function deriveMemoState(f: MemoFacts): MemoTrust {
+  if (f.deleted) {
+    return { recording: false, savedOnPhone: false, synced: false, transcribed: false, failed: false, current: 'deleted' };
+  }
   const savedOnPhone = !f.isRecording;
   const synced = savedOnPhone && f.pendingEvents === 0 && f.pendingObjects === 0;
   const transcribed = synced && f.segmentCount > 0 && f.segmentsDone === f.segmentCount;

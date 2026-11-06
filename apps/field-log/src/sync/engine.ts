@@ -10,7 +10,7 @@ import { ingestJournal } from '../db/ingest';
 import { appendEvent } from '../db/events';
 import { writeTx } from '../db/db';
 import { kvGet, kvGetJson, kvSet } from '../db/kv';
-import { ackEvents, markUploaded, outboxCounts, pendingEvents, pendingObjects, setObjectError, unackFrom } from '../db/outbox';
+import { ackEvents, hasPendingTranscripts, markUploaded, outboxCounts, pendingEvents, pendingObjects, setObjectError, unackFrom } from '../db/outbox';
 import { applyTranscripts } from '../db/transcripts';
 import FlNative from '../native';
 import { useSettings } from '../state/settings';
@@ -27,7 +27,9 @@ import {
 } from './api';
 
 const TICK_MS = 5000;
+const LONG_POLL_S = 20;
 const TRANSCRIPT_OVERLAP_MS = 5000;
+const LONG_POLL_OVERLAP_MS = 1000;
 
 let timer: ReturnType<typeof setTimeout> | null = null;
 let running = false;
@@ -94,6 +96,7 @@ async function uploadObjects(cfg: ServerConfig & { token: string }): Promise<voi
         }
         await markUploaded(o.sha256);
         progressed = true;
+        void longPollLoop();
       } catch (e) {
         if (e instanceof HttpError && e.status >= 400 && e.status < 500 && e.status !== 401) {
           await setObjectError(o.sha256, e.message);
@@ -132,11 +135,44 @@ async function postEvents(cfg: ServerConfig): Promise<void> {
   }
 }
 
-async function pollTranscripts(cfg: ServerConfig): Promise<void> {
+async function pollTranscripts(cfg: ServerConfig, waitS?: number): Promise<void> {
   const since = Number((await kvGet('transcripts_since_server_ms')) ?? '0');
-  const res = await apiTranscriptsSince(cfg, since);
+  const res = await apiTranscriptsSince(cfg, since, waitS);
   await applyTranscripts(res.segments);
-  await kvSet('transcripts_since_server_ms', String(Math.max(0, res.now_server_ms - TRANSCRIPT_OVERLAP_MS)));
+  // Two loops share the cursor; it only moves forward. The server returns rows with
+  // updated_server_ms >= since, so a large overlap would make every long poll return at once and
+  // spin; the long poll keeps a 1 s overlap for rows committed just after the server's clock read.
+  const overlap = waitS ? LONG_POLL_OVERLAP_MS : TRANSCRIPT_OVERLAP_MS;
+  const next = Math.max(0, res.now_server_ms - overlap);
+  const current = Number((await kvGet('transcripts_since_server_ms')) ?? '0');
+  if (next > current) await kvSet('transcripts_since_server_ms', String(next));
+}
+
+// Separate long-poll loop: runs while any segment waits for its final text, so it can never
+// delay uploads or event posting (those stay in the 5 s tick).
+let longPolling = false;
+
+async function longPollLoop(): Promise<void> {
+  if (longPolling) return;
+  longPolling = true;
+  try {
+    let errors = 0;
+    while (started && appState === 'active') {
+      const cfg = config();
+      if (!cfg || useSyncStatus.getState().connection !== 'online') break;
+      if (!(await hasPendingTranscripts())) break;
+      try {
+        await pollTranscripts(cfg, LONG_POLL_S);
+        errors = 0;
+      } catch {
+        errors += 1;
+        if (errors >= 3) break; // the main tick reports the problem and restarts us
+        await new Promise((r) => setTimeout(r, backoffMs(errors)));
+      }
+    }
+  } finally {
+    longPolling = false;
+  }
 }
 
 async function runOnce(): Promise<void> {
@@ -158,7 +194,7 @@ async function runOnce(): Promise<void> {
     if (clockExchangeDue(lastClockAtMs, Date.now())) await clockExchange(cfg);
     await uploadObjects(cfg);
     if (!useSyncStatus.getState().stuck) await postEvents(cfg);
-    await pollTranscripts(cfg);
+    if (!longPolling) await pollTranscripts(cfg);
     failures = 0;
     setSyncStatus({ lastSyncMs: Date.now(), error: null });
   } catch (e) {
@@ -174,6 +210,7 @@ async function runOnce(): Promise<void> {
   } finally {
     await refreshCounts().catch(() => undefined);
     setSyncStatus({ syncing: false });
+    void longPollLoop();
   }
 }
 

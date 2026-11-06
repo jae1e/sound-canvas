@@ -47,7 +47,7 @@ Deferred to later slices:
 | `GET /v1/objects/{sha256}` | — | The bytes |
 | `POST /v1/events` | `{events: [Event, …]}` in seq order, up to 200 | `{results: [{event_id, status: "accepted" \| "duplicate" \| "rejected", reason?}], last_seq}` |
 | `GET /v1/memos/{memo_id}/transcript` | — | `{memo_id, segments: [TranscriptSegment]}` |
-| `GET /v1/transcripts?since_server_ms=N` | — | `{segments: [TranscriptSegment], now_server_ms}`, for polling every segment that changed since N |
+| `GET /v1/transcripts?since_server_ms=N[&wait_s=S]` | — | `{segments: [TranscriptSegment], now_server_ms}`, for polling every segment that changed since N. With `wait_s` (1–25) the server holds the request until a segment of this device changes or S seconds pass (long poll) |
 | `WS /v1/live` | See section 5 | — |
 
 ## 3. Events
@@ -95,7 +95,7 @@ Every event has this envelope:
 
 | `type` | `payload` |
 |---|---|
-| `memo_created` | `{memo_id (UUIDv7), kind: "photo" \| "image" \| "voice", tz: IANA name, retention_class: "standard", location?}` |
+| `memo_created` | `{memo_id (UUIDv7), kind: "photo" \| "image" \| "voice", tz: IANA name, retention_class: "standard", languages?: ["ko", "en"], location?}`. `languages` is the user's ordered language list (ISO 639-1, first = highest priority, default `["ko", "en"]` when absent); see section 7 |
 | `photo_added` | `{memo_id, photo_id, object_sha256, mime, bytes, width?, height?, source: "camera" \| "library", taken_wall_ms?, location?}`. `taken_wall_ms` comes from EXIF when present. The original bytes are uploaded unmodified |
 | `recording_started` | `{memo_id, recording_id, route: Route, source: "UNPROCESSED" \| "VOICE_RECOGNITION" \| "MIC", sample_rate: 16000, effects: {ns, agc, aec}, location?}`. Each of `ns`, `agc` and `aec` is `"off"`, `"on"` or `"unavailable"` |
 | `segment_closed` | `{memo_id, recording_id, segment_id, index, object_sha256, bytes, format: "wav_pcm16_16k_mono", start_elapsed_us, end_elapsed_us, start_wall_ms, duration_ms, peak_dbfs_x100, clipped_samples, hf_ratio_4k_ppm, flags: [...], recovered: bool}` |
@@ -103,6 +103,7 @@ Every event has this envelope:
 | `recording_stopped` | `{memo_id, recording_id, reason: "user" \| "error" \| "interrupted" \| "recovered", location?}` |
 | `clock_sync` | `{offset_ms, rtt_ms, server_ms}` (integers, rounded) |
 | `memo_note` | `{memo_id, text}` (typed note, optional) |
+| `memo_deleted` | `{memo_id}`. The user deleted the memo; see section 8 |
 
 Notes on `segment_closed`:
 - `flags` holds `clipped` and `narrowband` (A3).
@@ -141,7 +142,7 @@ Server behaviour:
 `GET /v1/live` upgraded to a WebSocket, with header `Authorization: Bearer <token>`.
 
 **Client → server**
-1. A text frame `{"type":"start","memo_id","recording_id","language":"auto"|"ko"|"en"}`.
+1. A text frame `{"type":"start","memo_id","recording_id","language":"auto"|"ko"|"en"}`. The app sends the first language of the memo's list (section 7).
 2. Binary frames of PCM16 little-endian, mono, 16 kHz, about 100 ms each (3,200 bytes).
 3. Optionally `{"type":"end"}`.
 
@@ -172,3 +173,34 @@ Server behaviour:
 - **Soft close:** after 20 s, a segment closes at the first 300 ms window that is quiet. Quiet means at least 10 dB below the segment's median RMS, or below −45 dBFS.
 - **Hard close:** at 30 s. Boundaries therefore rarely cut a word.
 - **Transcription:** each segment is transcribed on its own.
+
+## 7. Languages and ASR input conditioning (v0.1, 2026-11-06)
+
+**Languages.** The app keeps an ordered list of the languages the user speaks, by default Korean, then English. Each memo records the list in `memo_created.languages`.
+
+**Final engine (Qwen3-ASR).**
+- **One language in the list:** the engine is forced to that language.
+- **Several languages:** the engine first runs with automatic detection. Its context string names the languages in priority order.
+  - If the detected languages are all in the list, the result is kept.
+  - If not, the segment is decoded again forced to the first language. For example, Korean speech once came back as Chinese.
+
+**Live draft engine (Nemotron).** It uses the first language of the list. Its automatic mode is less accurate per the vendor card, and the draft is only a preview.
+
+**Input conditioning.** The phone stores raw audio, and `UNPROCESSED` is quiet: about −36 dBFS at 94 dB SPL. Before audio reaches either engine, the server conditions a copy, never the stored file:
+- an 80 Hz high-pass filter;
+- slow gain normalisation of speech frames to about −23 dBFS, with at most +30 dB of gain;
+- a peak limiter.
+
+The final engine also keeps the raw-input result available for comparison in the quality dashboard.
+
+## 8. Deleting a memo (v0.1)
+
+`memo_deleted` removes the memo's content from the phone and the server:
+- audio and photo objects that no other live memo references;
+- transcript text;
+- the text of its `memo_note` events.
+
+What remains is a tombstone: the memo id, the event envelopes and their hashes. Deleting a payload breaks recomputation of `record_hash` for the redacted events.
+- **Redacted events:** they are marked `redacted` in storage, and their stored `record_hash` keeps the chain linkable.
+- **Pending jobs:** jobs for the memo are cancelled.
+- **Uploads:** the phone does not upload objects of a deleted memo that are still pending.

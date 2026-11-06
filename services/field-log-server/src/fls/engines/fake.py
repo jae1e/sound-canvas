@@ -12,12 +12,13 @@ SR = 16000
 class FakeFinalEngine:
     name = "fake-final"
 
-    def transcribe(self, audio: np.ndarray, sample_rate: int, context: str = "") -> FinalResult:
+    def decode(self, audio: np.ndarray, sample_rate: int, context: str = "",
+               language: str | None = None) -> FinalResult:
         rms = float(np.sqrt(np.mean(np.square(audio)))) if audio.size else 0.0
         if rms < 1e-4:
             return FinalResult(text="", language="", no_speech=True)
         ms = int(len(audio) * 1000 / sample_rate)
-        return FinalResult(text=f"fake transcript {ms}ms", language="en", no_speech=False)
+        return FinalResult(text=f"fake transcript {ms}ms", language=language or "en", no_speech=False)
 
 
 class _FakeStream:
@@ -92,5 +93,5 @@ class FakeStreamingEngine:
     def preload(self) -> None:
         pass
 
-    def open_stream(self, language: str) -> _FakeStream:
+    def open_stream(self, language: str, condition: bool = True) -> _FakeStream:
         return _FakeStream()

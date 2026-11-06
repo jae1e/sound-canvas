@@ -17,6 +17,7 @@ from pathlib import Path
 
 import numpy as np
 
+from ..conditioning import Conditioner
 from .base import LiveEvent
 
 log = logging.getLogger("fls.nemotron")
@@ -46,8 +47,9 @@ def tokens_to_text(tokens: list[str]) -> str:
 
 
 class _Stream:
-    def __init__(self, engine: "NemotronStreamingEngine", rec, language: str):
+    def __init__(self, engine: "NemotronStreamingEngine", rec, language: str, condition: bool = True):
         self.engine, self.rec = engine, rec
+        self.cond = Conditioner() if condition else None
         self.s = rec.create_stream()
         self.s.set_option("language", language)
         self.pos = 0  # samples fed
@@ -72,21 +74,26 @@ class _Stream:
             self.rec.decode_stream(self.s)
         text = tokens_to_text(self.rec.tokens(self.s))
         endpoint = final or self.rec.is_endpoint(self.s)
-        if endpoint:
-            if text:
-                a, b = self._times()
-                out.append(LiveEvent("final", text, self.utt, a, b))
-                self.utt += 1
+        if endpoint and text:
+            a, b = self._times()
+            out.append(LiveEvent("final", text, self.utt, a, b))
+            self.utt += 1
             self.last_text = ""
             self.rec.reset(self.s)
             self.utt_base = self.pos
+        elif endpoint and final:
+            self.rec.reset(self.s)
         elif text and text != self.last_text:
+            # An endpoint with no decoded text is deliberately NOT reset: resetting during leading
+            # silence cut the first words of quiet speech that starts about 0.8 s into the stream.
             self.last_text = text
             out.append(LiveEvent("partial", text, self.utt))
         return out
 
     def feed(self, pcm16: np.ndarray) -> list[LiveEvent]:
         x = pcm16.astype(np.float32) / 32768.0
+        if self.cond is not None:
+            x = self.cond.process(x)
         self.pos += len(x)
         self.s.accept_waveform(SR, x)
         return self._drain(final=False)
@@ -106,7 +113,7 @@ class _Stream:
 class NemotronStreamingEngine:
     name = "nemotron-3.5-asr-streaming-0.6b-160ms-int8"
 
-    def __init__(self, models: Path, slots: int = 2, num_threads: int = 2):
+    def __init__(self, models: Path, slots: int = 3, num_threads: int = 2):
         self.models = models
         self.num_threads = num_threads
         self._pool: "queue.Queue" = queue.Queue()
@@ -119,7 +126,10 @@ class NemotronStreamingEngine:
         return model_ready(self.models)
 
     def preload(self) -> None:
-        """Create one recognizer per slot (separate recognizers, nothing shared across streams)."""
+        """Create one recognizer per slot (separate recognizers, nothing shared across streams).
+
+        Two slots serve live clients (the app enforces that limit); the third is for replays.
+        """
         with self._lock:
             if self._loaded or not self.available:
                 return
@@ -141,14 +151,14 @@ class NemotronStreamingEngine:
             self._loaded = True
             log.info("nemotron recognizers loaded slots=%d", self._slots)
 
-    def open_stream(self, language: str) -> _Stream:
+    def open_stream(self, language: str, condition: bool = True) -> _Stream:
         self.preload()
         try:
             rec = self._pool.get_nowait()
         except queue.Empty:
             raise RuntimeError("no free streaming slot") from None
         try:
-            return _Stream(self, rec, language if language in ("ko", "en") else "auto")
+            return _Stream(self, rec, language if language in ("ko", "en") else "auto", condition)
         except BaseException:
             self._pool.put(rec)
             raise

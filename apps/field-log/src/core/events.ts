@@ -8,7 +8,8 @@ export type EventType =
   | 'route_changed'
   | 'recording_stopped'
   | 'clock_sync'
-  | 'memo_note';
+  | 'memo_note'
+  | 'memo_deleted';
 
 export interface EventEnvelope {
   event_id: string;

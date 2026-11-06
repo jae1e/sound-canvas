@@ -95,4 +95,8 @@ export const MIGRATIONS: string[] = [
   );
   CREATE INDEX objects_pending ON objects (uploaded);
   `,
+  `
+  ALTER TABLE memos ADD COLUMN deleted INTEGER NOT NULL DEFAULT 0;
+  ALTER TABLE objects ADD COLUMN skipped INTEGER NOT NULL DEFAULT 0;
+  `,
 ];

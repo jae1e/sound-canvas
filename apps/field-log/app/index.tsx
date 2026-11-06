@@ -4,6 +4,7 @@ import { FlatList, Image, Pressable, Text, View } from 'react-native';
 import { formatPlace } from '../src/core';
 import { listMemos, type MemoSummary } from '../src/db/queries';
 import { useLang, useT } from '../src/i18n';
+import { confirmDeleteMemo } from '../src/memo/confirmDelete';
 import { useSettings } from '../src/state/settings';
 import { useSyncStatus } from '../src/state/syncStatus';
 import { BigButton, TrustChips, labelKey } from '../src/ui/components';
@@ -47,6 +48,7 @@ function MemoRow({ m }: { m: MemoSummary }) {
     <Pressable
       accessibilityRole="button"
       onPress={() => router.push(`/memo/${m.memoId}`)}
+      onLongPress={() => confirmDeleteMemo(t, m.memoId)}
       style={[s.card, { flexDirection: 'row' }]}
     >
       {m.photoPath ? (

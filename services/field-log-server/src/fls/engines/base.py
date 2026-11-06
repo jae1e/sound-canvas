@@ -15,12 +15,16 @@ class FinalResult:
     no_speech: bool
     confidence: int | None = None
     words: list[dict] | None = None
+    path: str = ""  # language-decision path, filled by langs.decode_with_policy
 
 
 class FinalEngine(Protocol):
     name: str  # engine id reported in TranscriptSegment.engine
 
-    def transcribe(self, audio: np.ndarray, sample_rate: int, context: str = "") -> FinalResult: ...
+    def decode(self, audio: np.ndarray, sample_rate: int, context: str = "",
+               language: str | None = None) -> FinalResult:
+        """Decode one array. `language` is an ISO code to force, or None for auto detection."""
+
 
 
 @dataclass
@@ -49,4 +53,4 @@ class StreamingEngine(Protocol):
 
     def preload(self) -> None: ...
 
-    def open_stream(self, language: str) -> LiveStream: ...
+    def open_stream(self, language: str, condition: bool = True) -> LiveStream: ...

@@ -20,13 +20,13 @@ flock ~/.cache/fvl-heavy.lock systemd-run --user --scope -p MemoryMax=12G -p Mem
 
 | Command | Purpose |
 |---|---|
-| `fls serve [--host H] [--port 8787] [--final-engine qwen3\|fake] [--live-engine nemotron\|fake\|none]` | Run the server. Default host is the output of `tailscale ip -4` |
+| `fls serve [--host H] [--port 8787] [--dashboard-port 8790] [--final-engine qwen3\|fake] [--live-engine nemotron\|fake\|none]` | Run the server. Default host is the output of `tailscale ip -4` |
 | `fls pair` | Print an 8-character pairing code (Crockford base32, single use, valid 10 minutes) |
 | `fls devices` | List enrolled devices |
 | `fls revoke <device_id>` | Revoke a device token |
 | `fls fetch-models` | Download and verify the Nemotron model |
-| `fls smoke-final <wav>` | Transcribe one file with the final engine; prints text, RTF, VRAM, peak RSS |
-| `fls smoke-live <wav>` | Stream a file in 100 ms chunks in real time through the live engine; prints partial and final events and the first-partial latency |
+| `fls smoke-final <wav> [--languages ko,en] [--raw] [--attenuate-db -25] [--lf-noise-dbfs -45]` | Transcribe one file with the final engine and the language policy; prints text, detection path, RTF, VRAM, peak RSS |
+| `fls smoke-live <wav> [--language ko] [--raw] [--attenuate-db -25] [--lf-noise-dbfs -45]` | Stream a file in 100 ms chunks in real time through the live engine; prints partial and final events and the first-partial latency |
 
 `--data-dir` (before the sub-command) or `FLS_DATA_DIR` overrides the data directory.
 
@@ -53,10 +53,27 @@ models/<model dir>/          Nemotron sherpa-onnx files
 
 Tables: `devices`, `pairing_codes`, `objects`, `object_owners`, `events` (append-only, per-device hash chain), projections `memos`, `photos`, `recordings`, `segments`, plus `transcripts` (TranscriptSegment rows) and `jobs` (final-transcription queue: queued, running, done, failed).
 
+## Input conditioning, languages, deletion
+
+- **Conditioning** (`conditioning.py`, contract section 7): an 80 Hz high-pass, slow gain normalisation of speech frames to about -23 dBFS (at most +30 dB, at most -12 dB), and a peak limiter at -1 dBFS. Speech frames are found in the 300-3400 Hz band, so rumble is not boosted. It is a streaming class (state kept between chunks). Both engines get conditioned copies; stored objects are never modified.
+- **Languages**: `memo_created.languages` (default `["ko","en"]`) is stored on the memo. A final job with one language forces it; with several it runs auto detection with the context `Languages in priority order: Korean, English.` and re-decodes forced to the first language if the detected languages are not all in the list. The path is stored (`transcripts.detect_path`: `forced:ko`, `auto`, `auto(zh)->forced:ko`). The live `start.language` is used as is.
+- **Deletion** (`memo_deleted`, contract section 8): queued or running jobs are cancelled, the memo's transcripts, comparison results and references are deleted, objects no other live memo uses are removed (file, object row, ownership) and kept as a hash in `object_tombstones`, `memo_note` events are redacted (payload emptied, `redacted=1`, `record_hash` kept) and the memo row is marked deleted. Later events still chain. Reads of the memo give 404.
+- **Long poll**: `GET /v1/transcripts?since_server_ms=N&wait_s=S` (1-25) returns as soon as a transcript row of the device changes, or empty after S seconds. A row whose `updated_server_ms` equals N is returned again (`>=`), so clients must treat rows as idempotent.
+
+## Quality dashboard (requirement S-5)
+
+`fls serve` also runs a dashboard in the same process on **http://127.0.0.1:8790/** (`--dashboard-port 0` disables it). It shares the database, the job worker and the loaded models.
+
+- **There is no authentication.** It is safe only because it listens on the loopback address of this PC; any other bind address is refused, and requests whose Host header is not `127.0.0.1` or `localhost` get 403 (DNS-rebinding guard). Anyone with a shell on this PC can read all memos through it.
+- Memo list (all devices, newest first, deleted memos hidden) and memo detail per segment: waveform with dBFS gridlines from server-computed min/max peaks, spectrogram PNG, raw audio and conditioned audio players (HTTP Range, never autoplay), signal metrics, the stored transcript, and a comparison table.
+- **Run comparison** queues five jobs behind real transcription jobs: `qwen3/raw`, `qwen3/conditioned`, `qwen3/forced-<first language>`, `nemotron-replay/conditioned` and `nemotron-replay/raw` (stored audio replayed through a fresh streaming recognizer as fast as it decodes). Results go to `alt_transcripts`. A slot for Whisper large-v3 is reserved in `jobs.py` and nothing is downloaded.
+- **Reference transcript** per segment. CER = edit distance of characters / characters in the reference, after Unicode NFKC, lowercasing, and removing spaces, punctuation and control characters.
+- API: `/dash/api/memos`, `/dash/api/memos/{id}`, `/dash/api/segments/{id}/peaks?n=1200[&conditioned=1]` (n 16..4000), `.../spectrogram.png`, `.../conditioned.wav`, `/dash/api/objects/{sha}`, `POST .../compare`, `PUT .../reference`, `POST /dash/api/cer`.
+
 ## Engines
 
 - **Final (`qwen3`)**: `Qwen/Qwen3-ASR-1.7B` via `qwen-asr`, BF16 on `cuda:0`, batch size 1, automatic language detection, empty context string (vocabulary comes in a later slice). Loaded lazily on the first job and kept resident. One worker thread, one job at a time. A failed job is retried up to 2 times, then marked `failed`. Jobs left `running` by a crash or restart are re-queued at startup. `rtf` is processing seconds divided by audio seconds. No word timestamps in slice 1 (`words: null`).
-- **Live (`nemotron`)**: sherpa-onnx int8 Nemotron 3.5 ASR Streaming 0.6B, 160 ms chunks, CPU. Two recognizers (one per live slot, 2 threads each), so streams share nothing. Endpointing: 0.8 s trailing silence, 20 s maximum utterance. The language is a per-stream option (`ko`, `en` or `auto`). Text is rebuilt from the model's tokens because sherpa's plain result drops word spaces for Korean. At most 2 concurrent streams; a third client gets `{"type":"busy"}`. Live text is never stored.
+- **Live (`nemotron`)**: sherpa-onnx int8 Nemotron 3.5 ASR Streaming 0.6B, 160 ms chunks, CPU. Separate recognizers per stream (2 threads each), so streams share nothing. Endpointing: 0.8 s trailing silence, 20 s maximum utterance. An endpoint with no decoded text is ignored, not reset: resetting during leading silence cut off the first words of quiet speech that starts about 0.8 s into the stream (found in round 2). Two recognizers serve live clients and a third serves dashboard replays. The language is a per-stream option (`ko`, `en` or `auto`). Text is rebuilt from the model's tokens because sherpa's plain result drops word spaces for Korean. At most 2 concurrent streams; a third client gets `{"type":"busy"}`. Live text is never stored.
 - **`fake`** engines are deterministic and used by the tests.
 
 ## Security notes

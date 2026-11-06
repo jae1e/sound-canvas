@@ -23,9 +23,13 @@ def _paths(args) -> Paths:
 
 
 def cmd_serve(args) -> None:
+    import asyncio
+    import contextlib
+
     import uvicorn
 
     from .app import create_app
+    from .dashboard import DASHBOARD_HOST, create_dashboard
     from .engines import make_final_engine, make_live_engine
     from .net import tailscale_ipv4, validate_host
 
@@ -33,8 +37,32 @@ def cmd_serve(args) -> None:
     paths = _paths(args)
     app = create_app(paths.root, make_final_engine(args.final_engine),
                      make_live_engine(args.live_engine, paths.models))
-    logging.getLogger("fls").info("serving on %s:%d data=%s", host, args.port, paths.root)
-    uvicorn.run(app, host=host, port=args.port, log_level="info")
+    log = logging.getLogger("fls")
+    log.info("serving on %s:%d data=%s", host, args.port, paths.root)
+    main_server = uvicorn.Server(uvicorn.Config(app, host=host, port=args.port, log_level="info"))
+
+    class QuietServer(uvicorn.Server):
+        """Secondary server: the main server owns signal handling."""
+
+        @contextlib.contextmanager
+        def capture_signals(self):
+            yield
+
+    async def run() -> None:
+        tasks = [asyncio.create_task(main_server.serve())]
+        dash = None
+        if args.dashboard_port:
+            dash_app = create_dashboard(app.state.fls)
+            dash = QuietServer(uvicorn.Config(dash_app, host=DASHBOARD_HOST, port=args.dashboard_port,
+                                              log_level="warning", lifespan="off"))
+            tasks.append(asyncio.create_task(dash.serve()))
+            log.info("dashboard on http://%s:%d/ (loopback only, no auth)", DASHBOARD_HOST, args.dashboard_port)
+        await asyncio.wait(tasks[:1])  # the main server decides when to stop
+        if dash is not None:
+            dash.should_exit = True
+        await asyncio.gather(*tasks, return_exceptions=True)
+
+    asyncio.run(run())
 
 
 def cmd_pair(args) -> None:
@@ -107,16 +135,24 @@ def cmd_smoke_final(args) -> None:
     from .audio import load_16k_mono
     from .engines import make_final_engine
 
-    audio = load_16k_mono(args.wav)
+    from .audio import degrade
+    from .conditioning import condition
+    from .langs import decode_with_policy, normalize_languages
+
+    audio = degrade(load_16k_mono(args.wav), args.attenuate_db, args.lf_noise_dbfs)
     dur = len(audio) / 16000
+    if not args.raw:
+        audio = condition(audio)
+    langs = normalize_languages(args.languages.split(","))
     eng = make_final_engine(args.engine)
     t = time.monotonic()
-    r = eng.transcribe(audio, 16000, "")
+    r = decode_with_policy(eng, audio, langs)
     first = time.monotonic() - t
     t = time.monotonic()
-    r = eng.transcribe(audio, 16000, "")
+    r = decode_with_policy(eng, audio, langs)
     second = time.monotonic() - t
-    print(f"engine={eng.name} audio_s={dur:.2f} lang={r.language!r} no_speech={r.no_speech}")
+    print(f"engine={eng.name} audio_s={dur:.2f} lang={r.language!r} path={r.path} no_speech={r.no_speech} "
+          f"conditioned={not args.raw}")
     print(f"text={r.text!r}")
     print(f"first_call_s={first:.2f} (includes model load) warm_call_s={second:.2f} rtf_warm={second / dur:.3f}")
     try:
@@ -137,13 +173,16 @@ def cmd_smoke_live(args) -> None:
 
     paths = _paths(args)
     audio = load_16k_mono(args.wav)
+    from .audio import degrade
+
+    audio = degrade(audio, args.attenuate_db, args.lf_noise_dbfs)
     pcm = (np.clip(audio, -1, 1) * 32767).astype("<i2")
     pcm = np.concatenate([pcm, np.zeros(16000, dtype="<i2")])  # trailing second of silence
     eng = make_live_engine(args.engine, paths.models)
     t = time.monotonic()
     eng.preload()
     print(f"load_s={time.monotonic() - t:.2f}")
-    stream = eng.open_stream(args.language)
+    stream = eng.open_stream(args.language, not args.raw)
     chunk = 1600
     t0 = time.monotonic()
     first_partial = None
@@ -176,6 +215,8 @@ def main(argv: list[str] | None = None) -> None:
     s.add_argument("--port", type=int, default=8787)
     s.add_argument("--final-engine", choices=["qwen3", "fake"], default="qwen3")
     s.add_argument("--live-engine", choices=["nemotron", "fake", "none"], default="nemotron")
+    s.add_argument("--dashboard-port", type=int, default=8790,
+                   help="local quality dashboard on 127.0.0.1 (0 disables)")
     s.set_defaults(fn=cmd_serve)
 
     sub.add_parser("pair").set_defaults(fn=cmd_pair)
@@ -189,12 +230,18 @@ def main(argv: list[str] | None = None) -> None:
     sf = sub.add_parser("smoke-final")
     sf.add_argument("wav")
     sf.add_argument("--engine", default="qwen3", choices=["qwen3", "fake"])
+    for sp in (sf,):
+        sp.add_argument("--languages", default="ko,en", help="memo language list, priority order")
     sf.set_defaults(fn=cmd_smoke_final)
     sl = sub.add_parser("smoke-live")
     sl.add_argument("wav")
     sl.add_argument("--engine", default="nemotron", choices=["nemotron", "fake"])
     sl.add_argument("--language", default="auto")
     sl.set_defaults(fn=cmd_smoke_live)
+    for sp in (sf, sl):
+        sp.add_argument("--raw", action="store_true", help="skip input conditioning")
+        sp.add_argument("--attenuate-db", type=float, default=0.0, help="quiet-input test: gain in dB, e.g. -25")
+        sp.add_argument("--lf-noise-dbfs", type=float, default=None, help="add 30-150 Hz noise at this RMS level")
 
     args = ap.parse_args(argv)
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")

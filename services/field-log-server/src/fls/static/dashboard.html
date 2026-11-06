@@ -1,0 +1,204 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Field Voice Log - quality dashboard</title>
+<style>
+:root { color-scheme: light dark; --bg:#fafafa; --fg:#161616; --muted:#555; --card:#fff; --line:#c9c9c9; --accent:#0b5fd1; --good:#0a7a2f; --bad:#b3261e; --warn:#8a5a00; --wave:#0b5fd1; --grid:#9993; }
+@media (prefers-color-scheme: dark) { :root { --bg:#121212; --fg:#f0f0f0; --muted:#b5b5b5; --card:#1c1c1c; --line:#444; --accent:#7ab2ff; --good:#5fd486; --bad:#ff8a80; --warn:#ffcc66; --wave:#7ab2ff; } }
+* { box-sizing: border-box; }
+body { margin:0; background:var(--bg); color:var(--fg); font:18px/1.45 system-ui, sans-serif; }
+header { padding:12px 20px; border-bottom:1px solid var(--line); display:flex; gap:16px; align-items:baseline; flex-wrap:wrap; }
+h1 { font-size:1.25rem; margin:0; } h2 { font-size:1.15rem; margin:0 0 .4rem; }
+main { padding:16px 20px; max-width:1400px; margin:auto; }
+a, button { color:var(--accent); }
+button { font:inherit; padding:.35em .8em; border:2px solid var(--accent); background:transparent; border-radius:6px; cursor:pointer; }
+button:hover { background:var(--accent); color:var(--bg); }
+:focus-visible { outline:3px solid var(--warn); outline-offset:2px; }
+table { border-collapse:collapse; width:100%; }
+th, td { text-align:left; padding:.4em .6em; border-bottom:1px solid var(--line); vertical-align:top; }
+th { font-weight:600; color:var(--muted); }
+tr.memo-row { cursor:pointer; } tr.memo-row:hover { background:#8882; }
+.card { background:var(--card); border:1px solid var(--line); border-radius:10px; padding:14px 16px; margin:14px 0; }
+.muted { color:var(--muted); } .good { color:var(--good); } .bad { color:var(--bad); } .warn { color:var(--warn); }
+.pill { display:inline-block; border:1px solid var(--line); border-radius:99px; padding:0 .6em; margin-right:.3em; font-size:.85rem; }
+canvas, img.spec { width:100%; display:block; border:1px solid var(--line); border-radius:6px; background:var(--bg); }
+canvas { height:180px; } img.spec { height:140px; image-rendering:auto; }
+audio { width:100%; margin:.3rem 0; }
+.grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:4px 18px; margin:.6rem 0; }
+.grid div b { color:var(--muted); font-weight:500; }
+textarea { width:100%; font:inherit; background:var(--bg); color:var(--fg); border:1px solid var(--line); border-radius:6px; padding:.4em; }
+.text { white-space:pre-wrap; word-break:break-word; }
+.thumbs img { height:90px; border-radius:6px; margin-right:6px; border:1px solid var(--line); }
+.formula { font-family:ui-monospace, monospace; font-size:.9rem; color:var(--muted); }
+</style>
+</head>
+<body>
+<header>
+  <h1><a href="#" id="home" style="text-decoration:none">Field Voice Log - quality dashboard</a></h1>
+  <span class="muted">Local only (127.0.0.1). Audio plays only when you press play.</span>
+</header>
+<main id="main" aria-live="polite"></main>
+<script>
+"use strict";
+const $main = document.getElementById("main");
+const el = (tag, props = {}, ...kids) => {
+  const e = document.createElement(tag);
+  for (const [k, v] of Object.entries(props)) {
+    if (k === "class") e.className = v; else if (k.startsWith("on")) e.addEventListener(k.slice(2), v);
+    else if (v !== null && v !== undefined) e.setAttribute(k, v);
+  }
+  for (const kid of kids.flat()) if (kid !== null && kid !== undefined) e.append(kid.nodeType ? kid : document.createTextNode(String(kid)));
+  return e;
+};
+const api = async (path, opts) => { const r = await fetch(path, opts); if (!r.ok) throw new Error(path + " -> " + r.status); return r.json(); };
+const fmtTime = ms => ms ? new Date(ms).toLocaleString() : "-";
+const statusClass = s => s === "done" ? "good" : s === "failed" ? "bad" : "warn";
+let timer = null;
+
+async function showList() {
+  clearTimeout(timer);
+  const data = await api("/dash/api/memos");
+  const rows = data.memos.map(m => el("tr", { class: "memo-row", tabindex: "0", role: "link",
+      onclick: () => location.hash = "memo=" + m.memo_id,
+      onkeydown: e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); location.hash = "memo=" + m.memo_id; } } },
+    el("td", {}, fmtTime(m.created_wall_ms)),
+    el("td", {}, m.kind || "-"),
+    el("td", {}, m.location ? `${m.location.lat.toFixed(5)}, ${m.location.lon.toFixed(5)} (±${m.location.accuracy_m.toFixed(0)} m)` : "-"),
+    el("td", {}, String(m.segment_count)),
+    el("td", { class: statusClass(m.final_status) }, m.final_status),
+    el("td", {}, m.flags.map(f => el("span", { class: "pill" }, f))),
+    el("td", { class: "thumbs" }, m.photos.length ? m.photos.slice(0, 3).map(p => el("img", { src: "/dash/api/objects/" + p.sha256, alt: "photo", loading: "lazy", style: "height:48px" })) : (m.photo_count ? m.photo_count + " photo(s)" : "-"))));
+  $main.replaceChildren(
+    el("h2", {}, `Memos (${data.memos.length}, newest first)`),
+    el("table", {}, el("thead", {}, el("tr", {}, ["Time", "Kind", "Location", "Segments", "Final", "Flags", "Photos"].map(h => el("th", {}, h)))),
+      el("tbody", {}, rows)));
+}
+
+function drawWave(canvas, pk) {
+  const dpr = window.devicePixelRatio || 1, w = canvas.clientWidth, h = canvas.clientHeight;
+  canvas.width = w * dpr; canvas.height = h * dpr;
+  const g = canvas.getContext("2d"); g.scale(dpr, dpr);
+  const css = getComputedStyle(document.documentElement);
+  const mid = h / 2;
+  g.font = "12px sans-serif"; g.fillStyle = css.getPropertyValue("--muted"); g.strokeStyle = css.getPropertyValue("--grid");
+  for (const db of [0, -6, -12, -24, -40]) {
+    const y = 10 ** (db / 20) * (mid - 2);
+    for (const yy of [mid - y, mid + y]) { g.beginPath(); g.moveTo(0, yy); g.lineTo(w, yy); g.stroke(); }
+    g.fillText(db + " dBFS", 4, mid - y - 2);
+  }
+  g.strokeStyle = css.getPropertyValue("--wave");
+  const n = pk.min.length;
+  for (let i = 0; i < n; i++) {
+    const x = (i + 0.5) * w / n;
+    g.beginPath(); g.moveTo(x, mid - pk.max[i] * (mid - 2)); g.lineTo(x, mid - pk.min[i] * (mid - 2) + 1); g.stroke();
+  }
+}
+
+function fmtCer(c) { return c === null || c === undefined ? "-" : (c * 100).toFixed(1) + "%"; }
+
+function segmentCard(memoId, s) {
+  const card = el("section", { class: "card", "aria-label": "Segment " + s.index });
+  const canvas = el("canvas", { role: "img", "aria-label": "Waveform" });
+  const spec = el("img", { class: "spec", alt: "Spectrogram", loading: "lazy" });
+  const condBox = el("input", { type: "checkbox", id: "c" + s.segment_id });
+  const table = el("div");
+  const refBox = el("textarea", { rows: "2", "aria-label": "Reference transcript" });
+  refBox.value = s.reference || "";
+  const refMsg = el("span", { class: "muted" });
+  let current = s;
+
+  const loadViz = async () => {
+    if (!s.audio_present) return;
+    const c = condBox.checked ? 1 : 0;
+    const pk = await api(`/dash/api/segments/${s.segment_id}/peaks?n=1200&conditioned=${c}`);
+    drawWave(canvas, pk);
+    spec.src = `/dash/api/segments/${s.segment_id}/spectrogram.png?conditioned=${c}`;
+  };
+  condBox.addEventListener("change", loadViz);
+
+  const renderTable = () => {
+    const rows = [];
+    if (current.final) {
+      const f = current.final;
+      rows.push(["final", f.engine || "-", "production (conditioned, memo languages)", f.status, f.language || "-", f.detect_path || "-", f.no_speech ? "(no speech)" : (f.text ?? ""), f.rtf, null, f.cer]);
+    }
+    for (const a of current.alts) rows.push([a.engine, a.variant, "", a.status, a.language || "-", a.detect_path || "-", a.status === "failed" ? "error: " + a.error : (a.text ?? ""), a.rtf, a.processing_ms, a.cer]);
+    table.replaceChildren(el("table", {},
+      el("thead", {}, el("tr", {}, ["Engine", "Variant", "Status", "Language", "Detection path", "Text", "RTF", "Time", "CER"].map(h => el("th", {}, h)))),
+      el("tbody", {}, rows.map(r => el("tr", {},
+        el("td", {}, r[0] === "final" ? r[1] : r[0]), el("td", {}, r[0] === "final" ? "final" : r[1]),
+        el("td", { class: statusClass(r[3]) }, r[3]), el("td", {}, r[4]), el("td", {}, r[5]),
+        el("td", { class: "text" }, r[6]), el("td", {}, r[7] == null ? "-" : r[7].toFixed(3)),
+        el("td", {}, r[8] == null ? "-" : (r[8] / 1000).toFixed(1) + " s"), el("td", {}, fmtCer(r[9])))))));
+  };
+
+  const refresh = async () => {
+    const d = await api("/dash/api/memos/" + memoId);
+    const seg = d.segments.find(x => x.segment_id === s.segment_id);
+    if (!seg) return;
+    current = seg; renderTable();
+    const busy = seg.alts.some(a => a.status === "queued" || a.status === "running") || (seg.final && ["queued", "running"].includes(seg.final.status));
+    clearTimeout(card._t); if (busy) card._t = setTimeout(refresh, 3000);
+  };
+
+  const metric = (k, v) => el("div", {}, el("b", {}, k + ": "), v ?? "-");
+  const eff = s.effects ? `ns ${s.effects.ns}, agc ${s.effects.agc}, aec ${s.effects.aec}` : "-";
+  card.append(
+    el("h2", {}, `Segment ${s.index}  `, el("span", { class: "muted" }, `${((s.duration_ms || 0) / 1000).toFixed(1)} s`)),
+    s.audio_present ? [
+      canvas,
+      el("label", {}, condBox, " show conditioned signal"),
+      spec,
+      el("div", {}, el("b", {}, "Raw audio"), el("audio", { controls: "", preload: "none", src: "/dash/api/objects/" + s.object_sha256 })),
+      el("div", {}, el("b", {}, "Conditioned audio (80 Hz high-pass, gain, limiter)"), el("audio", { controls: "", preload: "none", src: `/dash/api/segments/${s.segment_id}/conditioned.wav` })),
+    ] : el("p", { class: "warn" }, "Audio not uploaded yet."),
+    el("div", { class: "grid" },
+      metric("Peak", s.peak_dbfs == null ? null : s.peak_dbfs.toFixed(2) + " dBFS"), metric("Clipped samples", s.clipped_samples),
+      metric("High band >4 kHz", s.hf_ratio_4k_ppm == null ? null : s.hf_ratio_4k_ppm + " ppm"),
+      metric("Flags", s.flags.join(", ") || "none"), metric("Route", s.route ? `${s.route.type}${s.route.product_name ? " (" + s.route.product_name + ")" : ""}` : null),
+      metric("Source", s.source), metric("Effects", eff), metric("Recovered", s.recovered ? "yes" : "no"),
+      metric("Segment id", s.segment_id)),
+    el("h2", {}, "Transcripts"),
+    table,
+    el("p", {}, el("button", { onclick: async ev => { ev.target.disabled = true; await api(`/dash/api/segments/${s.segment_id}/compare`, { method: "POST" }); await refresh(); ev.target.disabled = false; } }, "Run comparison"),
+      " ", el("span", { class: "muted" }, "Queued behind real transcription jobs; results appear here.")),
+    el("h2", {}, "Reference transcript"),
+    refBox,
+    el("p", {}, el("button", { onclick: async () => {
+        await api(`/dash/api/segments/${s.segment_id}/reference`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ text: refBox.value }) });
+        refMsg.textContent = " saved"; await refresh(); } }, "Save reference and compute CER"), refMsg),
+    el("p", { class: "formula" }, "CER = (substitutions + deletions + insertions) / characters in the reference, after removing spaces and punctuation and lowercasing Latin letters (edit distance on characters).")
+  );
+  renderTable();
+  loadViz().catch(() => {});
+  if (current.alts.some(a => a.status === "queued" || a.status === "running")) card._t = setTimeout(refresh, 3000);
+  return card;
+}
+
+async function showMemo(id) {
+  clearTimeout(timer);
+  const d = await api("/dash/api/memos/" + id);
+  const head = el("div", { class: "card" },
+    el("h2", {}, `Memo ${d.kind} - ${fmtTime(d.created_wall_ms)}`),
+    el("div", { class: "grid" },
+      el("div", {}, el("b", {}, "Languages: "), d.languages.join(" > ")), el("div", {}, el("b", {}, "Time zone: "), d.tz || "-"),
+      el("div", {}, el("b", {}, "Device: "), d.device_id), el("div", {}, el("b", {}, "Memo id: "), d.memo_id),
+      el("div", {}, el("b", {}, "Location: "), d.location ? `${d.location.lat_e7 / 1e7}, ${d.location.lon_e7 / 1e7}` : "-")),
+    d.note ? el("p", { class: "text" }, "Note: " + d.note) : null,
+    el("div", { class: "thumbs" }, d.photos.map(p => el("a", { href: "/dash/api/objects/" + p.sha256, target: "_blank", rel: "noopener" }, el("img", { src: "/dash/api/objects/" + p.sha256, alt: "photo" })))));
+  $main.replaceChildren(el("p", {}, el("a", { href: "#" }, "< All memos")), head, ...d.segments.map(s => segmentCard(id, s)));
+}
+
+async function route() {
+  try {
+    const m = location.hash.match(/^#memo=(.+)$/);
+    await (m ? showMemo(decodeURIComponent(m[1])) : showList());
+  } catch (e) { $main.replaceChildren(el("p", { class: "bad" }, "Error: " + e.message)); }
+}
+window.addEventListener("hashchange", route);
+route();
+</script>
+</body>
+</html>

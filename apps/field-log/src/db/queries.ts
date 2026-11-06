@@ -30,8 +30,8 @@ export async function listMemos(limit = 200): Promise<MemoSummary[]> {
       (SELECT COUNT(*) FROM segments s WHERE s.memo_id = m.memo_id AND s.t_status = 'failed') AS seg_failed,
       (SELECT COUNT(*) FROM recordings r WHERE r.memo_id = m.memo_id AND r.stopped = 0) AS open_recs,
       (SELECT COUNT(*) FROM events e WHERE e.memo_id = m.memo_id AND e.acked = 0) AS pending_events,
-      (SELECT COUNT(*) FROM objects o WHERE o.memo_id = m.memo_id AND o.uploaded = 0) AS pending_objects
-     FROM memos m ORDER BY m.created_wall_ms DESC LIMIT ?`,
+      (SELECT COUNT(*) FROM objects o WHERE o.memo_id = m.memo_id AND o.uploaded = 0 AND o.skipped = 0) AS pending_objects
+     FROM memos m WHERE m.deleted = 0 ORDER BY m.created_wall_ms DESC LIMIT ?`,
     limit,
   );
   return rows.map((r) => ({
@@ -102,7 +102,7 @@ export interface MemoDetail {
 export async function getMemoDetail(memoId: string): Promise<MemoDetail | null> {
   const db = await getDb();
   const m = await db.getFirstAsync<Record<string, any>>('SELECT * FROM memos WHERE memo_id = ?', memoId);
-  if (!m) return null;
+  if (!m || m.deleted === 1) return null;
   const photos = await db.getAllAsync<Record<string, any>>('SELECT * FROM photos WHERE memo_id = ? ORDER BY created_wall_ms', memoId);
   const recs = await db.getAllAsync<Record<string, any>>(
     'SELECT * FROM recordings WHERE memo_id = ? ORDER BY start_elapsed_us',
@@ -110,7 +110,7 @@ export async function getMemoDetail(memoId: string): Promise<MemoDetail | null> 
   );
   const segs = await db.getAllAsync<Record<string, any>>('SELECT * FROM segments WHERE memo_id = ? ORDER BY start_wall_ms, idx', memoId);
   const pe = await db.getFirstAsync<{ n: number }>('SELECT COUNT(*) AS n FROM events WHERE memo_id = ? AND acked = 0', memoId);
-  const po = await db.getFirstAsync<{ n: number }>('SELECT COUNT(*) AS n FROM objects WHERE memo_id = ? AND uploaded = 0', memoId);
+  const po = await db.getFirstAsync<{ n: number }>('SELECT COUNT(*) AS n FROM objects WHERE memo_id = ? AND uploaded = 0 AND skipped = 0', memoId);
   return {
     memoId,
     kind: m.kind,

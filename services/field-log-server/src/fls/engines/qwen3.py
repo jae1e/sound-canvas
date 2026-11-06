@@ -7,27 +7,10 @@ import threading
 
 import numpy as np
 
+from ..langs import ISO_TO_QWEN, qwen_name_to_iso
 from .base import FinalResult
 
 log = logging.getLogger("fls.qwen3")
-
-LANG_CODES = {
-    "korean": "ko", "english": "en", "japanese": "ja", "chinese": "zh", "cantonese": "yue",
-    "german": "de", "french": "fr", "spanish": "es", "italian": "it", "portuguese": "pt",
-    "russian": "ru", "arabic": "ar", "hindi": "hi", "thai": "th", "vietnamese": "vi",
-    "indonesian": "id", "turkish": "tr",
-}
-
-
-def map_languages(name: str) -> str:
-    codes = []
-    for part in (name or "").split(","):
-        p = part.strip().lower()
-        if not p:
-            continue
-        codes.append(LANG_CODES.get(p, p[:3]))
-    return ",".join(codes)
-
 
 class Qwen3FinalEngine:
     name = "qwen3-asr-1.7b"
@@ -54,10 +37,13 @@ class Qwen3FinalEngine:
                 log.info("model loaded")
         return self._model
 
-    def transcribe(self, audio: np.ndarray, sample_rate: int, context: str = "") -> FinalResult:
+    def decode(self, audio: np.ndarray, sample_rate: int, context: str = "",
+               language: str | None = None) -> FinalResult:
         assert sample_rate == 16000
         model = self._load()
-        res = model.transcribe(audio=(audio.astype(np.float32), 16000), context=context, language=None)
+        forced = ISO_TO_QWEN[language] if language else None
+        res = model.transcribe(audio=(audio.astype(np.float32), 16000), context=context, language=forced)
         r = res[0]
         text = (r.text or "").strip()
-        return FinalResult(text=text, language=map_languages(r.language or ""), no_speech=not text)
+        lang = qwen_name_to_iso(r.language or "") or (language or "")
+        return FinalResult(text=text, language=lang, no_speech=not text)

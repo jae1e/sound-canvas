@@ -1,5 +1,5 @@
 import { getDb, writeTx } from './db';
-import type { EventEnvelope } from '../core';
+import { selectUploadable, type EventEnvelope } from '../core';
 
 export interface OutboxEvent {
   seq: number;
@@ -8,6 +8,8 @@ export interface OutboxEvent {
 }
 
 export interface OutboxObject {
+  skipped?: boolean;
+  memoDeleted?: boolean;
   sha256: string;
   path: string;
   mime: string;
@@ -37,10 +39,13 @@ export async function unackFrom(seq: number): Promise<void> {
 
 export async function pendingObjects(limit = 50): Promise<OutboxObject[]> {
   const db = await getDb();
-  return db.getAllAsync<OutboxObject>(
-    'SELECT sha256, path, mime, bytes FROM objects WHERE uploaded = 0 ORDER BY rowid LIMIT ?',
+  const rows = await db.getAllAsync<Omit<OutboxObject, 'skipped' | 'memoDeleted'> & { skipped: number; memoDeleted: number }>(
+    `SELECT o.sha256, o.path, o.mime, o.bytes, o.skipped AS skipped,
+       COALESCE((SELECT m.deleted FROM memos m WHERE m.memo_id = o.memo_id), 0) AS memoDeleted
+     FROM objects o WHERE o.uploaded = 0 AND o.skipped = 0 ORDER BY o.rowid LIMIT ?`,
     limit,
   );
+  return selectUploadable(rows.map((r) => ({ ...r, skipped: r.skipped === 1, memoDeleted: r.memoDeleted === 1 })));
 }
 
 export async function markUploaded(sha256: string): Promise<void> {
@@ -55,7 +60,16 @@ export async function outboxCounts(): Promise<{ events: number; objects: number;
   const db = await getDb();
   const e = await db.getFirstAsync<{ n: number }>('SELECT COUNT(*) AS n FROM events WHERE acked = 0');
   const o = await db.getFirstAsync<{ n: number; err: number }>(
-    'SELECT COUNT(*) AS n, COALESCE(SUM(last_error IS NOT NULL), 0) AS err FROM objects WHERE uploaded = 0',
+    'SELECT COUNT(*) AS n, COALESCE(SUM(last_error IS NOT NULL), 0) AS err FROM objects WHERE uploaded = 0 AND skipped = 0',
   );
   return { events: e?.n ?? 0, objects: o?.n ?? 0, objectErrors: o?.err ?? 0 };
+}
+
+export async function hasPendingTranscripts(): Promise<boolean> {
+  const db = await getDb();
+  const r = await db.getFirstAsync<{ n: number }>(
+    `SELECT COUNT(*) AS n FROM segments s JOIN memos m ON m.memo_id = s.memo_id
+     WHERE m.deleted = 0 AND s.t_status IN ('queued', 'running')`,
+  );
+  return (r?.n ?? 0) > 0;
 }

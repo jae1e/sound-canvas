@@ -20,7 +20,7 @@ export async function applyTranscripts(segs: TranscriptSegmentWire[]): Promise<v
     for (const s of segs) {
       await q.runAsync(
         `UPDATE segments SET t_status = ?, t_text = ?, t_language = ?, t_no_speech = ?, t_error = ?, t_updated_server_ms = ?
-         WHERE segment_id = ? AND (t_updated_server_ms IS NULL OR t_updated_server_ms <= ?)`,
+         WHERE segment_id = ? AND memo_id NOT IN (SELECT memo_id FROM memos WHERE deleted = 1) AND (t_updated_server_ms IS NULL OR t_updated_server_ms <= ?)`,
         s.status,
         s.text ?? '',
         s.language ?? null,

@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { Alert, ScrollView, Switch, Text, TextInput, View } from 'react-native';
+import { Alert, Pressable, ScrollView, Switch, Text, TextInput, View } from 'react-native';
+import { KNOWN_LANGUAGES, moveLanguage, toggleLanguage } from '../src/core';
 import { useLang, useT } from '../src/i18n';
 import FlNative, { type Capabilities } from '../src/native';
 import { updateSetting, useSettings, type SourceChoice, type UiLang } from '../src/state/settings';
@@ -30,6 +31,47 @@ function Choices<T extends string | number | null>(props: {
         );
       })}
     </View>
+  );
+}
+
+function LanguageList() {
+  const t = useT();
+  const languages = useSettings((x) => x.languages);
+  const enabled = languages;
+  const disabled = KNOWN_LANGUAGES.filter((l) => !enabled.includes(l.code));
+  const rows = [...enabled.map((code) => ({ code, on: true })), ...disabled.map((l) => ({ code: l.code, on: false }))];
+  const label = (code: string) => KNOWN_LANGUAGES.find((l) => l.code === code)?.label ?? code;
+  return (
+    <View>
+      {rows.map(({ code, on }, i) => (
+        <View key={code} style={[s.card, s.row, { justifyContent: 'space-between' }]}>
+          <Text style={s.body}>{`${on ? i + 1 : '–'}. ${label(code)}`}</Text>
+          <View style={s.row}>
+            {on && (
+              <>
+                <MiniButton label="▲" a11y={t('moveUp')} disabled={i === 0} onPress={() => void updateSetting('languages', moveLanguage(languages, code, -1))} />
+                <MiniButton label="▼" a11y={t('moveDown')} disabled={i === enabled.length - 1} onPress={() => void updateSetting('languages', moveLanguage(languages, code, 1))} />
+              </>
+            )}
+            <Switch value={on} disabled={on && languages.length <= 1} onValueChange={() => void updateSetting('languages', toggleLanguage(languages, code))} />
+          </View>
+        </View>
+      ))}
+    </View>
+  );
+}
+
+function MiniButton(props: { label: string; a11y: string; disabled?: boolean; onPress: () => void }) {
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={props.a11y}
+      disabled={props.disabled}
+      onPress={props.onPress}
+      style={{ minWidth: 52, minHeight: 52, alignItems: 'center', justifyContent: 'center', opacity: props.disabled ? 0.3 : 1 }}
+    >
+      <Text style={{ fontSize: 24, color: colors.primary }}>{props.label}</Text>
+    </Pressable>
   );
 }
 
@@ -100,17 +142,10 @@ export default function Settings() {
         <Text style={s.body}>{st.liveEnabled ? t('on') : t('off')}</Text>
         <Switch value={st.liveEnabled} onValueChange={(v) => void updateSetting('liveEnabled', v)} />
       </View>
-      <Text style={s.small}>{t('language')}</Text>
-      <Choices
-        value={st.language}
-        options={[
-          { value: 'auto', label: t('auto') },
-          { value: 'ko', label: '한국어' },
-          { value: 'en', label: 'English' },
-        ]}
-        onChange={(v) => void updateSetting('language', v)}
-      />
 
+      <Text style={s.h2}>{t('languagePriority')}</Text>
+      <Text style={s.small}>{t('languagesHint')}</Text>
+      <LanguageList />
       <Text style={s.h2}>{t('uiLanguage')}</Text>
       <Choices<UiLang>
         value={st.uiLang}

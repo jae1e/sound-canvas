@@ -375,6 +375,7 @@ source = { editable = "." }
 dependencies = [
     { name = "fastapi" },
     { name = "numpy" },
+    { name = "scipy" },
     { name = "soundfile" },
     { name = "uvicorn", extra = ["standard"] },
 ]
@@ -397,6 +398,7 @@ requires-dist = [
     { name = "fastapi", specifier = ">=0.115" },
     { name = "numpy", specifier = ">=1.26" },
     { name = "qwen-asr", marker = "extra == 'asr'" },
+    { name = "scipy", specifier = ">=1.11" },
     { name = "sherpa-onnx", marker = "extra == 'asr'", specifier = ">=2.0" },
     { name = "soundfile", specifier = ">=0.12" },
     { name = "torch", marker = "extra == 'asr'" },

@@ -32,6 +32,33 @@ log = logging.getLogger("fls.app")
 MAX_FRAME_BYTES = 64 * 1024
 
 
+class ChangeNotifier:
+    """Wakes long-poll requests when any transcript row changes (callable from any thread)."""
+
+    def __init__(self) -> None:
+        self._lock = threading.Lock()
+        self._waiters: set[tuple[asyncio.AbstractEventLoop, asyncio.Event]] = set()
+
+    def register(self) -> tuple[asyncio.AbstractEventLoop, asyncio.Event]:
+        w = (asyncio.get_running_loop(), asyncio.Event())
+        with self._lock:
+            self._waiters.add(w)
+        return w
+
+    def unregister(self, w) -> None:
+        with self._lock:
+            self._waiters.discard(w)
+
+    def notify(self) -> None:
+        with self._lock:
+            waiters = list(self._waiters)
+        for loop, ev in waiters:
+            try:
+                loop.call_soon_threadsafe(ev.set)
+            except RuntimeError:  # loop already closed
+                pass
+
+
 @dataclass
 class State:
     paths: Paths
@@ -40,6 +67,7 @@ class State:
     final_engine: FinalEngine
     live_engine: StreamingEngine | None
     worker: Worker
+    notifier: ChangeNotifier
     limiter: auth.EnrollLimiter = field(default_factory=auth.EnrollLimiter)
     live_active: int = 0
     live_lock: threading.Lock = field(default_factory=threading.Lock)
@@ -54,7 +82,9 @@ def create_app(data_dir: Path, final_engine: FinalEngine, live_engine: Streaming
     paths.ensure()
     db = Database(paths.db)
     store = ObjectStore(paths.objects)
-    state = State(paths, db, store, final_engine, live_engine, Worker(db, store, final_engine))
+    notifier = ChangeNotifier()
+    state = State(paths, db, store, final_engine, live_engine,
+                  Worker(db, store, final_engine, live_engine, notifier.notify), notifier)
 
     def _preload_live() -> None:
         try:
@@ -155,6 +185,7 @@ def create_app(data_dir: Path, final_engine: FinalEngine, live_engine: Streaming
             c.execute("INSERT OR IGNORE INTO object_owners(sha256, device_id) VALUES (?,?)", (sha, dev))
         if enqueue_for_object(db, sha):
             state.worker.notify()
+            notifier.notify()
         log.info("object put sha=%s size=%d created=%s", sha[:12], size, created)
         return JSONResponse({"sha256": sha, "size": size}, status_code=201 if created else 200)
 
@@ -184,9 +215,10 @@ def create_app(data_dir: Path, final_engine: FinalEngine, live_engine: Streaming
             raise HTTPException(422, "bad body") from None
         if len(events) > MAX_EVENTS_PER_BATCH:
             raise HTTPException(413, f"at most {MAX_EVENTS_PER_BATCH} events per request")
-        results, last, enq = await asyncio.to_thread(ingest, db, dev, events, state.store.exists)
+        results, last, enq = await asyncio.to_thread(ingest, db, dev, events, state.store.exists, state.store.path)
         if enq:
             state.worker.notify()
+        notifier.notify()  # new queued rows, or rows removed by a deletion
         acc = sum(r["status"] == "accepted" for r in results)
         log.info("events device=%s n=%d accepted=%d last_seq=%d", dev, len(events), acc, last)
         return {"results": results, "last_seq": last}
@@ -209,17 +241,44 @@ def create_app(data_dir: Path, final_engine: FinalEngine, live_engine: Streaming
 
     @app.get("/v1/memos/{memo_id}/transcript")
     def memo_transcript(memo_id: str, dev: str = Depends(device_id)):
+        m = db.one("SELECT deleted_server_ms FROM memos WHERE device_id=? AND memo_id=?", (dev, memo_id))
+        if m is not None and m["deleted_server_ms"] is not None:
+            raise HTTPException(404, "memo deleted")
         rows = db.query("SELECT * FROM transcripts WHERE device_id=? AND memo_id=? ORDER BY idx, segment_id",
                         (dev, memo_id))
         return {"memo_id": memo_id, "segments": [_segment_json(r) for r in rows]}
 
     @app.get("/v1/transcripts")
-    def transcripts(since_server_ms: int = 0, dev: str = Depends(device_id)):
-        now = now_ms()
-        rows = db.query(
-            "SELECT * FROM transcripts WHERE device_id=? AND updated_server_ms>=? "
-            "ORDER BY updated_server_ms, segment_id", (dev, since_server_ms))
-        return {"segments": [_segment_json(r) for r in rows], "now_server_ms": now}
+    async def transcripts(since_server_ms: int = 0, wait_s: int | None = None, dev: str = Depends(device_id)):
+        if wait_s is not None and not 1 <= wait_s <= 25:
+            raise HTTPException(422, "wait_s must be 1..25")
+
+        def query():
+            now = now_ms()
+            rows = db.query(
+                "SELECT * FROM transcripts WHERE device_id=? AND updated_server_ms>=? "
+                "ORDER BY updated_server_ms, segment_id", (dev, since_server_ms))
+            return rows, now
+
+        if wait_s is None:
+            rows, now = query()
+            return {"segments": [_segment_json(r) for r in rows], "now_server_ms": now}
+        # Long poll: register first so a change between the query and the wait is not missed.
+        waiter = notifier.register()
+        try:
+            deadline = time.monotonic() + wait_s
+            while True:
+                waiter[1].clear()
+                rows, now = query()
+                left = deadline - time.monotonic()
+                if rows or left <= 0:
+                    return {"segments": [_segment_json(r) for r in rows], "now_server_ms": now}
+                try:
+                    await asyncio.wait_for(waiter[1].wait(), timeout=left)
+                except asyncio.TimeoutError:
+                    pass
+        finally:
+            notifier.unregister(waiter)
 
     # ---------------------------------------------------------------- live preview
     @app.websocket("/v1/live")

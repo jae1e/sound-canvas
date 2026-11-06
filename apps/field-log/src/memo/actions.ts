@@ -2,11 +2,11 @@ import { getCalendars } from 'expo-localization';
 import { Directory, File, Paths } from 'expo-file-system';
 import type { ImagePickerAsset } from 'expo-image-picker';
 import { PermissionsAndroid, Platform } from 'react-native';
-import { exifToWallMs, type LocationPayload } from '../core';
+import { exifToWallMs, objectsToSkip, type LocationPayload } from '../core';
 import { writeTx } from '../db/db';
 import { appendEvent, newId } from '../db/events';
-import FlNative from '../native';
-import { applyStatus } from '../state/recorder';
+import FlNative, { type LiveLanguage } from '../native';
+import { applyStatus, useRecorder } from '../state/recorder';
 import { useSettings } from '../state/settings';
 import { liveUrl } from '../sync/api';
 import { triggerSync } from '../sync/engine';
@@ -42,7 +42,7 @@ export async function createMemo(kind: MemoKind, location?: LocationPayload): Pr
       wallMs: now.wallMs,
       elapsedUs: now.elapsedUs,
       bootCount: now.bootCount,
-      payload: { memo_id: memoId, kind, tz, retention_class: 'standard', location },
+      payload: { memo_id: memoId, kind, tz, retention_class: 'standard', languages: useSettings.getState().languages, location },
     });
   });
   triggerSync();
@@ -176,7 +176,7 @@ export async function startMemoRecording(memoId: string): Promise<void> {
     location,
     live:
       s.liveEnabled && s.token
-        ? { url: liveUrl(s.serverUrl), token: s.token, language: s.language }
+        ? { url: liveUrl(s.serverUrl), token: s.token, language: (s.languages[0] ?? 'ko') as LiveLanguage }
         : undefined,
   });
   applyStatus(await FlNative.getStatus());
@@ -187,4 +187,61 @@ export async function stopMemoRecording(): Promise<void> {
   const location = await fastLocation(400);
   await FlNative.stopRecording(location);
   applyStatus(await FlNative.getStatus());
+}
+
+const toUri = (p: string) => (p.startsWith('file://') ? p : `file://${p}`);
+
+/** Deletes a memo (api-v0 section 8). Throws 'RECORDING' while the memo is being recorded. */
+export async function deleteMemo(memoId: string): Promise<void> {
+  const rec = useRecorder.getState();
+  if (rec.recording && rec.memoId === memoId) throw new Error('RECORDING');
+  const status = await FlNative.getStatus();
+  if (status.recording && status.memoId === memoId) throw new Error('RECORDING');
+
+  const now = FlNative.clock();
+  let files: string[] = [];
+  await writeTx(async (q) => {
+    const segs = await q.getAllAsync<{ path: string }>('SELECT path FROM segments WHERE memo_id = ?', memoId);
+    const photos = await q.getAllAsync<{ path: string }>('SELECT path FROM photos WHERE memo_id = ?', memoId);
+    files = [...segs, ...photos].map((r) => r.path);
+    await appendEvent(q, {
+      type: 'memo_deleted',
+      memoId,
+      wallMs: now.wallMs,
+      elapsedUs: now.elapsedUs,
+      bootCount: now.bootCount,
+      payload: { memo_id: memoId },
+    });
+    const others = await q.getAllAsync<{ sha256: string }>(
+      `SELECT sha256 FROM photos WHERE memo_id <> ? AND memo_id NOT IN (SELECT memo_id FROM memos WHERE deleted = 1)
+       UNION SELECT sha256 FROM segments WHERE memo_id <> ? AND memo_id NOT IN (SELECT memo_id FROM memos WHERE deleted = 1)`,
+      memoId,
+      memoId,
+    );
+    const shared = new Set(others.map((o) => o.sha256));
+    const pending = await q.getAllAsync<{ sha256: string; memo_id: string | null; uploaded: number }>(
+      'SELECT sha256, memo_id, uploaded FROM objects WHERE memo_id = ?',
+      memoId,
+    );
+    const skip = objectsToSkip(
+      pending.map((o) => ({ sha256: o.sha256, memoId: o.memo_id, uploaded: o.uploaded === 1 })),
+      memoId,
+      shared,
+    );
+    for (const o of skip) await q.runAsync('UPDATE objects SET skipped = 1 WHERE sha256 = ?', o.sha256);
+    await q.runAsync('UPDATE memos SET deleted = 1, note = NULL WHERE memo_id = ?', memoId);
+    await q.runAsync(
+      "UPDATE segments SET t_text = '', t_error = NULL, t_language = NULL WHERE memo_id = ?",
+      memoId,
+    );
+  });
+  for (const p of files) {
+    try {
+      const f = new File(toUri(p));
+      if (f.exists) f.delete();
+    } catch {
+      // already missing or not deletable: nothing more to do
+    }
+  }
+  triggerSync();
 }
