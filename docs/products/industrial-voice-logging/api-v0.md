@@ -129,6 +129,8 @@ Server behaviour:
   "engine": "qwen3-asr-1.7b",
   "text": "…", "language": "ko",
   "no_speech": false,
+  "no_speech_reason": null,
+  "speech_ms": 0,
   "confidence": null,
   "words": [{"text": "…", "start_ms": 0, "end_ms": 0}],
   "rtf": 0.02,
@@ -140,6 +142,13 @@ Server behaviour:
 - `words` and `confidence` may be `null` when the engine does not provide them.
 - Segment times are relative to the segment start.
 - A segment with `no_speech: true` is shown as "no speech", never as text.
+- `no_speech_reason` (v0.2, 2026-11-06) is `null` when speech was found, otherwise one of:
+  - `"silent"`: below the energy gate;
+  - `"no_voice"`: the voice-activity detector found too little speech;
+  - `"stock_phrase"`: the model returned a phrase that ASR models typically invent on non-speech audio, such as "감사합니다", "안녕하세요" or "Thank you.", while the detected speech was too short to support it;
+  - `"echo"`: the output repeated the context string.
+- `speech_ms` is the speech duration the voice-activity detector found in the segment, or `null` when it was not run.
+- **Transcribe anyway.** `POST /v1/segments/{segment_id}/retranscribe` with body `{"force": true}` re-runs the final engine without the no-speech checks, for the segment's own device only. It returns 202, and the new result arrives through the normal transcript pull.
 
 ## 5. Live preview WebSocket
 
