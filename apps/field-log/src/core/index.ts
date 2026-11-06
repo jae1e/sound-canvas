@@ -15,3 +15,4 @@ export * from './controls';
 export * from './waveform';
 export * from './inputs';
 export * from './titles';
+export * from './autostop';

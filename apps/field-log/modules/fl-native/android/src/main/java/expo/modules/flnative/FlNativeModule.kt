@@ -26,7 +26,7 @@ class FlNativeModule : Module() {
     Events("onLevel", "onJournal", "onLive", "onWave", "onCapture", "onPlayback", "onInputs")
 
     OnCreate {
-      appContext.reactContext?.let { Engine.init(it); Inputs.register(it) }
+      appContext.reactContext?.let { Engine.init(it); Inputs.register(it); AutoStop.register(it) }
       Engine.sink = { event, payload -> sendEvent(event, payload) }
     }
     OnDestroy {
@@ -106,6 +106,11 @@ class FlNativeModule : Module() {
       val ctx = context
       Inputs.init(ctx)
       io.execute { run(promise, "ERR_INPUT") { Inputs.event() } }
+    }
+
+    AsyncFunction("setAutoStop") { options: Map<String, Any?> ->
+      val (leave, keepOff) = AutoStop.get(context)
+      AutoStop.set(context, options["onLeaveApp"] as? Boolean ?: leave, options["keepWhenScreenOff"] as? Boolean ?: keepOff)
     }
 
     AsyncFunction("getStatus") { Engine.status() }

@@ -17,6 +17,11 @@ import {
   journalRecordToEvent,
   mergeTranscript,
   segmentStartsMs,
+  DEFAULT_AUTO_STOP,
+  parseSwitch,
+  autoStopPayload,
+  leftAppRecordings,
+  stopReasonKey,
   normaliseTitle,
   titleChanged,
   titlePayload,
@@ -538,16 +543,15 @@ describe('input preference', () => {
     expect(liveLanguageFor(['en'])).toBe('en');
     expect(liveLanguageFor(['ko'])).toBe('ko');
   });
-  it('maps route reasons to notices', () => {
-    expect(switchNoticeKey('device_connected')).toBe('switchConnected');
+  it('maps route reasons to notices (disconnect or system only)', () => {
     expect(switchNoticeKey('device_disconnected')).toBe('switchDisconnected');
-    expect(switchNoticeKey('user')).toBe('switchUser');
+    expect(switchNoticeKey('system')).toBe('switchSystem');
     expect(switchNoticeKey(undefined)).toBe('switchSystem');
   });
   it('carries the reason into the route_changed event', () => {
-    const e = journalRecordToEvent({ journalSeq: 1, kind: 'route_changed', memoId: 'm', recordingId: 'r', wallMs: 1, elapsedUs: 2, bootCount: 3, route: { type: 'bluetooth_sco', productName: 'Buds' }, reason: 'device_connected' });
-    expect(e.payload).toMatchObject({ reason: 'device_connected', route: { type: 'bluetooth_sco', product_name: 'Buds' } });
-    expect(canonicalJson(e.payload)).toContain('"reason":"device_connected"');
+    const e = journalRecordToEvent({ journalSeq: 1, kind: 'route_changed', memoId: 'm', recordingId: 'r', wallMs: 1, elapsedUs: 2, bootCount: 3, route: { type: 'bluetooth_sco', productName: 'Buds' }, reason: 'device_disconnected' });
+    expect(e.payload).toMatchObject({ reason: 'device_disconnected', route: { type: 'bluetooth_sco', product_name: 'Buds' } });
+    expect(canonicalJson(e.payload)).toContain('"reason":"device_disconnected"');
   });
 });
 
@@ -611,5 +615,32 @@ describe('date labels', () => {
   it('formats durations', () => {
     expect(durationLabel(42000)).toBe('0:42');
     expect(durationLabel(3725000)).toBe('1:02:05');
+  });
+});
+
+describe('auto stop', () => {
+  it('defaults both switches on', () => {
+    expect(DEFAULT_AUTO_STOP).toEqual({ onLeaveApp: true, keepWhenScreenOff: true });
+    expect(parseSwitch(null, true)).toBe(true);
+    expect(parseSwitch('0', true)).toBe(false);
+    expect(parseSwitch('1', false)).toBe(true);
+  });
+  it('builds the native payload', () => {
+    expect(autoStopPayload({ stopOnLeaveApp: false, keepWhenScreenOff: true })).toEqual({ onLeaveApp: false, keepWhenScreenOff: true });
+  });
+  it('finds left_app stops and labels them', () => {
+    const recs = [
+      { kind: 'recording_stopped', recordingId: 'a', reason: 'user' },
+      { kind: 'recording_stopped', recordingId: 'b', reason: 'left_app' },
+      { kind: 'segment_closed', recordingId: 'c' },
+    ];
+    expect(leftAppRecordings(recs)).toEqual(['b']);
+    expect(stopReasonKey('left_app')).toBe('stoppedLeftApp');
+    expect(stopReasonKey('user')).toBeNull();
+    expect(stopReasonKey(null)).toBeNull();
+  });
+  it('maps a left_app journal record to the event reason', () => {
+    const e = journalRecordToEvent({ journalSeq: 1, kind: 'recording_stopped', memoId: 'm', recordingId: 'r', wallMs: 1, elapsedUs: 2, bootCount: 3, reason: 'left_app' });
+    expect(e.payload).toMatchObject({ reason: 'left_app' });
   });
 });

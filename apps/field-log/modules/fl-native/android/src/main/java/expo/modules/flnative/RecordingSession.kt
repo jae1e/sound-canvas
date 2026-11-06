@@ -30,7 +30,9 @@ import java.io.RandomAccessFile
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import java.security.MessageDigest
+import expo.modules.flnative.core.InputInfo
 import expo.modules.flnative.core.InputPref
+import expo.modules.flnative.core.InputResolver
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.Executors
 import java.util.concurrent.RejectedExecutionException
@@ -72,8 +74,10 @@ class RecordingSession(private val context: Context, private val opts: StartOpti
   private val control = Any()
   private var sourceName = "MIC"
   @Volatile private var targetDevice: AudioDeviceInfo? = null
-  @Volatile private var prefOverride: InputPref? = opts.input
-  @Volatile private var pausedReason: String? = null
+  /** The input chosen at start and locked for the whole session (api-v0 section 6, "Input selection"). */
+  @Volatile private var lockedInfo: InputInfo? = null
+  /** Set once the locked device is gone (or never came up): the rest of the session stays on the built-in mic. */
+  @Volatile private var forcedBuiltin = false
   private val routeLock = Any()
   @Volatile private var pendingReason: String? = null
   @Volatile var inputName = "Phone mic"; private set
@@ -125,7 +129,9 @@ class RecordingSession(private val context: Context, private val opts: StartOpti
   /** Starts capture. Throws [CaptureStartException] on failure (everything is released). */
   fun begin(): Map<String, Any?> {
     try {
-      targetDevice = resolveTarget()
+      val chosen = Inputs.resolve(opts.input ?: Inputs.preference())
+      lockedInfo = chosen?.info
+      targetDevice = chosen?.device
       val default = if (Devices.unprocessedSupported(context)) "UNPROCESSED" else "VOICE_RECOGNITION"
       val first = opts.source ?: default
       val order = listOf("UNPROCESSED", "VOICE_RECOGNITION", "MIC")
@@ -181,6 +187,7 @@ class RecordingSession(private val context: Context, private val opts: StartOpti
         clearCommunicationDevice()
         builtinDevice()?.let { d = it }
         targetDevice = d
+        forcedBuiltin = true
       }
       rec.setPreferredDevice(d)
     }
@@ -249,7 +256,10 @@ class RecordingSession(private val context: Context, private val opts: StartOpti
     synchronized(control) {
       if (finished || !paused) return
       try {
-        targetDevice = resolveTarget() // the preference is re-resolved on every resume
+        // Re-acquire the locked device if it is still there, otherwise the built-in microphone (never re-resolve).
+        val lockedGone = lockedGone()
+        if (lockedGone) forcedBuiltin = true
+        targetDevice = if (forcedBuiltin) builtinDevice() else lockedEntry()?.device ?: builtinDevice()
         val rec = startCapture(listOf(sourceName))
         val routed = rec.routedDevice ?: targetDevice
         val route = Devices.route(routed)
@@ -258,10 +268,9 @@ class RecordingSession(private val context: Context, private val opts: StartOpti
         val key = routeKey(route)
         if (key != lastRouteKey) {
           lastRouteKey = key
-          val reason = pausedReason ?: Inputs.recentReason() ?: "system"
+          val reason = if (forcedBuiltin && lockedInfo?.type != InputResolver.BUILTIN) "device_disconnected" else "system"
           Engine.notifyJournal(journal.append("route_changed", opts.memoId, opts.recordingId, mapOf("route" to route, "reason" to reason)))
         }
-        pausedReason = null
         pendingBoundary.set(null)
         anchored = false
         pauseRequested = false
@@ -338,11 +347,18 @@ class RecordingSession(private val context: Context, private val opts: StartOpti
 
   private fun builtinDevice(): AudioDeviceInfo? = Inputs.entries().firstOrNull { it.info.type == "builtin_mic" }?.device
 
-  private fun currentPref(): InputPref = prefOverride ?: Inputs.preference()
-  private fun resolveTarget(): AudioDeviceInfo? = Inputs.resolve(currentPref())?.device
+  /** The currently connected entry for the locked device (matched by type, name and address hash, never by id). */
+  private fun lockedEntry(): Inputs.Entry? {
+    val l = lockedInfo ?: return null
+    val pref = InputPref.Device(l.type, l.productName, l.addressHash)
+    return Inputs.entries().firstOrNull { InputResolver.matches(pref, it.info) }
+  }
 
-  /** Called when setInputPreference replaces a per-recording preference passed to startRecording. */
-  fun clearInputOverride() { prefOverride = null }
+  /** True when the locked device is a headset that is no longer connected. */
+  private fun lockedGone(): Boolean {
+    val l = lockedInfo ?: return false
+    return l.type != InputResolver.BUILTIN && lockedEntry() == null
+  }
 
   private fun acquireWakeLock() {
     val pm = context.getSystemService(Context.POWER_SERVICE) as PowerManager
@@ -363,47 +379,55 @@ class RecordingSession(private val context: Context, private val opts: StartOpti
     } catch (_: RejectedExecutionException) {}
   }
 
-  /** Compares the actual routed device with the last journaled route; queues one boundary per actual change. */
+  /**
+   * Compares the actual routed device with the last journaled route; queues one boundary per actual change.
+   * A move off a locked headset onto the built-in microphone is a disconnect (device removed or SCO dropped).
+   */
   private fun reconcile(rec: AudioRecord?) {
     val d = rec?.routedDevice ?: return
     val route = Devices.route(d)
     val key = routeKey(route)
     if (key == lastRouteKey) { pendingReason = null; return }
     lastRouteKey = key
-    val reason = pendingReason ?: Inputs.recentReason() ?: "system"
+    val leftLocked = lockedInfo?.let { it.type != InputResolver.BUILTIN && Devices.routeType(d.type) == InputResolver.BUILTIN } == true
+    val reason = pendingReason ?: if (leftLocked || lockedGone()) "device_disconnected" else "system"
     pendingReason = null
     inputName = Devices.displayName(d)
     Engine.refreshNotification()
     pendingBoundary.set(Boundary(reason, route, false))
+    if (reason == "device_disconnected" && !forcedBuiltin) {
+      forcedBuiltin = true
+      try { ioExecutor.execute { forceBuiltin() } } catch (_: RejectedExecutionException) {}
+    }
   }
 
-  /** The preference or the set of connected inputs changed: move a running recording to the resolved input. */
-  fun onInputsChanged(reason: String) {
-    try { ioExecutor.execute { switchInput(reason) } } catch (_: RejectedExecutionException) {}
+  /** Connected inputs changed. A new device does nothing; losing the locked device falls back to the built-in mic. */
+  fun onInputsChanged() {
+    try { ioExecutor.execute { forceBuiltinIfLockedGone() } } catch (_: RejectedExecutionException) {}
   }
 
-  private fun switchInput(reason: String) {
+  private fun forceBuiltinIfLockedGone() {
     synchronized(routeLock) {
-      if (finished) return
-      if (paused) { pausedReason = reason; return }
-      val rec = record ?: return
-      var target = resolveTarget() ?: return
-      if (target.id == targetDevice?.id) return
-      pendingReason = reason
-      var ok = applyRouting(rec, target)
-      if (!ok && Devices.isBluetoothVoice(target.type)) { // Bluetooth did not come up: built-in microphone
-        Log.w(TAG, "Bluetooth input ${target.productName} did not come up; falling back to the built-in microphone")
-        target = builtinDevice() ?: target
-        ok = applyRouting(rec, target)
-      }
-      targetDevice = target
-      if (ok && waitRouted(rec, target, 1000)) {
-        reconcile(rec)
-      } else {
-        // setPreferredDevice did not take: have the capture thread recreate the AudioRecord on the target.
-        pendingBoundary.set(Boundary(reason, null, true))
-        pendingReason = null
-      }
+      if (finished || paused || forcedBuiltin || !lockedGone()) return
+      forcedBuiltin = true
+      pendingReason = "device_disconnected"
+      forceBuiltinLocked()
+    }
+  }
+
+  private fun forceBuiltin() = synchronized(routeLock) { if (!finished && !paused) forceBuiltinLocked() }
+
+  private fun forceBuiltinLocked() {
+    val rec = record ?: return
+    val target = builtinDevice() ?: return
+    targetDevice = target
+    val ok = applyRouting(rec, target)
+    if (ok && waitRouted(rec, target, 1000)) {
+      reconcile(rec)
+    } else {
+      // setPreferredDevice did not take: have the capture thread recreate the AudioRecord on the built-in mic.
+      pendingBoundary.set(Boundary(pendingReason ?: "device_disconnected", null, true))
+      pendingReason = null
     }
   }
 

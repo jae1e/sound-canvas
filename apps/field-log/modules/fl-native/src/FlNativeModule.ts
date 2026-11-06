@@ -4,6 +4,7 @@ import type {
   Capabilities,
   ClockReading,
   FlNativeModuleEvents,
+  AutoStopOptions,
   InputPreference,
   InputsEvent,
   JournalRecord,
@@ -28,11 +29,13 @@ declare class FlNativeModule extends NativeModule<FlNativeModuleEvents> {
   stopRecording(location?: LocationPayload): Promise<void>;
   getStatus(): Promise<RecorderStatus>;
   /**
-   * Sets the input preference (persisted natively). While recording it takes effect immediately: the
-   * segment closes, the capture moves to the new input and route_changed (reason 'user') is journaled.
+   * Sets the input preference (persisted natively) for the next recording. A running recording keeps its
+   * locked input; rejects with ERR_BUSY_RECORDING while a session (recording or paused) exists.
    * Resolves with the resulting InputsEvent (also emitted as onInputs).
    */
   setInputPreference(preference: InputPreference): Promise<InputsEvent>;
+  /** Sets the automatic-stop behaviour (persisted natively); call on app start and on change. */
+  setAutoStop(options: AutoStopOptions): Promise<void>;
   /** Current inputs, preference and resolved selection, without changing anything. */
   getInputs(): Promise<InputsEvent>;
   /**

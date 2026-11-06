@@ -1,7 +1,7 @@
 import { getCalendars } from 'expo-localization';
 import { Directory, File, Paths } from 'expo-file-system';
 import type { ImagePickerAsset } from 'expo-image-picker';
-import { PermissionsAndroid, Platform } from 'react-native';
+import { PermissionsAndroid, Platform, ToastAndroid } from 'react-native';
 import { titleChanged, titlePayload, exifToWallMs, liveLanguageFor, initialLevelMonitor, objectsToSkip, type LocationPayload } from '../core';
 import { writeTx } from '../db/db';
 import { appendEvent, newId } from '../db/events';
@@ -288,4 +288,22 @@ export async function setMemoTitle(memoId: string, raw: string): Promise<boolean
   });
   if (changed) triggerSync();
   return changed;
+}
+
+let leaveStopping = false;
+
+/**
+ * Called when the user navigates away from a memo that is being recorded: stops and saves without
+ * asking. Does not block navigation; the stop (reason 'user') finishes in the background.
+ */
+export function stopOnLeaveScreen(memoId: string): void {
+  const rec = useRecorder.getState();
+  if (!rec.recording || rec.memoId !== memoId || leaveStopping) return;
+  leaveStopping = true;
+  ToastAndroid.show(tr('stoppedOnLeave'), ToastAndroid.SHORT);
+  stopMemoRecording()
+    .catch(() => undefined)
+    .finally(() => {
+      leaveStopping = false;
+    });
 }

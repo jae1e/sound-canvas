@@ -53,8 +53,9 @@ export interface InputDevice {
 
 /**
  * Which microphone to record from (api-v0 section 6, "Input selection").
+ * Resolved once when a recording starts and locked for that recording (api-v0 section 6).
  * - auto: a connected headset microphone, else the phone microphone. Priority: wired_headset or usb,
- *   then ble_headset, then bluetooth_sco, then builtin_mic. Follows connects and disconnects live.
+ *   then ble_headset, then bluetooth_sco, then builtin_mic.
  * - phone: always the built-in microphone.
  * - device: one headset, matched by type + productName (+ addressHash when both have one); if it is
  *   not connected, the phone microphone is used until it reconnects.
@@ -139,7 +140,20 @@ export interface RecorderStatus {
   silenced: boolean;
 }
 
-export type StopReason = 'user' | 'error' | 'interrupted' | 'recovered';
+export type StopReason = 'user' | 'left_app' | 'error' | 'interrupted' | 'recovered';
+
+/**
+ * Automatic stop when the app goes to the background (persisted natively).
+ * onLeaveApp: stop and save (reason 'left_app') when the app is no longer visible because the user went
+ *   home or to another app. Decided natively on process ON_STOP, not on a transient pause (permission
+ *   dialogs and the notification shade must not stop a recording). Default true.
+ * keepWhenScreenOff: if the app stopped being visible because the screen turned off or the keyguard
+ *   locked, keep recording. Default true.
+ */
+export interface AutoStopOptions {
+  onLeaveApp: boolean;
+  keepWhenScreenOff: boolean;
+}
 
 /** Fields every journal record has. journalSeq is native, monotonic, persisted, starts at 1. */
 interface JournalBase {
@@ -181,7 +195,8 @@ export interface JournalSegmentClosed extends JournalBase {
   recovered: boolean;
 }
 
-export type RouteChangeReason = 'device_connected' | 'device_disconnected' | 'user' | 'system';
+/** The input is locked per recording; it only moves when the locked input disconnects or the system reroutes. */
+export type RouteChangeReason = 'device_disconnected' | 'system';
 
 /** The open segment was closed at the switch (segment_closed comes first), so each segment has one route. */
 export interface JournalRouteChanged extends JournalBase {

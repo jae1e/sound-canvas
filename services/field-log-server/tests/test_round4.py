@@ -91,3 +91,21 @@ def test_timeline_routes_pauses_silenced(client, dev):
         assert s1["route"]["product_name"] == "Buds" and s1["route_reason"] == "device_connected"
         assert [e["type"] for e in d["timeline"]["events"]][:2] == ["recording_started", "route_changed"]
         assert d["timeline"]["events"][-1]["reason"] == "user"
+
+
+def test_recording_stopped_left_app(client, dev):
+    base = {"memo_id": "m1", "recording_id": "r1"}
+    evs = [create_memo(dev, "m1")]
+    for t, p in (("recording_started", {**base, "route": {"type": "builtin_mic"}, "source": "UNPROCESSED",
+                                        "sample_rate": 16000, "effects": {"ns": "off", "agc": "off", "aec": "off"}}),
+                 ("recording_stopped", {**base, "reason": "left_app"})):
+        e = dev.event(t, p)
+        dev.commit(e)
+        evs.append(e)
+    assert [r["status"] for r in dev.post(*evs).json()["results"]] == ["accepted"] * 3
+    st = client.app.state.fls
+    assert st.db.one("SELECT stop_reason FROM recordings")["stop_reason"] == "left_app"
+    with TestClient(create_dashboard(st), base_url="http://127.0.0.1:8790") as dash:
+        ev = dash.get("/dash/api/memos/m1").json()["timeline"]["events"][-1]
+        assert ev["type"] == "recording_stopped" and ev["reason"] == "left_app"
+        assert "stopped: " in dash.get("/").text

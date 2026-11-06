@@ -1,16 +1,17 @@
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useLocalSearchParams, useNavigation, useRouter } from 'expo-router';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Alert, Image, Modal, Pressable, ScrollView, Text, TextInput, ToastAndroid, View } from 'react-native';
 import { autoTitle, durationLabel, stampLabel, controlPhase, type ControlAction, formatPlace, isSilentPeak, mergeTranscript, segmentStartsMs, type DraftUtt, type FinalSeg } from '../../src/core';
 import { getMemoDetail, type MemoDetail, type SegmentRow } from '../../src/db/queries';
 import { useLang, useT, type Key } from '../../src/i18n';
 import { confirmDeleteMemo } from '../../src/memo/confirmDelete';
-import { pauseMemoRecording, resumeMemoRecording, saveNote, startMemoRecording, stopMemoRecording } from '../../src/memo/actions';
+import { stopOnLeaveScreen, pauseMemoRecording, resumeMemoRecording, saveNote, startMemoRecording, stopMemoRecording } from '../../src/memo/actions';
 import { playRecording, stopPlayback, togglePlayback } from '../../src/memo/playback';
 import { usePlayback, useRecorder } from '../../src/state/recorder';
 import { BigButton, Chip, Row, TrustChips, useRouteText } from '../../src/ui/components';
 import { TitleEditor } from '../../src/ui/TitleEditor';
 import { InputChip } from '../../src/ui/inputUi';
+import { LeftAppNotice } from '../../src/ui/LeftAppNotice';
 import { ControlPanel, LiveWave, RecordingPlayer } from '../../src/ui/recorderUi';
 import FlNative, { type Capabilities } from '../../src/native';
 import { updateSetting, useSettings } from '../../src/state/settings';
@@ -162,6 +163,13 @@ export default function MemoScreen() {
   const detail = useDbQuery(() => getMemoDetail(id), [id]);
   const rec = useRecorder();
   const play = usePlayback();
+  const navigation = useNavigation();
+
+  // Back, header back or any navigation away from this memo stops and saves the recording.
+  useEffect(() => {
+    const nav = navigation as unknown as { addListener: (e: 'beforeRemove', cb: () => void) => () => void };
+    return nav.addListener('beforeRemove', () => stopOnLeaveScreen(id));
+  }, [navigation, id]);
   const routeText = useRouteText();
   const active = rec.recording && rec.memoId === id;
   const otherActive = rec.recording && rec.memoId !== id;
@@ -253,6 +261,7 @@ export default function MemoScreen() {
         <Image source={{ uri: photo.path }} resizeMode="contain" style={{ width: '100%', height: 240, borderRadius: 12, backgroundColor: colors.surface }} />
       )}
 
+      <LeftAppNotice />
       <TitleEditor memoId={id} title={detail.title} placeholder={autoText} />
       <Text style={[s.small, { marginBottom: 4 }]}>{stampText}</Text>
 
@@ -315,6 +324,7 @@ export default function MemoScreen() {
           <View key={r.recordingId} style={{ marginVertical: 4, paddingLeft: 8, borderLeftWidth: 3, borderLeftColor: colors.border }}>
             <Row label={`${t('route')} #${i + 1}`} value={routeText(r.route)} />
             <Row label={t('source')} value={r.source} />
+            {r.stopReason === 'left_app' && <Row label={t('stoppedLeftApp')} value="" />}
             <Row label={t('effects')} value={`NS ${r.effects.ns} · AGC ${r.effects.agc} · AEC ${r.effects.aec}`} />
           </View>
         ))}

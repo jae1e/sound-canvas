@@ -49,4 +49,16 @@ class InputResolverTest {
     val d = InputPref.Device("ble_headset", "X", "ab")
     assertEquals(d, InputPref.fromMap(d.toMap()))
   }
+
+  @Test fun lockedDeviceIsMatchedAcrossReconnectsAndNeverByNewDevices() {
+    // The session locks the resolved input at start and later finds it again by type + name + address, not by id.
+    val locked = InputResolver.resolve(InputPref.Auto, listOf(mic, sco))!!
+    val lockedPref = InputPref.Device(locked.type, locked.productName, locked.addressHash)
+    val reconnected = sco.copy(id = 99)
+    assertEquals(reconnected, InputResolver.resolve(lockedPref, listOf(mic, reconnected)))
+    // A wired headset plugged in later would win Auto, but the locked preference ignores it.
+    assertEquals(sco, InputResolver.resolve(lockedPref, listOf(mic, sco, wired)))
+    // Once the locked device is gone the resolver yields the built-in microphone.
+    assertEquals(mic, InputResolver.resolve(lockedPref, listOf(mic, wired)))
+  }
 }

@@ -2,8 +2,8 @@ import * as SecureStore from 'expo-secure-store';
 import { create } from 'zustand';
 import { kvGet, kvSet } from '../db/kv';
 import { newId } from '../db/events';
-import { AUTO_PREF, parseInputPref, type InputPref, DEFAULT_LANGUAGES, migrateLegacyLanguage, normaliseLanguages } from '../core';
-import type { AudioSourceName } from '../native';
+import { autoStopPayload, parseSwitch, AUTO_PREF, parseInputPref, type InputPref, DEFAULT_LANGUAGES, migrateLegacyLanguage, normaliseLanguages } from '../core';
+import FlNative, { type AudioSourceName } from '../native';
 
 export const DEFAULT_SERVER_URL = 'http://100.84.83.35:8787';
 const TOKEN_KEY = 'fvl_device_token';
@@ -24,6 +24,8 @@ export interface SettingsState {
   inputPref: InputPref;
   source: SourceChoice;
   locationEnabled: boolean;
+  stopOnLeaveApp: boolean;
+  keepWhenScreenOff: boolean;
   uiLang: UiLang;
 }
 
@@ -38,6 +40,8 @@ export const useSettings = create<SettingsState>(() => ({
   inputPref: AUTO_PREF,
   source: 'AUTO',
   locationEnabled: true,
+  stopOnLeaveApp: true,
+  keepWhenScreenOff: true,
   uiLang: 'auto',
 }));
 
@@ -74,6 +78,8 @@ export async function loadSettings(): Promise<void> {
     inputPref: parseInputPref(await g('input_pref')),
     source: ((await g('source')) as SourceChoice | null) ?? 'AUTO',
     locationEnabled: ((await g('location_enabled')) ?? '1') === '1',
+    stopOnLeaveApp: parseSwitch(await g('stop_on_leave_app'), true),
+    keepWhenScreenOff: parseSwitch(await g('keep_when_screen_off'), true),
     uiLang: ((await g('ui_lang')) as UiLang | null) ?? 'auto',
   });
 }
@@ -85,6 +91,8 @@ const KEYS: Record<string, string> = {
   inputPref: 'input_pref',
   source: 'source',
   locationEnabled: 'location_enabled',
+  stopOnLeaveApp: 'stop_on_leave_app',
+  keepWhenScreenOff: 'keep_when_screen_off',
   uiLang: 'ui_lang',
 };
 
@@ -100,4 +108,14 @@ export async function saveEnrolment(deviceId: string, token: string): Promise<vo
   await SecureStore.setItemAsync(TOKEN_KEY, token);
   await kvSet('device_id', deviceId);
   useSettings.setState({ deviceId, token });
+}
+
+/** Pushes the two auto-stop switches to the native recorder. */
+export async function pushAutoStop(): Promise<void> {
+  await FlNative.setAutoStop(autoStopPayload(useSettings.getState()));
+}
+
+export async function setAutoStopSetting(key: 'stopOnLeaveApp' | 'keepWhenScreenOff', value: boolean): Promise<void> {
+  await updateSetting(key, value);
+  await pushAutoStop();
 }

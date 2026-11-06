@@ -99,8 +99,8 @@ Every event has this envelope:
 | `photo_added` | `{memo_id, photo_id, object_sha256, mime, bytes, width?, height?, source: "camera" \| "library", taken_wall_ms?, location?}`. `taken_wall_ms` comes from EXIF when present. The original bytes are uploaded unmodified |
 | `recording_started` | `{memo_id, recording_id, route: Route, source: "UNPROCESSED" \| "VOICE_RECOGNITION" \| "MIC", sample_rate: 16000, effects: {ns, agc, aec}, location?}`. Each of `ns`, `agc` and `aec` is `"off"`, `"on"` or `"unavailable"` |
 | `segment_closed` | `{memo_id, recording_id, segment_id, index, object_sha256, bytes, format: "wav_pcm16_16k_mono", start_elapsed_us, end_elapsed_us, start_wall_ms, duration_ms, peak_dbfs_x100, clipped_samples, hf_ratio_4k_ppm, flags: [...], recovered: bool}` |
-| `route_changed` | `{memo_id, recording_id, route: Route, reason?: "device_connected" \| "device_disconnected" \| "user" \| "system"}`. The open segment was closed at the switch, so every segment has one route (v0.2) |
-| `recording_stopped` | `{memo_id, recording_id, reason: "user" \| "error" \| "interrupted" \| "recovered", location?}` |
+| `route_changed` | `{memo_id, recording_id, route: Route, reason?: "device_disconnected" \| "system"}`. The open segment was closed at the switch, so every segment has one route (v0.2) |
+| `recording_stopped` | `{memo_id, recording_id, reason: "user" \| "left_app" \| "error" \| "interrupted" \| "recovered", location?}`. `left_app` (v0.2): the user left the memo screen or switched to another app while recording, and the app stopped and saved the recording. Turning the screen off or locking the phone does not stop it unless the user changes that setting |
 | `clock_sync` | `{offset_ms, rtt_ms, server_ms}` (integers, rounded) |
 | `memo_note` | `{memo_id, text}` (typed note, optional) |
 | `memo_deleted` | `{memo_id}`. The user deleted the memo; see section 8 |
@@ -177,9 +177,14 @@ Server behaviour:
 - **Soft close:** after 20 s, a segment closes at the first 300 ms window that is quiet. Quiet means at least 10 dB below the segment's median RMS, or below −45 dBFS.
 - **Hard close:** at 30 s. Boundaries therefore rarely cut a word.
 - **Transcription:** each segment is transcribed on its own.
-- **Route switch (v0.2):** when the capture moves to another input (earbuds connected or disconnected, or the user picks another input), the open segment closes at that sample and the next one starts without a gap. A `route_changed` event follows.
+- **Route switch (v0.2):** when the capture moves to another input (the locked input disconnected, or the system rerouted), the open segment closes at that sample and the next one starts without a gap. A `route_changed` event follows.
 
-**Input selection (v0.2, 2026-11-06).** The app's default input mode is `auto`, which works like a call app. It uses a connected headset microphone and otherwise the phone microphone. Priority: wired or USB headset, then a BLE Audio headset, then Bluetooth SCO, then the built-in microphone. Earbuds connected or disconnected during a recording switch the capture live. The other modes are `phone` (always the built-in microphone) and `device` (one headset, matched by type, product name and address hash, because Android device ids change on every reconnect). Using a Bluetooth microphone puts the earbuds into call (HFP) mode while recording, which lowers media audio quality and usually limits the microphone to speech bandwidth.
+**Input selection (v0.2, 2026-11-06).** The input is chosen when recording starts and stays locked for the whole recording, as in voice-recorder and camera apps (user decision 2026-11-06). The default mode `auto` picks a connected headset microphone at start, and otherwise the phone microphone. Priority: wired or USB headset, then a BLE Audio headset, then Bluetooth SCO, then the built-in microphone. During a recording:
+- A headset that connects does not change the input.
+- If the locked input disconnects, the capture falls back to the phone microphone (`route_changed`, reason `device_disconnected`) and stays there. Recording never stops because of a route change.
+- The user cannot change the input. Pause and resume keep the locked input when it is still available.
+
+The other modes are `phone` (always the built-in microphone) and `device` (one headset, matched by type, product name and address hash, because Android device ids change on every reconnect). Using a Bluetooth microphone puts the earbuds into call (HFP) mode while recording, which lowers media audio quality and usually limits the microphone to speech bandwidth.
 
 ## 7. Languages and ASR input conditioning (v0.1, 2026-11-06)
 

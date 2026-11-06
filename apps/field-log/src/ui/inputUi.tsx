@@ -24,9 +24,10 @@ export function useInputChipText(): string {
   });
 }
 
-/** Auto, Phone microphone, then each connected headset. Allowed while recording (native switches live). */
+/** Auto, Phone microphone, then each connected headset. Disabled during a session (the input is locked per recording). */
 export function InputOptions({ onChosen }: { onChosen?: () => void }) {
   const t = useT();
+  const locked = useRecorder((r) => r.recording);
   const routeText = useRouteText();
   const pref = useSettings((x) => x.inputPref);
   const inputs = useInputs((x) => x.inputs);
@@ -48,6 +49,7 @@ export function InputOptions({ onChosen }: { onChosen?: () => void }) {
   ];
   return (
     <View>
+      {locked && <Text style={[s.small, { marginBottom: 4 }]}>{`${t('inputLocked')} · ${t('inputLockedNote')}`}</Text>}
       {options.map((o) => {
         const on = samePref(pref, o.pref);
         return (
@@ -56,6 +58,7 @@ export function InputOptions({ onChosen }: { onChosen?: () => void }) {
             label={`${on ? '◉' : '○'} ${o.label}`}
             variant={on ? 'solid' : 'outline'}
             style={{ minHeight: 56 }}
+            disabled={locked}
             onPress={() => pick(o.pref)}
           />
         );
@@ -68,6 +71,7 @@ export function InputOptions({ onChosen }: { onChosen?: () => void }) {
 export function InputChip() {
   const t = useT();
   const text = useInputChipText();
+  const locked = useRecorder((r) => r.recording);
   const [open, setOpen] = useState(false);
   return (
     <View style={{ alignSelf: 'stretch', marginVertical: 8 }}>
@@ -75,11 +79,12 @@ export function InputChip() {
       <Pressable
         accessibilityRole="button"
         accessibilityLabel={`${t('chooseInput')}: ${text}`}
-        onPress={() => setOpen(true)}
+        onPress={() => (locked ? Alert.alert(t('inputLocked'), t('inputLockedNote')) : setOpen(true))}
         style={{ minHeight: 64, borderWidth: 2, borderColor: colors.primary, borderRadius: 12, justifyContent: 'center', paddingHorizontal: 14, backgroundColor: colors.surface }}
       >
-        <Text style={{ fontSize: 20, fontWeight: '700', color: colors.text }}>{text}</Text>
+        <Text style={{ fontSize: 20, fontWeight: '700', color: colors.text }}>{locked ? `🔒 ${text}` : text}</Text>
       </Pressable>
+      {locked && <Text style={[s.small, { marginTop: 4 }]}>{t('inputLocked')}</Text>}
       <Text style={[s.small, { marginTop: 4 }]}>{t('inputBtNote')}</Text>
       <RouteNotice />
       <Modal visible={open} transparent animationType="fade" onRequestClose={() => setOpen(false)}>

@@ -1,5 +1,5 @@
 import FlNative, { type JournalRecord } from '../native';
-import { journalRecordObject, journalRecordToEvent } from '../core';
+import { leftAppRecordings, journalRecordObject, journalRecordToEvent } from '../core';
 import { writeTx, type Q } from './db';
 import { appendEvent } from './events';
 import { kvGet, kvSet } from './kv';
@@ -89,6 +89,7 @@ export function ingestJournal(): Promise<number> {
       for (const r of records) await applyRecord(q, r);
       await kvSet('journal_cursor', String(records[records.length - 1].journalSeq), q);
     });
+    for (const id of leftAppRecordings(records)) useRecorder.setState({ leftAppNotice: { recordingId: id, atMs: Date.now() } });
     // Push the latest route of the active recording to the UI at once.
     for (const r of records) {
       if (r.kind === 'route_changed' && r.recordingId === useRecorder.getState().recordingId) {

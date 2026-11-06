@@ -24,5 +24,6 @@ android {
 dependencies {
   // Same version React Native 0.88 declares (gradle/libs.versions.toml: okhttp = "4.9.2"); Gradle unifies them.
   implementation 'com.squareup.okhttp3:okhttp:4.9.2'
+  implementation 'androidx.lifecycle:lifecycle-process:2.6.2'
   testImplementation 'junit:junit:4.13.2'
 }

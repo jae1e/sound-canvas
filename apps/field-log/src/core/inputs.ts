@@ -68,20 +68,11 @@ export function liveLanguageFor(languages: string[]): string {
   return languages.length > 1 ? 'auto' : (languages[0] ?? 'auto');
 }
 
-export type RouteReason = 'device_connected' | 'device_disconnected' | 'user' | 'system';
+export type RouteReason = 'device_disconnected' | 'system';
 
-export type SwitchNoticeKey = 'switchConnected' | 'switchDisconnected' | 'switchUser' | 'switchSystem';
+export type SwitchNoticeKey = 'switchDisconnected' | 'switchSystem';
 
-/** Which short message to show when the capture moved to another input during a recording. */
-export function switchNoticeKey(reason: RouteReason | undefined): SwitchNoticeKey {
-  switch (reason) {
-    case 'device_connected':
-      return 'switchConnected';
-    case 'device_disconnected':
-      return 'switchDisconnected';
-    case 'user':
-      return 'switchUser';
-    default:
-      return 'switchSystem';
-  }
+/** The input is locked per recording, so only a disconnect (or a system change) can move it. */
+export function switchNoticeKey(reason: string | undefined): SwitchNoticeKey {
+  return reason === 'device_disconnected' ? 'switchDisconnected' : 'switchSystem';
 }

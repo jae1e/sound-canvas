@@ -18,6 +18,8 @@ export interface RecorderState {
   route: Route | null;
   /** The last live input switch during this recording, for a short notice. */
   routeNotice: { reason: RouteChangeReason; route: Route; atMs: number } | null;
+  /** Set when Android stopped a recording because the user left the app. */
+  leftAppNotice: { recordingId: string; atMs: number } | null;
   paused: boolean;
   /** Android muted our capture because another app holds the microphone. */
   silenced: boolean;
@@ -40,6 +42,7 @@ export const useRecorder = create<RecorderState>(() => ({
   lastDraftAtMs: 0,
   route: null,
   routeNotice: null,
+  leftAppNotice: null,
   paused: false,
   silenced: false,
   wave: [],

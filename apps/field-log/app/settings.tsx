@@ -3,7 +3,7 @@ import { Alert, Pressable, ScrollView, Switch, Text, TextInput, View } from 'rea
 import { KNOWN_LANGUAGES, moveLanguage, toggleLanguage } from '../src/core';
 import { useLang, useT } from '../src/i18n';
 import FlNative, { type Capabilities } from '../src/native';
-import { updateSetting, useSettings, type SourceChoice, type UiLang } from '../src/state/settings';
+import { setAutoStopSetting, updateSetting, useSettings, type SourceChoice, type UiLang } from '../src/state/settings';
 import { useSyncStatus } from '../src/state/syncStatus';
 import { InputOptions, useInputChipText } from '../src/ui/inputUi';
 import { enrol } from '../src/sync/enrol';
@@ -176,6 +176,16 @@ export default function Settings() {
         ]}
         onChange={(v) => void updateSetting('source', v)}
       />
+
+      <Text style={s.h2}>{t('recordingSection')}</Text>
+      <View style={[s.row, { justifyContent: 'space-between', minHeight: 56 }]}>
+        <Text style={[s.body, { flex: 1, paddingRight: 8 }]}>{t('stopOnLeaveApp')}</Text>
+        <Switch value={st.stopOnLeaveApp} onValueChange={(v) => void setAutoStopSetting('stopOnLeaveApp', v)} />
+      </View>
+      <View style={[s.row, { justifyContent: 'space-between', minHeight: 56 }]}>
+        <Text style={[s.body, { flex: 1, paddingRight: 8 }]}>{t('keepWhenScreenOff')}</Text>
+        <Switch value={st.keepWhenScreenOff} onValueChange={(v) => void setAutoStopSetting('keepWhenScreenOff', v)} />
+      </View>
 
       <Text style={s.h2}>{t('locationOn')}</Text>
       <View style={[s.row, { justifyContent: 'space-between', minHeight: 56 }]}>

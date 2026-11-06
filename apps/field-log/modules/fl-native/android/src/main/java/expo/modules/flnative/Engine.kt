@@ -46,6 +46,7 @@ object Engine {
       if (session != null || starting) throw CodedException("ERR_ALREADY_RECORDING", "A recording is already running", null)
       starting = true
     }
+    AutoStop.register(context)
     try {
       if (ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
         throw CodedException("ERR_PERMISSION", "RECORD_AUDIO is not granted", null)

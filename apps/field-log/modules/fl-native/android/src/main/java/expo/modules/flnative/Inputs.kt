@@ -11,6 +11,7 @@ import android.os.Handler
 import android.os.Looper
 import android.util.Log
 import androidx.core.content.ContextCompat
+import expo.modules.kotlin.exception.CodedException
 import expo.modules.flnative.core.Hex
 import expo.modules.flnative.core.InputInfo
 import expo.modules.flnative.core.InputPref
@@ -32,19 +33,12 @@ object Inputs {
   private val scheduler = Executors.newSingleThreadScheduledExecutor { r -> Thread(r, "fl-inputs").also { it.isDaemon = true } }
   private var pending: ScheduledFuture<*>? = null
   private var callback: AudioDeviceCallback? = null
-  @Volatile private var lastReason: String = "system"
-  @Volatile private var lastReasonAtMs = 0L
 
   fun init(c: Context) { context = c.applicationContext }
 
   fun btAllowed(c: Context) =
     Build.VERSION.SDK_INT < 31 || ContextCompat.checkSelfPermission(c, Manifest.permission.BLUETOOTH_CONNECT) == PackageManager.PERMISSION_GRANTED
 
-  /** The most recent device connect/disconnect/user reason if it happened within [windowMs], else null. */
-  fun recentReason(windowMs: Long = 3000): String? =
-    if (System.currentTimeMillis() - lastReasonAtMs <= windowMs) lastReason else null
-
-  fun noteReason(reason: String) { lastReason = reason; lastReasonAtMs = System.currentTimeMillis() }
 
   fun entries(): List<Entry> {
     val c = context ?: return emptyList()
@@ -92,15 +86,14 @@ object Inputs {
     )
   }
 
-  /** Persists [pref], emits onInputs and moves a running recording to the new input. Returns the event. */
+  /** Persists [pref] and emits onInputs. The input is locked per recording, so this is refused while a session exists. */
   fun setPreference(pref: InputPref): Map<String, Any?> {
+    if (Engine.session != null) throw CodedException("ERR_BUSY_RECORDING", "The input is locked while a recording is open", null)
     val c = requireNotNull(context) { "not initialised" }
     c.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit()
       .putString(KEY, Json.toJson(pref.toMap()).toString()).apply()
-    noteReason("user")
     val e = event(pref)
     Engine.emit("onInputs", e)
-    Engine.session?.let { it.clearInputOverride(); it.onInputsChanged("user") }
     return e
   }
 
@@ -110,11 +103,11 @@ object Inputs {
     val am = c.getSystemService(Context.AUDIO_SERVICE) as AudioManager
     val cb = object : AudioDeviceCallback() {
       override fun onAudioDevicesAdded(added: Array<out AudioDeviceInfo>) {
-        if (added.any { it.isSource }) changed("device_connected")
+        if (added.any { it.isSource }) changed()
       }
 
       override fun onAudioDevicesRemoved(removed: Array<out AudioDeviceInfo>) {
-        if (removed.any { it.isSource }) changed("device_disconnected")
+        if (removed.any { it.isSource }) changed()
       }
     }
     callback = cb
@@ -128,14 +121,13 @@ object Inputs {
   }
 
   /** Bluetooth connects produce several callbacks (SCO, BLE); coalesce them before recomputing. */
-  private fun changed(reason: String) {
-    noteReason(reason)
+  private fun changed() {
     synchronized(this) {
       pending?.cancel(false)
       pending = scheduler.schedule({
         try {
           Engine.emit("onInputs", event())
-          Engine.session?.onInputsChanged(lastReason)
+          Engine.session?.onInputsChanged()
         } catch (e: Exception) {
           Log.w("FlInputs", "input change handling failed", e)
         }

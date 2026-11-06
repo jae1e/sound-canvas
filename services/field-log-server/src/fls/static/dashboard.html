@@ -353,7 +353,8 @@ function timelineCard(d) {
   card.append(box, el("p", { class: "muted" }, `${((t1 - t0) / 1e6).toFixed(1)} s. Top row: segments coloured by route. Hatched: paused. Red: capture silenced. `,
     keys.map((k, i) => el("span", { class: "pill" }, el("span", { class: "r" + (i % 6), style: "display:inline-block;width:.8em;height:.8em;border-radius:2px;margin-right:.3em" }), k.replace("|", " ")))));
   const rows = tl.events.map(e => el("tr", {}, el("td", {}, ((e.elapsed_us - t0) / 1e6).toFixed(1) + " s"), el("td", {}, e.type),
-    el("td", {}, e.route ? routeLabel(e.route) : (e.silenced !== undefined ? (e.silenced ? "silenced" : "un-silenced") : ""), e.reason ? " (" + e.reason + ")" : "")));
+    el("td", {}, e.type === "recording_stopped" ? "stopped: " + (e.reason || "unknown").replace(/_/g, " ")
+      : [e.route ? routeLabel(e.route) : (e.silenced !== undefined ? (e.silenced ? "silenced" : "un-silenced") : ""), e.reason ? " (" + e.reason + ")" : ""])));
   card.append(el("table", {}, el("thead", {}, el("tr", {}, ["At", "Event", "Detail"].map(h => el("th", {}, h)))), el("tbody", {}, rows)));
   return card;
 }
