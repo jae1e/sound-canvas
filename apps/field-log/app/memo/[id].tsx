@@ -268,12 +268,13 @@ export default function MemoScreen() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [detail?.note]);
 
+  const live = useLiveFacts(id);
+
   if (!detail) return <View style={s.screen} />;
 
   const totalMs = detail.segments.reduce((a, x) => a + x.durationMs, 0);
   const done = detail.segments.filter((x) => x.status === 'done').length;
   const failed = detail.segments.filter((x) => x.status === 'failed').length;
-  const live = useLiveFacts(id);
   const facts: MemoFacts = {
     isRecording: active,
     paused: live.paused,

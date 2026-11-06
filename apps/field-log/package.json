@@ -7,7 +7,9 @@
     "start": "expo start",
     "android": "expo run:android",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run"
+    "test": "vitest run",
+    "lint": "eslint app src --max-warnings=1000",
+    "check": "pnpm typecheck && pnpm lint && pnpm test"
   },
   "dependencies": {
     "expo": "~58.0.22",
@@ -33,7 +35,10 @@
   "devDependencies": {
     "@types/react": "~19.3.0",
     "babel-preset-expo": "^58.0.23",
+    "eslint": "^9.39.5",
+    "eslint-plugin-react-hooks": "^7.1.1",
     "typescript": "~6.0.3",
+    "typescript-eslint": "^8.72.1",
     "vitest": "^5.0.5"
   }
 }

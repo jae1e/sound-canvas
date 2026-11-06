@@ -22,8 +22,11 @@ if [[ -n "$(git -C "$REPO_DIR" status --porcelain)" ]]; then SHA="$SHA-dirty"; f
 export FVL_GIT_SHA="$SHA"
 echo "[release] versionCode=$FVL_VERSION_CODE sha=$FVL_GIT_SHA name=$VERSION_NAME"
 
-# 2. Generate the Android project.
+# 2. Typecheck, lint (React hooks rules) and unit tests must pass before anything is built.
 cd "$APP_DIR"
+pnpm -s check
+
+# 3. Generate the Android project.
 npx expo prebuild --clean --platform android
 
 # 3. Build, serialised with other heavy jobs and capped in memory.
