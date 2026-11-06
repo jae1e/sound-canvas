@@ -4,6 +4,7 @@ import type {
   Capabilities,
   ClockReading,
   FlNativeModuleEvents,
+  AppInfo,
   AutoStopOptions,
   InputPreference,
   InputsEvent,
@@ -57,6 +58,23 @@ declare class FlNativeModule extends NativeModule<FlNativeModuleEvents> {
   resumePlayback(): Promise<void>;
   stopPlayback(): Promise<void>;
   seekPlayback(positionMs: number): Promise<void>;
+  /** This app's package, versionName and versionCode. */
+  getAppInfo(): Promise<AppInfo>;
+  /**
+   * Downloads url (OkHttp, with the given headers) into the app cache as `updates/<fileName>`, resuming with
+   * `Range` when a partial file exists, emitting onDownload. Verifies sha256 (lowercase hex) at the end;
+   * on mismatch it deletes the file and rejects with ERR_HASH. Resolves with the absolute path.
+   */
+  downloadFile(id: string, url: string, headers: Record<string, string>, fileName: string, sha256: string): Promise<string>;
+  cancelDownload(id: string): Promise<void>;
+  /** True when the user allowed this app to install packages (PackageManager.canRequestPackageInstalls). */
+  canInstallPackages(): Promise<boolean>;
+  /** Opens Settings → Install unknown apps for this app. */
+  openInstallPermissionSettings(): Promise<void>;
+  /** Starts the system installer for an APK under the app cache (FileProvider URI). Resolves once the installer is launched. */
+  installApk(path: string): Promise<void>;
+  /** Deletes downloaded APKs in the cache whose versionCode <= this app's (or all when all = true). Returns the number deleted. */
+  cleanupUpdates(all?: boolean): Promise<number>;
   /** Journal records with journalSeq > afterJournalSeq, in order. */
   readJournal(afterJournalSeq: number): Promise<JournalRecord[]>;
   /**

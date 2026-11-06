@@ -281,6 +281,22 @@ export interface PlaybackEvent {
   error?: string;
 }
 
+export interface AppInfo {
+  packageName: string;
+  versionName: string;
+  /** PackageInfo.longVersionCode. */
+  versionCode: number;
+}
+
+/** Progress of downloadFile(), at most about 5 Hz, plus a final event. */
+export interface DownloadEvent {
+  id: string;
+  state: 'running' | 'done' | 'error' | 'cancelled';
+  bytes: number;
+  totalBytes: number;
+  error?: string;
+}
+
 export type FlNativeModuleEvents = {
   onLevel: (e: LevelEvent) => void;
   onJournal: (e: JournalEvent) => void;
@@ -289,4 +305,5 @@ export type FlNativeModuleEvents = {
   onCapture: (e: CaptureEvent) => void;
   onPlayback: (e: PlaybackEvent) => void;
   onInputs: (e: InputsEvent) => void;
+  onDownload: (e: DownloadEvent) => void;
 };

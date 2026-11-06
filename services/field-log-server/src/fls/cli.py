@@ -92,6 +92,32 @@ def cmd_revoke(args) -> None:
         raise SystemExit(f"no active device {args.device_id}")
 
 
+def cmd_publish_apk(args) -> None:
+    from . import appbuilds
+
+    paths = _paths(args)
+    try:
+        out = appbuilds.publish(Database(paths.db), paths.root, Path(args.apk).expanduser(), args.version_code,
+                                args.version_name, args.git_sha, args.notes, args.force)
+    except ValueError as e:
+        raise SystemExit(f"publish-apk: {e}") from None
+    print(f"published version_code={out['version_code']} {out['version_name']} sha256={out['sha256']} "
+          f"bytes={out['bytes']}")
+
+
+def cmd_bench_download(args) -> None:
+    import urllib.request
+
+    req = urllib.request.Request(args.url.rstrip("/") + f"/v1/app/apk/{args.sha256}",
+                                 headers={"Authorization": f"Bearer {args.token}"})
+    t0, n = time.monotonic(), 0
+    with urllib.request.urlopen(req) as r:
+        while b := r.read(1 << 20):
+            n += len(b)
+    dt = max(time.monotonic() - t0, 1e-9)
+    print(f"{n} bytes in {dt:.2f} s = {n * 8 / dt / 1e6:.1f} Mbit/s")
+
+
 def cmd_rerun(args) -> None:
     """Re-queue final jobs (the running server's worker picks them up within a few seconds)."""
     from .db import now_ms
@@ -267,6 +293,19 @@ def main(argv: list[str] | None = None) -> None:
     r = sub.add_parser("revoke")
     r.add_argument("device_id")
     r.set_defaults(fn=cmd_revoke)
+    pa = sub.add_parser("publish-apk", help="publish an APK for in-app updates")
+    pa.add_argument("apk")
+    pa.add_argument("--version-code", type=int, required=True)
+    pa.add_argument("--version-name", required=True)
+    pa.add_argument("--git-sha", default="")
+    pa.add_argument("--notes", default="")
+    pa.add_argument("--force", action="store_true", help="allow a version_code that is not greater")
+    pa.set_defaults(fn=cmd_publish_apk)
+    bd = sub.add_parser("bench-download", help="time an APK download (client side)")
+    bd.add_argument("url")
+    bd.add_argument("sha256")
+    bd.add_argument("--token", required=True)
+    bd.set_defaults(fn=cmd_bench_download)
     rr = sub.add_parser("rerun", help="re-queue final transcription jobs")
     rr.add_argument("segment_ids", nargs="*")
     rr.add_argument("--silent", action="store_true", help="all segments the phone reported as digital silence")

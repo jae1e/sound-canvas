@@ -6,6 +6,7 @@ import FlNative, { type Capabilities } from '../src/native';
 import { setAutoStopSetting, updateSetting, useSettings, type SourceChoice, type UiLang } from '../src/state/settings';
 import { useSyncStatus } from '../src/state/syncStatus';
 import { InputOptions, useInputChipText } from '../src/ui/inputUi';
+import { UpdateSection } from '../src/ui/UpdateSection';
 import { enrol } from '../src/sync/enrol';
 import { triggerSync } from '../src/sync/engine';
 import { BigButton, Row, useRouteText } from '../src/ui/components';
@@ -107,6 +108,8 @@ export default function Settings() {
 
   return (
     <ScrollView style={s.screen} contentContainerStyle={[s.pad, { paddingBottom: 64 }]} keyboardShouldPersistTaps="handled">
+      <UpdateSection />
+
       <Text style={s.h2}>{t('server')}</Text>
       <Text style={s.small}>{t('serverUrl')}</Text>
       <TextInput

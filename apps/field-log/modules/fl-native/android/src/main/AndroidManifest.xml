@@ -8,11 +8,21 @@
   <!-- Needed to select a Bluetooth headset as communication device (SCO / LE Audio input). -->
   <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
   <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
+  <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
 
   <application>
     <service
       android:name=".RecordingService"
       android:exported="false"
       android:foregroundServiceType="microphone" />
+    <provider
+      android:name=".UpdatesFileProvider"
+      android:authorities="${applicationId}.flnative.updates"
+      android:exported="false"
+      android:grantUriPermissions="true">
+      <meta-data
+        android:name="android.support.FILE_PROVIDER_PATHS"
+        android:resource="@xml/fl_update_paths" />
+    </provider>
   </application>
 </manifest>

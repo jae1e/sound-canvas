@@ -17,6 +17,17 @@ import {
   journalRecordToEvent,
   mergeTranscript,
   segmentStartsMs,
+  versionCodeFromMs,
+  resolveVersionCode,
+  checkDue,
+  updateReducer,
+  initialUpdateState,
+  downloadPercent,
+  formatMb,
+  versionLabel,
+  type LatestBuild,
+  type UpdateState,
+  type UpdateEvent,
   homeAction,
   deriveMemoStatus,
   hasStaleRecording,
@@ -755,5 +766,82 @@ describe('navigation', () => {
   it('pops when it can and replaces only as a last resort', () => {
     expect(homeAction(true)).toBe('back');
     expect(homeAction(false)).toBe('replaceHome');
+  });
+});
+
+describe('version code', () => {
+  it('counts minutes since 2026-01-01 UTC', () => {
+    expect(versionCodeFromMs(Date.UTC(2026, 0, 1))).toBe(0);
+    expect(versionCodeFromMs(Date.UTC(2026, 0, 1, 0, 1, 59))).toBe(1);
+    expect(versionCodeFromMs(Date.UTC(2026, 0, 2))).toBe(1440);
+    expect(versionCodeFromMs(Date.UTC(2026, 10, 6, 12, 0))).toBe(Math.floor((Date.UTC(2026, 10, 6, 12) - Date.UTC(2026, 0, 1)) / 60000));
+    expect(versionCodeFromMs(Date.UTC(2026, 10, 6))).toBeLessThan(2_100_000_000);
+  });
+  it('prefers a valid env value', () => {
+    const now = Date.UTC(2026, 0, 1, 1, 0);
+    expect(resolveVersionCode('12345', now)).toBe(12345);
+    expect(resolveVersionCode(undefined, now)).toBe(60);
+    expect(resolveVersionCode('abc', now)).toBe(60);
+    expect(resolveVersionCode('-5', now)).toBe(60);
+    expect(resolveVersionCode('1.5', now)).toBe(60);
+  });
+  it('checks at most once per hour', () => {
+    expect(checkDue(null, 0)).toBe(true);
+    expect(checkDue(0, 3_599_999)).toBe(false);
+    expect(checkDue(0, 3_600_000)).toBe(true);
+  });
+});
+
+describe('update state machine', () => {
+  const build: LatestBuild = { version_code: 200, version_name: '0.1.0', git_sha: 'abc', sha256: 'x', bytes: 35_000_000, built_ms: 1, notes: 'n', newer: true };
+  const run = (events: UpdateEvent[], from: UpdateState = initialUpdateState) => events.reduce(updateReducer, from);
+  const available = run([{ t: 'check' }, { t: 'checked', build }]);
+  it('checks and finds a newer build', () => {
+    expect(run([{ t: 'check' }]).phase).toBe('checking');
+    expect(available.phase).toBe('available');
+    expect(run([{ t: 'check' }, { t: 'checked', build: { ...build, newer: false } }]).phase).toBe('upToDate');
+    expect(run([{ t: 'check' }, { t: 'checked', build: null }]).phase).toBe('upToDate');
+  });
+  it('fails silently or visibly', () => {
+    expect(run([{ t: 'check' }, { t: 'checkFailed', silent: true, message: 'x' }]).phase).toBe('idle');
+    const e = run([{ t: 'check' }, { t: 'checkFailed', silent: false, message: 'boom' }]);
+    expect(e).toMatchObject({ phase: 'error', error: 'boom' });
+  });
+  it('needs the install permission first', () => {
+    const s = run([{ t: 'start', recording: false, canInstall: false }], available);
+    expect(s.phase).toBe('needsPermission');
+    expect(run([{ t: 'permissionGranted' }], s).phase).toBe('downloading');
+  });
+  it('downloads with a smoothed speed, then installs', () => {
+    const s = run(
+      [
+        { t: 'start', recording: false, canInstall: true },
+        { t: 'progress', bytes: 0, totalBytes: 35_000_000, atMs: 1000 },
+        { t: 'progress', bytes: 2_000_000, totalBytes: 35_000_000, atMs: 2000 },
+      ],
+      available,
+    );
+    expect(s.phase).toBe('downloading');
+    expect(s.speedBps).toBe(2_000_000);
+    expect(downloadPercent(17_500_000, 35_000_000)).toBe(50);
+    expect(formatMb(35_000_000)).toBe('35.0');
+    expect(run([{ t: 'downloaded' }], s).phase).toBe('installing');
+  });
+  it('refuses to update while recording', () => {
+    const s = run([{ t: 'start', recording: true, canInstall: true }], available);
+    expect(s).toMatchObject({ phase: 'error', error: 'RECORDING' });
+    // Try again once recording has stopped.
+    expect(run([{ t: 'start', recording: false, canInstall: true }], s).phase).toBe('downloading');
+  });
+  it('recovers from errors and cancels', () => {
+    const dl = run([{ t: 'start', recording: false, canInstall: true }], available);
+    const err = run([{ t: 'fail', message: 'net' }], dl);
+    expect(err).toMatchObject({ phase: 'error', error: 'net' });
+    expect(run([{ t: 'start', recording: false, canInstall: true }], err).phase).toBe('downloading');
+    expect(run([{ t: 'cancel' }], dl).phase).toBe('available');
+  });
+  it('ignores start without a newer build and labels versions', () => {
+    expect(run([{ t: 'start', recording: false, canInstall: true }]).phase).toBe('idle');
+    expect(versionLabel('0.1.0', 42, 'abc')).toBe('0.1.0 (build 42, abc)');
   });
 });

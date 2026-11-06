@@ -93,10 +93,16 @@ async function showList() {
     el("td", { class: statusClass(m.final_status) }, m.final_status),
     el("td", {}, m.flags.map(f => el("span", { class: "pill" }, f))),
     el("td", { class: "thumbs" }, m.photos.length ? m.photos.slice(0, 3).map(p => el("img", { src: "/dash/api/objects/" + p.sha256, alt: "photo", loading: "lazy", style: "height:48px" })) : (m.photo_count ? m.photo_count + " photo(s)" : "-"))));
+  const ab = await api("/dash/api/app-builds");
+  const when = ms => ms ? new Date(ms).toLocaleString() : "-";
+  const builds = el("div", {}, el("h2", {}, "App builds"),
+    ab.builds.length ? el("table", {}, el("thead", {}, el("tr", {}, ["version_code", "name", "git", "size", "published", "notes"].map(h => el("th", {}, h)))),
+      el("tbody", {}, ab.builds.map(b => el("tr", {}, [b.version_code, b.version_name, b.git_sha.slice(0, 8), (b.bytes / 1048576).toFixed(1) + " MiB", when(b.built_ms), b.notes].map(v => el("td", {}, String(v))))))) : el("p", { class: "muted" }, "No build published."),
+    el("p", { class: "muted" }, ab.devices.map(d => `${d.model || d.device_id}: version_code ${d.app_version_code ?? "unknown"} (seen ${when(d.app_seen_ms)})`).join("; ")));
   $main.replaceChildren(
     el("h2", {}, `Memos (${data.memos.length}, newest first)`),
     el("table", {}, el("thead", {}, el("tr", {}, ["Memo", "Kind", "Location", "Segments", "Final", "Flags", "Photos"].map(h => el("th", {}, h)))),
-      el("tbody", {}, rows)));
+      el("tbody", {}, rows)), builds);
 }
 
 const fmtT = t => { t = Math.max(0, t || 0); return Math.floor(t / 60) + ":" + (t % 60).toFixed(1).padStart(4, "0"); };

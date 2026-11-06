@@ -17,6 +17,11 @@ CREATE TABLE IF NOT EXISTS devices (
   created_server_ms INTEGER NOT NULL,
   revoked_server_ms INTEGER
 );
+CREATE TABLE IF NOT EXISTS app_builds (
+  version_code INTEGER PRIMARY KEY,
+  version_name TEXT NOT NULL, git_sha TEXT NOT NULL DEFAULT '', sha256 TEXT NOT NULL,
+  bytes INTEGER NOT NULL, built_ms INTEGER NOT NULL, notes TEXT NOT NULL DEFAULT ''
+);
 CREATE TABLE IF NOT EXISTS pairing_codes (
   code_hash TEXT PRIMARY KEY,
   expires_server_ms INTEGER NOT NULL,
@@ -133,6 +138,7 @@ class Database:
             "events": [("redacted", "INTEGER NOT NULL DEFAULT 0")],
             "memos": [("languages", "TEXT"), ("deleted_server_ms", "INTEGER"), ("title", "TEXT")],
             "transcripts": [("detect_path", "TEXT"), ("no_speech_reason", "TEXT"), ("speech_ms", "INTEGER"), ("filtered_text", "TEXT")],
+            "devices": [("app_version_code", "INTEGER"), ("app_seen_ms", "INTEGER")],
             "jobs": [("force", "INTEGER NOT NULL DEFAULT 0")],
             "alt_transcripts": [("words", "TEXT"), ("words_kind", "TEXT")],
             "reference_transcripts": [("words", "TEXT")],

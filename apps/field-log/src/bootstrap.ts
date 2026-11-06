@@ -5,6 +5,7 @@ import { applyCapture, applyLevel, applyLive, applyPlayback, applyWave, applySta
 import { applyInputs, refreshInputs } from './state/inputs';
 import { AppState } from 'react-native';
 import { loadSettings, pushAutoStop, useSettings } from './state/settings';
+import { startUpdater } from './update/updater';
 import { reconcile } from './sync/reconcile';
 import { startSync, triggerSync } from './sync/engine';
 
@@ -43,10 +44,12 @@ export async function bootstrap(): Promise<() => void> {
     if (st !== 'active') return;
     void reconcile().catch(() => undefined);
   });
+  const stopUpdater = startUpdater();
   const stopSync = startSync();
   return () => {
     subs.forEach((s) => s.remove());
     appSub.remove();
+    stopUpdater();
     stopSync();
   };
 }

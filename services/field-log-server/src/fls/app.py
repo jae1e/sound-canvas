@@ -24,6 +24,7 @@ from .config import (ALLOWED_OBJECT_TYPES, MAX_EVENTS_PER_BATCH, MAX_LIVE_STREAM
 from .db import Database, now_ms
 from .engines.aligner import Aligner
 from .engines.base import FinalEngine, StreamingEngine
+from . import appbuilds
 from . import events as events_mod
 from .events import enqueue_for_object, ingest, requeue_final
 from .jobs import Worker
@@ -140,6 +141,32 @@ def create_app(data_dir: Path, final_engine: FinalEngine, live_engine: Streaming
         dev, token = res
         log.info("device enrolled id=%s", dev)
         return {"device_id": dev, "token": token, "server_time_ms": now_ms()}
+
+    @app.get("/v1/app/latest")
+    def app_latest(version_code: int | None = None, dev: str = Depends(device_id)):
+        if version_code is not None:
+            db.execute("UPDATE devices SET app_version_code=?, app_seen_ms=? WHERE device_id=?",
+                       (version_code, now_ms(), dev))
+        r = appbuilds.latest(db)
+        if r is None:
+            raise HTTPException(404, "no build published")
+        return appbuilds.build_json(r, version_code)
+
+    @app.get("/v1/app/apk/{sha256}")
+    def app_apk(sha256: str, request: Request, dev: str = Depends(device_id)):
+        # Only published APK hashes, never arbitrary objects.
+        if not HEX64.fullmatch(sha256) or not db.one("SELECT 1 FROM app_builds WHERE sha256=?", (sha256,)):
+            raise HTTPException(404, "unknown build")
+        path = appbuilds.apk_dir(state.paths.root) / f"{sha256}.apk"
+        if not path.exists():
+            raise HTTPException(404, "unknown build")
+        rng = request.headers.get("range")
+        start = 0
+        if rng and rng.startswith("bytes=") and rng[6:].split("-")[0].isdigit():
+            start = int(rng[6:].split("-")[0])
+        log.info("apk download device=%s sha=%s range_start=%d bytes_sent=%d", dev, sha256[:12], start,
+                 max(0, path.stat().st_size - start))
+        return appbuilds.ApkResponse(path, media_type=appbuilds.APK_MIME)
 
     @app.get("/v1/health")
     def health(_: str = Depends(device_id)):

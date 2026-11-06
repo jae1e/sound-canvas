@@ -23,7 +23,7 @@ class FlNativeModule : Module() {
 
   override fun definition() = ModuleDefinition {
     Name("FlNative")
-    Events("onLevel", "onJournal", "onLive", "onWave", "onCapture", "onPlayback", "onInputs")
+    Events("onLevel", "onJournal", "onLive", "onWave", "onCapture", "onPlayback", "onInputs", "onDownload")
 
     OnCreate {
       appContext.reactContext?.let { Engine.init(it); Inputs.register(it); AutoStop.register(it) }
@@ -111,6 +111,27 @@ class FlNativeModule : Module() {
     AsyncFunction("setAutoStop") { options: Map<String, Any?> ->
       val (leave, keepOff) = AutoStop.get(context)
       AutoStop.set(context, options["onLeaveApp"] as? Boolean ?: leave, options["keepWhenScreenOff"] as? Boolean ?: keepOff)
+    }
+
+    AsyncFunction("getAppInfo") { Updates.appInfo(context) }
+
+    AsyncFunction("downloadFile") { id: String, url: String, headers: Map<String, String>, fileName: String, sha256: String, promise: Promise ->
+      val ctx = context
+      Engine.init(ctx)
+      io.execute { run(promise, "ERR_DOWNLOAD") { Updates.download(ctx, id, url, headers, fileName, sha256) } }
+    }
+
+    AsyncFunction("cancelDownload") { id: String -> Updates.cancel(id) }
+
+    AsyncFunction("canInstallPackages") { Updates.canInstall(context) }
+
+    AsyncFunction("openInstallPermissionSettings") { Updates.openInstallSettings(context) }
+
+    AsyncFunction("installApk") { path: String -> Updates.install(context, path) }
+
+    AsyncFunction("cleanupUpdates") { all: Boolean?, promise: Promise ->
+      val ctx = context
+      io.execute { run(promise, "ERR_CLEANUP") { Updates.cleanup(ctx, all == true) } }
     }
 
     AsyncFunction("getStatus") { Engine.status() }

@@ -116,3 +116,16 @@ when raw finds under 1.5 s, on the conditioned audio (the larger result wins), t
   `/dash/api/segments/{id}/retranscribe`.
 - Live draft: finals that are stock phrases with utterance RMS under -45 dBFS are dropped and logged.
 - Transcripts store `no_speech_reason`, `speech_ms`, `filtered_text` (migration in `db.py`).
+
+## App updates (round 8)
+
+`fls publish-apk app.apk --version-code N --version-name X --git-sha S --notes "..."` checks the file is a zip
+with `AndroidManifest.xml`, copies it to `<data>/app/<sha256>.apk`, records it in `app_builds`, keeps the newest 3
+builds, and refuses a `version_code` not above the latest unless `--force`. Devices call
+`GET /v1/app/latest?version_code=N` (also records the device's version, shown in the dashboard "App builds"
+section) and `GET /v1/app/apk/{sha256}` (Range, 1 MiB reads, only published hashes). Downloads are logged
+(device, sha prefix, range start, bytes to send).
+
+Measuring throughput: `fls bench-download http://<tailnet-ip>:8787 <sha256> --token <device token>` prints the
+Mbit/s for a full download; run it from the phone's network (or `curl -o /dev/null -w '%{speed_download}'` with
+the same URL) and compare with a plain `iperf3` over the same path to see whether the relay, not the server, limits.

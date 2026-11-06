@@ -9,6 +9,7 @@ import { useLang, useT } from '../src/i18n';
 import { confirmDeleteMemo } from '../src/memo/confirmDelete';
 import { useSettings } from '../src/state/settings';
 import { useSyncStatus } from '../src/state/syncStatus';
+import { UpdateBanner } from '../src/ui/UpdateSection';
 import { LeftAppNotice } from '../src/ui/LeftAppNotice';
 import { BigButton, RouteBadge, StatusPill, useLiveFacts } from '../src/ui/components';
 import { formatTime } from '../src/ui/format';
@@ -132,6 +133,7 @@ export default function Home() {
       <View style={s.pad}>
         <ConnectionIndicator />
         <LeftAppNotice />
+        <UpdateBanner onPress={() => router.push('/settings')} />
         <BigButton label={t('newMemo')} onPress={() => router.push('/new')} />
         {!enrolled && <Text style={{ fontSize: 16, color: colors.danger }}>{t('enrolFirst')}</Text>}
       </View>

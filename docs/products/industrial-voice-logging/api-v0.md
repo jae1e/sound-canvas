@@ -227,3 +227,19 @@ What remains is a tombstone: the memo id, the event envelopes and their hashes. 
 - **Redacted events:** they are marked `redacted` in storage, and their stored `record_hash` keeps the chain linkable.
 - **Pending jobs:** jobs for the memo are cancelled.
 - **Uploads:** the phone does not upload objects of a deleted memo that are still pending.
+
+## 9. App updates (v0.2, 2026-11-06)
+
+Test builds are sideloaded, so the app updates itself from the user's own server. No app store is involved, and nothing goes to a public host.
+
+| Endpoint | Request | Response |
+|---|---|---|
+| `GET /v1/app/latest` | Device token. Query `?version_code=N` (the app's current build) | `200 {version_code, version_name, git_sha, sha256, bytes, built_ms, notes, newer: bool}` for the newest published build. `404` when none is published |
+| `GET /v1/app/apk/{sha256}` | Device token. Supports `Range: bytes=N-`, so an interrupted download resumes | The APK bytes (`application/vnd.android.package-archive`), `206` for a range |
+
+**Rules.**
+- **Publishing.** The server publishes builds with `fls publish-apk <apk> --version-code N --version-name X --git-sha S --notes "…"`. It stores the file content-addressed and keeps the newest 3. A higher `version_code` is newer.
+- **Version codes.** Every release build gets a strictly increasing Android `versionCode`: minutes since 2026-01-01 00:00 UTC, set at build time. Otherwise Android refuses or confuses updates.
+- **Download.** The app downloads to its private cache, verifies the SHA-256, and only then hands the file to the system package installer. The user confirms the install; Android also asks once to allow "install unknown apps" for Field Voice Log.
+- **Clean-up.** The app deletes downloaded APKs after a successful update (on the next start, when its own `versionCode` is at least the file's) and on cancel. Old APKs never pile up in Downloads.
+- **Data.** An update replaces the app and keeps its data (same package and signing key).
