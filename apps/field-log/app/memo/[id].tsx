@@ -1,7 +1,7 @@
 import { useFocusEffect, useLocalSearchParams, useNavigation, useRouter } from 'expo-router';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Alert, BackHandler, Image, Modal, Pressable, ScrollView, Text, TextInput, ToastAndroid, View } from 'react-native';
-import { noSpeechChip, autoTitle, durationLabel, stampLabel, controlPhase, type ControlAction, formatPlace, isSilentPeak, mergeTranscript, segmentStartsMs, type DraftUtt, type FinalSeg } from '../../src/core';
+import { noteButtonState, noteSyncState, noSpeechChip, autoTitle, durationLabel, stampLabel, controlPhase, type ControlAction, formatPlace, isSilentPeak, mergeTranscript, segmentStartsMs, type DraftUtt, type FinalSeg } from '../../src/core';
 import { getMemoDetail, type MemoDetail, type SegmentRow } from '../../src/db/queries';
 import { useLang, useT, type Key } from '../../src/i18n';
 import { confirmDeleteMemo } from '../../src/memo/confirmDelete';
@@ -187,9 +187,13 @@ export default function MemoScreen() {
   // Every way of leaving stops and saves a recording of this memo (idempotent, decided from native status).
   useEffect(() => {
     const nav = navigation as unknown as { addListener: (e: 'beforeRemove', cb: () => void) => () => void };
-    const off = nav.addListener('beforeRemove', () => void stopOnLeaveScreen(id, 'beforeRemove'));
+    const off = nav.addListener('beforeRemove', () => {
+      void saveNote(id, noteRef.current).catch(() => undefined);
+      void stopOnLeaveScreen(id, 'beforeRemove');
+    });
     return () => {
       off();
+      void saveNote(id, noteRef.current).catch(() => undefined);
       void stopOnLeaveScreen(id, 'unmount');
     };
   }, [navigation, id]);
@@ -210,6 +214,20 @@ export default function MemoScreen() {
   const otherActive = rec.recording && rec.memoId !== id;
   const [busy, setBusy] = useState(false);
   const [note, setNote] = useState('');
+  const [savingNote, setSavingNote] = useState(false);
+  const noteRef = useRef('');
+  noteRef.current = note;
+  const persistNote = async (text: string, toast: boolean) => {
+    setSavingNote(true);
+    try {
+      const wrote = await saveNote(id, text);
+      if (wrote && toast) ToastAndroid.show(t('noteSaved'), ToastAndroid.SHORT);
+    } catch (e) {
+      Alert.alert(t('error'), (e as Error).message);
+    } finally {
+      setSavingNote(false);
+    }
+  };
   const started = useRef(false);
 
   const run = async (fn: () => Promise<void>) => {
@@ -244,6 +262,8 @@ export default function MemoScreen() {
   if (!detail) return <View style={s.screen} />;
 
   const totalMs = detail.segments.reduce((a, x) => a + x.durationMs, 0);
+  const nb = noteButtonState(detail.note, note, savingNote);
+  const noteSync = noteSyncState(!!detail.note, detail.noteSynced);
   const photo = detail.photos[0];
   const firstFinal = detail.segments.find((x) => x.status === 'done' && !x.noSpeech && x.text.trim())?.text;
   const draftList = Object.values(rec.drafts).flat();
@@ -346,10 +366,18 @@ export default function MemoScreen() {
         multiline
         value={note}
         onChangeText={setNote}
+        onBlur={() => void persistNote(note, false)}
         placeholder={t('notePlaceholder')}
         placeholderTextColor={colors.muted}
       />
-      <BigButton label={t('saveNote')} variant="outline" onPress={() => void saveNote(id, note)} style={{ minHeight: 56 }} />
+      <BigButton
+        label={nb.label === 'saved' ? t('noteSaved') : nb.label === 'saving' ? t('noteSaving') : t('saveNote')}
+        variant="outline"
+        disabled={!nb.enabled}
+        onPress={() => void persistNote(note, true)}
+        style={{ minHeight: 56 }}
+      />
+      {noteSync !== 'none' && <Text style={s.small}>{noteSync === 'synced' ? t('noteSyncedLine') : t('noteSavedPhone')}</Text>}
 
       <Text style={s.h2}>{t('details')}</Text>
       <View style={s.card}>

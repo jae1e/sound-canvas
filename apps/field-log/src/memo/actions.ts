@@ -2,7 +2,7 @@ import { getCalendars } from 'expo-localization';
 import { Directory, File, Paths } from 'expo-file-system';
 import type { ImagePickerAsset } from 'expo-image-picker';
 import { PermissionsAndroid, Platform, ToastAndroid } from 'react-native';
-import { shouldStopOnLeave, titleChanged, titlePayload, exifToWallMs, liveLanguageFor, initialLevelMonitor, objectsToSkip, type LocationPayload } from '../core';
+import { noteChanged, shouldStopOnLeave, titleChanged, titlePayload, exifToWallMs, liveLanguageFor, initialLevelMonitor, objectsToSkip, type LocationPayload } from '../core';
 import { writeTx } from '../db/db';
 import { appendEvent, newId } from '../db/events';
 import FlNative, { type LiveLanguage } from '../native';
@@ -134,22 +134,35 @@ export async function addPhoto(
   triggerSync();
 }
 
-export async function saveNote(memoId: string, text: string): Promise<void> {
+let savingNote = false;
+
+/** Saves a typed note. Returns true if a memo_note event was written; false if nothing changed or a save is running. */
+export async function saveNote(memoId: string, text: string): Promise<boolean> {
   const trimmed = text.trim();
-  if (!trimmed) return;
-  const now = FlNative.clock();
-  await writeTx(async (q) => {
-    await q.runAsync('UPDATE memos SET note = ? WHERE memo_id = ?', trimmed, memoId);
-    await appendEvent(q, {
-      type: 'memo_note',
-      memoId,
-      wallMs: now.wallMs,
-      elapsedUs: now.elapsedUs,
-      bootCount: now.bootCount,
-      payload: { memo_id: memoId, text: trimmed },
+  if (!trimmed || savingNote) return false;
+  savingNote = true;
+  try {
+    const now = FlNative.clock();
+    let wrote = false;
+    await writeTx(async (q) => {
+      const row = await q.getFirstAsync<{ note: string | null }>('SELECT note FROM memos WHERE memo_id = ?', memoId);
+      if (!row || !noteChanged(row.note, trimmed)) return;
+      await q.runAsync('UPDATE memos SET note = ? WHERE memo_id = ?', trimmed, memoId);
+      await appendEvent(q, {
+        type: 'memo_note',
+        memoId,
+        wallMs: now.wallMs,
+        elapsedUs: now.elapsedUs,
+        bootCount: now.bootCount,
+        payload: { memo_id: memoId, text: trimmed },
+      });
+      wrote = true;
     });
-  });
-  triggerSync();
+    if (wrote) triggerSync();
+    return wrote;
+  } finally {
+    savingNote = false;
+  }
 }
 
 async function ensureAudioPermissions(): Promise<void> {

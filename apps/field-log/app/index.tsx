@@ -1,7 +1,7 @@
 import { Link, useRouter } from 'expo-router';
 import React from 'react';
 import { FlatList, Image, Pressable, Text, View } from 'react-native';
-import { autoTitle, dateLabel, displayTitle, durationLabel, formatPlace, previewLine } from '../src/core';
+import { autoTitle, composeRowLines, dateLabel, durationLabel, formatPlace } from '../src/core';
 import { useRecorder } from '../src/state/recorder';
 import { listMemos, type MemoSummary } from '../src/db/queries';
 import { useLang, useT } from '../src/i18n';
@@ -55,8 +55,7 @@ function MemoRow({ m }: { m: MemoSummary }) {
     kind: m.kind,
     fallbacks: { voice: t('memoVoice'), photo: t('memoPhoto') },
   });
-  const line1 = displayTitle(m.title, auto);
-  const preview = previewLine(line1, m.transcript);
+  const { line1, noteLine, preview } = composeRowLines({ userTitle: m.title, auto, note: m.note, transcript: m.transcript });
   const meta = [
     dateLabel(m.createdWallMs, Date.now(), lang),
     m.durationMs > 0 ? durationLabel(m.durationMs) : null,
@@ -90,6 +89,11 @@ function MemoRow({ m }: { m: MemoSummary }) {
           pendingEvents={m.pendingEvents}
           pendingObjects={m.pendingObjects}
         />
+        {noteLine ? (
+          <Text style={[s.body, { marginTop: 6 }]} numberOfLines={2}>
+            {noteLine}
+          </Text>
+        ) : null}
         {preview ? (
           <Text style={[s.body, { marginTop: 6, color: colors.muted }]} numberOfLines={2}>
             {preview}

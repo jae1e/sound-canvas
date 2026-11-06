@@ -17,6 +17,10 @@ import {
   journalRecordToEvent,
   mergeTranscript,
   segmentStartsMs,
+  noteChanged,
+  noteButtonState,
+  noteSyncState,
+  composeRowLines,
   shouldStopOnLeave,
   noSpeechChip,
   DEFAULT_AUTO_STOP,
@@ -662,5 +666,30 @@ describe('leave and no-speech helpers', () => {
     expect(noSpeechChip('stock_phrase', ' 감사합니다 ')).toEqual({ key: 'noSpeechStock', text: '감사합니다' });
     expect(noSpeechChip('stock_phrase', '')).toEqual({ key: 'noSpeechStockPlain' });
     expect(noSpeechChip(null, '')).toEqual({ key: 'noSpeechGeneric' });
+  });
+});
+
+describe('notes', () => {
+  it('dedupes by trimmed text', () => {
+    expect(noteChanged('hello', ' hello ')).toBe(false);
+    expect(noteChanged(null, '  ')).toBe(false);
+    expect(noteChanged('a', 'b')).toBe(true);
+  });
+  it('drives the button state', () => {
+    expect(noteButtonState(null, 'new', false)).toEqual({ label: 'save', enabled: true });
+    expect(noteButtonState('new', 'new', false)).toEqual({ label: 'saved', enabled: false });
+    expect(noteButtonState('old', 'new', true)).toEqual({ label: 'saving', enabled: false });
+    expect(noteButtonState('old', 'edited', false)).toEqual({ label: 'save', enabled: true });
+    expect(noteButtonState(null, '', false)).toEqual({ label: 'saved', enabled: false });
+  });
+  it('reports the sync line', () => {
+    expect(noteSyncState(false, null)).toBe('none');
+    expect(noteSyncState(true, false)).toBe('syncing');
+    expect(noteSyncState(true, true)).toBe('synced');
+  });
+  it('composes list rows with a note', () => {
+    const r = composeRowLines({ userTitle: null, auto: 'Check valve', note: '  bring\nwrench ', transcript: 'Check valve three is leaking' });
+    expect(r).toEqual({ line1: 'Check valve', noteLine: '📝 bring wrench', preview: 'Check valve three is leaking' });
+    expect(composeRowLines({ userTitle: 'T', auto: 'a', note: null, transcript: null })).toEqual({ line1: 'T', noteLine: null, preview: null });
   });
 });

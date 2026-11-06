@@ -8,6 +8,7 @@ export interface MemoSummary {
   location: LocationPayload | null;
   photoPath: string | null;
   title: string | null;
+  note: string | null;
   firstText: string | null;
   /** All final transcript text joined. */
   transcript: string | null;
@@ -27,7 +28,7 @@ const parseLoc = (s: string | null): LocationPayload | null => (s ? (JSON.parse(
 export async function listMemos(limit = 200): Promise<MemoSummary[]> {
   const db = await getDb();
   const rows = await db.getAllAsync<Record<string, any>>(
-    `SELECT m.memo_id, m.kind, m.created_wall_ms, m.location_json, m.title,
+    `SELECT m.memo_id, m.kind, m.created_wall_ms, m.location_json, m.title, m.note,
       (SELECT group_concat(t_text, ' ') FROM (SELECT t_text FROM segments s WHERE s.memo_id = m.memo_id AND s.t_status = 'done'
          AND s.t_no_speech = 0 AND s.t_text <> '' ORDER BY s.start_wall_ms, s.idx)) AS transcript,
       (SELECT COALESCE(SUM(duration_ms), 0) FROM segments s WHERE s.memo_id = m.memo_id) AS duration_ms,
@@ -52,6 +53,7 @@ export async function listMemos(limit = 200): Promise<MemoSummary[]> {
     location: parseLoc(r.location_json),
     photoPath: r.photo_path,
     title: r.title,
+    note: r.note,
     firstText: r.first_text,
     transcript: r.transcript,
     durationMs: r.duration_ms,
@@ -120,6 +122,8 @@ export interface MemoDetail {
   segments: SegmentRow[];
   pendingEvents: number;
   pendingObjects: number;
+  /** Whether the latest memo_note event was acknowledged by the server; null when there is none. */
+  noteSynced: boolean | null;
 }
 
 export async function getMemoDetail(memoId: string): Promise<MemoDetail | null> {
@@ -134,6 +138,7 @@ export async function getMemoDetail(memoId: string): Promise<MemoDetail | null> 
   const segs = await db.getAllAsync<Record<string, any>>('SELECT * FROM segments WHERE memo_id = ? ORDER BY start_wall_ms, idx', memoId);
   const pe = await db.getFirstAsync<{ n: number }>('SELECT COUNT(*) AS n FROM events WHERE memo_id = ? AND acked = 0', memoId);
   const po = await db.getFirstAsync<{ n: number }>('SELECT COUNT(*) AS n FROM objects WHERE memo_id = ? AND uploaded = 0 AND skipped = 0', memoId);
+  const ns = await db.getFirstAsync<{ acked: number }>("SELECT acked FROM events WHERE memo_id = ? AND type = 'memo_note' ORDER BY seq DESC LIMIT 1", memoId);
   return {
     memoId,
     kind: m.kind,
@@ -180,6 +185,7 @@ export async function getMemoDetail(memoId: string): Promise<MemoDetail | null> 
       language: s.t_language,
       error: s.t_error,
     })),
+    noteSynced: ns ? ns.acked === 1 : null,
     pendingEvents: pe?.n ?? 0,
     pendingObjects: po?.n ?? 0,
   };

@@ -17,3 +17,4 @@ export * from './inputs';
 export * from './titles';
 export * from './autostop';
 export * from './leave';
+export * from './notes';
