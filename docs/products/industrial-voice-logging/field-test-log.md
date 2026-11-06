@@ -61,6 +61,7 @@
 | FT-21 | 2026-11-06 | `adb install` hung | A Play Protect dialog on the phone waits for a tap (**M**) | Run installs in the background with a long timeout and tell the user to tap install | Workaround | Expect the prompt on every sideload of a debug-signed build |
 | FT-22 | 2026-11-06 | The Kotlin recorder module had never been committed | `apps/field-log/.gitignore` used `android/`, which also matched `modules/fl-native/android/` (**M**) | Changed to `/android/`, ignored module build outputs, and committed the 24 source files | Fixed (9e2d356) | After adding a native module, run `git status --ignored` on it |
 | FT-23 | 2026-11-06 | Two Field Voice Log memos took about 7 s to upload, against about 1.2 s normally | Unknown: the outbox interval or LTE (**M**) | Not investigated | Open | — |
+| FT-30 | 2026-11-06 | The user, away from the PC, wanted to install new builds, and found Tailscale too slow (**U**) | USB install needs the desk; Taildrop goes over the DERP relay. The repo is public, so a normal release would expose builds (**M**) | 1. A private **draft** GitHub release for remote downloads (anonymous access returns 404, checked).<br>2. An in-app update: `GET /v1/app/latest` and a ranged `GET /v1/app/apk/{sha}` from the user's server; resumable download with a SHA-256 check and MB/s shown; system installer; downloaded files deleted after the update.<br>3. A strictly increasing versionCode (minutes since 2026-01-01 UTC).<br>4. `scripts/release-android.sh [--github] "notes"` builds and publishes in one step | Built (43e3d76); first release 445627. In-app download speed over DERP not yet measured | Plan the update channel before the first sideload. Downloaded APKs pile up in Downloads unless the app manages them |
 
 ## 2. Test results
 
@@ -104,5 +105,6 @@ Final text arrived about 1.5–2 s after Stop: upload about 1.2 s, ASR 0.4–1.3
 - FT-15: number normalisation and personal vocabulary (A12).
 - FT-19: Back button stop, awaiting the user's test.
 - FT-23: occasional upload delay.
+- FT-30: measure the in-app update speed over the tailnet.
 - FT-24: Bluetooth codec fallback. FT-25: subway ANC test needs references. FT-26: repetition guard. FT-27: note-save feedback.
 - Noisy-environment test set, postponed by the user on 2026-11-06. Record the same sentences with the phone mic and with the earbuds in the same noise.
