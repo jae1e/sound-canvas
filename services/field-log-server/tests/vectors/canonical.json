@@ -1,0 +1,159 @@
+{
+  "description": "Shared canonical-JSON and event-chain test vectors for docs/products/industrial-voice-logging/api-v0.md section 3. Both the server (Python) and the app (TypeScript) must reproduce 'canonical' and the hashes exactly. Object keys are ASCII only; numbers are integers within +/-(2^53-1).",
+  "generated_by": "python json.dumps(sort_keys=True, separators=(',', ':'), ensure_ascii=False)",
+  "cases": [
+    {
+      "name": "flat_sorted",
+      "input": {
+        "b": 1,
+        "a": 2,
+        "c": 0
+      },
+      "canonical": "{\"a\":2,\"b\":1,\"c\":0}",
+      "sha256": "274af4efc15291218dc22cf4d3921f3f11412a2896c4390785ed0df7d9298ede"
+    },
+    {
+      "name": "nested_objects_and_arrays",
+      "input": {
+        "z": [
+          3,
+          1,
+          {
+            "y": true,
+            "x": false
+          }
+        ],
+        "a": {
+          "d": -5,
+          "c": []
+        },
+        "m": {}
+      },
+      "canonical": "{\"a\":{\"c\":[],\"d\":-5},\"m\":{},\"z\":[3,1,{\"x\":false,\"y\":true}]}",
+      "sha256": "721eb8aaf41f598acf7654cf451738368462271fbb8abc33880a6a1cf6161cd9"
+    },
+    {
+      "name": "korean_and_emoji_not_escaped",
+      "input": {
+        "text": "지하철 소음 테스트 🚇",
+        "lang": "ko"
+      },
+      "canonical": "{\"lang\":\"ko\",\"text\":\"지하철 소음 테스트 🚇\"}",
+      "sha256": "6cbb06cb6bac24d49bcc0123d0a0a910db6f2fdc410d904e1908fefb3d0381ca"
+    },
+    {
+      "name": "string_escapes",
+      "input": {
+        "s": "quote \" backslash \\ newline \n tab \t cr \r ctrl \u0001 del "
+      },
+      "canonical": "{\"s\":\"quote \\\" backslash \\\\ newline \\n tab \\t cr \\r ctrl \\u0001 del \"}",
+      "sha256": "389eb9fa98380abbd1dd6319a3d27f2d47ff2415ba78175732acf59d520a370a"
+    },
+    {
+      "name": "empty_string_and_zero",
+      "input": {
+        "prev_hash": "",
+        "seq": 0,
+        "n": -1
+      },
+      "canonical": "{\"n\":-1,\"prev_hash\":\"\",\"seq\":0}",
+      "sha256": "7af814fe330d6c247320634d3532637a8bbaaa862b6090feed90271815dd5038"
+    },
+    {
+      "name": "large_safe_integer",
+      "input": {
+        "elapsed_us": 9007199254740991,
+        "wall_ms": 1794000000000
+      },
+      "canonical": "{\"elapsed_us\":9007199254740991,\"wall_ms\":1794000000000}",
+      "sha256": "b8655a9cdcf9fead77c29b134be62c393106c2148862c5e5dd7041a5f6a9bd9b"
+    },
+    {
+      "name": "array_order_kept",
+      "input": {
+        "flags": [
+          "narrowband",
+          "clipped"
+        ]
+      },
+      "canonical": "{\"flags\":[\"narrowband\",\"clipped\"]}",
+      "sha256": "c073abf1705b6a0db77f796e82d03bb1b7a5a343599b31587e35de12a57cf232"
+    }
+  ],
+  "chain": [
+    {
+      "envelope_without_record_hash": {
+        "event_id": "019a5c3e-0000-7000-8000-000000000101",
+        "device_id": "dev_test_1",
+        "seq": 1,
+        "type": "memo_created",
+        "wall_ms": 1794000001000,
+        "elapsed_us": 123457789000,
+        "boot_count": 42,
+        "payload": {
+          "memo_id": "019a5c3e-0000-7000-8000-000000000001",
+          "kind": "voice",
+          "tz": "Asia/Seoul",
+          "retention_class": "standard",
+          "location": {
+            "lat_e7": 375665000,
+            "lon_e7": 1269780000,
+            "accuracy_cm": 1200,
+            "provider": "fused",
+            "fix_wall_ms": 1794000000000,
+            "fix_elapsed_us": 123456789000
+          }
+        },
+        "prev_hash": ""
+      },
+      "canonical": "{\"boot_count\":42,\"device_id\":\"dev_test_1\",\"elapsed_us\":123457789000,\"event_id\":\"019a5c3e-0000-7000-8000-000000000101\",\"payload\":{\"kind\":\"voice\",\"location\":{\"accuracy_cm\":1200,\"fix_elapsed_us\":123456789000,\"fix_wall_ms\":1794000000000,\"lat_e7\":375665000,\"lon_e7\":1269780000,\"provider\":\"fused\"},\"memo_id\":\"019a5c3e-0000-7000-8000-000000000001\",\"retention_class\":\"standard\",\"tz\":\"Asia/Seoul\"},\"prev_hash\":\"\",\"seq\":1,\"type\":\"memo_created\",\"wall_ms\":1794000001000}",
+      "record_hash": "d3b8c91dc3e22bef78b5b2c6891eb94f842bfd9387f96d10817af31861b308f2"
+    },
+    {
+      "envelope_without_record_hash": {
+        "event_id": "019a5c3e-0000-7000-8000-000000000102",
+        "device_id": "dev_test_1",
+        "seq": 2,
+        "type": "recording_started",
+        "wall_ms": 1794000002000,
+        "elapsed_us": 123458789000,
+        "boot_count": 42,
+        "payload": {
+          "memo_id": "019a5c3e-0000-7000-8000-000000000001",
+          "recording_id": "019a5c3e-0000-7000-8000-000000000002",
+          "route": {
+            "type": "builtin_mic"
+          },
+          "source": "UNPROCESSED",
+          "sample_rate": 16000,
+          "effects": {
+            "ns": "unavailable",
+            "agc": "unavailable",
+            "aec": "unavailable"
+          }
+        },
+        "prev_hash": "d3b8c91dc3e22bef78b5b2c6891eb94f842bfd9387f96d10817af31861b308f2"
+      },
+      "canonical": "{\"boot_count\":42,\"device_id\":\"dev_test_1\",\"elapsed_us\":123458789000,\"event_id\":\"019a5c3e-0000-7000-8000-000000000102\",\"payload\":{\"effects\":{\"aec\":\"unavailable\",\"agc\":\"unavailable\",\"ns\":\"unavailable\"},\"memo_id\":\"019a5c3e-0000-7000-8000-000000000001\",\"recording_id\":\"019a5c3e-0000-7000-8000-000000000002\",\"route\":{\"type\":\"builtin_mic\"},\"sample_rate\":16000,\"source\":\"UNPROCESSED\"},\"prev_hash\":\"d3b8c91dc3e22bef78b5b2c6891eb94f842bfd9387f96d10817af31861b308f2\",\"seq\":2,\"type\":\"recording_started\",\"wall_ms\":1794000002000}",
+      "record_hash": "c6f078dae1f96ea01ba3335d24180d59936f5ba6fa0ad53bd80628f8d7530905"
+    },
+    {
+      "envelope_without_record_hash": {
+        "event_id": "019a5c3e-0000-7000-8000-000000000103",
+        "device_id": "dev_test_1",
+        "seq": 3,
+        "type": "memo_note",
+        "wall_ms": 1794000003000,
+        "elapsed_us": 123459789000,
+        "boot_count": 42,
+        "payload": {
+          "memo_id": "019a5c3e-0000-7000-8000-000000000001",
+          "text": "메모 \"테스트\"\n두 번째 줄"
+        },
+        "prev_hash": "c6f078dae1f96ea01ba3335d24180d59936f5ba6fa0ad53bd80628f8d7530905"
+      },
+      "canonical": "{\"boot_count\":42,\"device_id\":\"dev_test_1\",\"elapsed_us\":123459789000,\"event_id\":\"019a5c3e-0000-7000-8000-000000000103\",\"payload\":{\"memo_id\":\"019a5c3e-0000-7000-8000-000000000001\",\"text\":\"메모 \\\"테스트\\\"\\n두 번째 줄\"},\"prev_hash\":\"c6f078dae1f96ea01ba3335d24180d59936f5ba6fa0ad53bd80628f8d7530905\",\"seq\":3,\"type\":\"memo_note\",\"wall_ms\":1794000003000}",
+      "record_hash": "b888783522b5f84e9259e2f0daac49ac5d194af13e4c7fb58a2fadccd1bb1b50"
+    }
+  ]
+}

@@ -1,0 +1,57 @@
+{
+  "expo": {
+    "name": "Field Voice Log",
+    "slug": "field-voice-log",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "scheme": "fvl",
+    "android": {
+      "package": "com.jae1e.fieldvoicelog",
+      "adaptiveIcon": {
+        "backgroundColor": "#F3F5F7",
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "backgroundImage": "./assets/android-icon-background.png",
+        "monochromeImage": "./assets/android-icon-monochrome.png"
+      },
+      "predictiveBackGestureEnabled": false,
+      "softwareKeyboardLayoutMode": "resize"
+    },
+    "ios": {
+      "bundleIdentifier": "com.jae1e.fieldvoicelog"
+    },
+    "plugins": [
+      "expo-router",
+      "expo-sqlite",
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "buildArchs": [
+              "arm64-v8a"
+            ],
+            "minSdkVersion": 31,
+            "usesCleartextTraffic": true
+          }
+        }
+      ],
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "Field Voice Log stores where each memo and photo was made.",
+          "isAndroidBackgroundLocationEnabled": false
+        }
+      ],
+      "expo-secure-store",
+      "expo-localization",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Field Voice Log attaches the images you pick to a memo.",
+          "cameraPermission": "Field Voice Log attaches the photos you take to a memo."
+        }
+      ]
+    ]
+  }
+}

@@ -1,0 +1,8 @@
+.venv/
+data/
+runs/
+*.wav
+models/
+__pycache__/
+.pytest_cache/
+*.egg-info/

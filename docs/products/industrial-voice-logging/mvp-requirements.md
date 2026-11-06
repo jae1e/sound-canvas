@@ -1,6 +1,11 @@
-# Industrial Voice Logging: MVP Requirements (v0.2)
+# Industrial Voice Logging: MVP Requirements (v0.3)
 
-**Status.** MVP scope agreed with the user on 2026-11-05. v0.2 (2026-11-06, agreed with the user) adds per-segment signal-quality metrics and the `clipped` and `narrowband` flags to A3, A11 and S-3. Implementation has not started. The working name is "Field Voice Log". The evidence base is [industrial-voice-logging-research.md](../../market-studies/industrial-voice-logging/industrial-voice-logging-research.md), which also holds the full draft requirement list (IDs M1–M16, K1–K3, S1–S12 and L1–L10) and the open decisions D1–D12. IDs in brackets below refer to that report.
+**Status.** MVP scope agreed with the user on 2026-11-05. v0.2 (2026-11-06, agreed with the user) adds per-segment signal-quality metrics and the `clipped` and `narrowband` flags to A3, A11 and S-3. v0.3 (2026-11-06, user request) adds three things:
+- **New-memo flow.** A new memo starts with one of three choices: take a photo (the system camera app, never open at the same time as the recorder), pick an image, or voice only. A photo or image memo can then get a voice recording. Location, timestamps and the input device are recorded automatically.
+- **Live draft.** While recording, a grey live draft transcript is shown. It comes from a streaming engine on the server, so decision 3 still holds: there is no on-device ASR. Final text replaces the draft segment by segment.
+- **No noise reduction in the capture path.** Server-side denoising is a bake-off variant.
+
+Implementation started on 2026-11-06 with slice 1. Its scope, engines and contract are in [api-v0.md](api-v0.md). The working name is "Field Voice Log". The evidence base is [industrial-voice-logging-research.md](../../market-studies/industrial-voice-logging/industrial-voice-logging-research.md), which also holds the full draft requirement list (IDs M1–M16, K1–K3, S1–S12 and L1–L10) and the open decisions D1–D12. IDs in brackets below refer to that report.
 
 ## 1. Goal of the MVP
 
