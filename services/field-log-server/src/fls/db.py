@@ -132,7 +132,8 @@ class Database:
         wanted = {
             "events": [("redacted", "INTEGER NOT NULL DEFAULT 0")],
             "memos": [("languages", "TEXT"), ("deleted_server_ms", "INTEGER"), ("title", "TEXT")],
-            "transcripts": [("detect_path", "TEXT")],
+            "transcripts": [("detect_path", "TEXT"), ("no_speech_reason", "TEXT"), ("speech_ms", "INTEGER"), ("filtered_text", "TEXT")],
+            "jobs": [("force", "INTEGER NOT NULL DEFAULT 0")],
             "alt_transcripts": [("words", "TEXT"), ("words_kind", "TEXT")],
             "reference_transcripts": [("words", "TEXT")],
         }

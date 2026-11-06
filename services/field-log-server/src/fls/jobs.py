@@ -23,6 +23,8 @@ from .engines.aligner import Aligner, safe_align
 from .engines.base import FinalEngine, StreamingEngine
 from .engines.base import FinalResult
 from .gate import silence_reason
+from .nospeech import NO_VOICE_MS
+from .pipeline import gate_reason, transcribe_segment, vad_analysis
 from .langs import (DEFAULT_LANGUAGES, ISO_TO_QWEN, decode_with_policy, guarded_decode,
                     normalize_languages)
 from .store import ObjectStore
@@ -154,24 +156,20 @@ class Worker:
             raw = load_16k_mono(self.store.path(sha))
             dur = len(raw) / 16000
             langs = self._languages(dev, seg)
-            gated = silence_reason(raw, self._peak_x100(dev, seg))
-            if gated:
-                res = FinalResult(text="", language="", no_speech=True, path=gated)
-            else:
-                res = decode_with_policy(self.engine, condition(raw), langs)
+            res = transcribe_segment(self.engine, self.aligner, raw, langs, self._peak_x100(dev, seg),
+                                     force=bool(job["force"]))
             proc = time.monotonic() - t0
             rtf = round(proc / dur, 4) if dur > 0 else None
-            if not res.no_speech:  # word timing never fails the job
-                res.words = safe_align(self.aligner, condition(raw), res.text, res.language, langs)
             t = now_ms()
             with self.db.tx() as c:
                 c.execute(
                     "UPDATE transcripts SET status='done', engine=?, text=?, language=?, no_speech=?, "
-                    "confidence=?, words=?, rtf=?, detect_path=?, error=NULL, updated_server_ms=? "
-                    "WHERE device_id=? AND segment_id=?",
+                    "confidence=?, words=?, rtf=?, detect_path=?, no_speech_reason=?, speech_ms=?, filtered_text=?, "
+                    "error=NULL, updated_server_ms=? WHERE device_id=? AND segment_id=?",
                     (self.engine.name, res.text, res.language, 1 if res.no_speech else 0,
                      res.confidence, canonical(res.words) if res.words is not None else None,
-                     None if rtf is None else str(rtf), res.path, t, dev, seg),
+                     None if rtf is None else str(rtf), res.path, res.no_speech_reason, res.speech_ms,
+                     res.filtered_text, t, dev, seg),
                 )
                 c.execute("UPDATE jobs SET status='done', error=NULL, updated_server_ms=? "
                           "WHERE id=? AND status='running'", (t, job["id"]))
@@ -211,10 +209,15 @@ class Worker:
             words, kind = None, "words"
             used = raw if uses_raw_audio(engine, variant) else condition(raw)
             gated = silence_reason(raw, self._peak_x100(dev, seg))
+            sm = None
+            if not gated:
+                sm, _ = vad_analysis(raw, condition(raw))
+                if sm < NO_VOICE_MS:
+                    gated = "gated:no-voice"
             if gated:
                 text, lang, path = "", "", gated
             elif engine == "qwen3" and variant in ("raw", "conditioned"):
-                res = decode_with_policy(self.engine, used, langs)
+                res = decode_with_policy(self.engine, used, langs, speech_ms=sm)
                 text, lang, path = res.text, res.language, res.path
             elif engine == "qwen3" and variant.startswith("forced-"):
                 iso = variant[len("forced-"):]

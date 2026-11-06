@@ -95,3 +95,24 @@ Tables: `devices`, `pairing_codes`, `objects`, `object_owners`, `events` (append
 ```bash
 uv run --no-sync pytest      # fake engines, no GPU, no network
 ```
+
+## No-speech detection (round 7)
+
+Order for a final job: energy gate (`no_speech_reason` `silent`), Silero VAD (CPU, MIT) on the raw audio and,
+when raw finds under 1.5 s, on the conditioned audio (the larger result wins), then the model. Constants live in
+`src/fls/nospeech.py`.
+
+- `speech_ms` under 250: `no_voice`, the model is not called.
+- Auto detection returned a language outside the memo's list and `speech_ms` under 500: the forced re-decode is
+  skipped and the segment is `no_voice`.
+- Stock-phrase guard (`STOCK_PHRASES`, normalised: letters and digits, lowercase): the output is suppressed
+  (`stock_phrase`, text empty, the model output kept in `filtered_text`) when `speech_ms` is under 400, or the
+  path is `auto(xx)->forced` with under 2500 ms, or under 1200 ms with aligned-word coverage of the VAD speech
+  under 60% (or no alignment), or coverage under 30%. The coordinator's plain "under 1200 ms" rule was relaxed
+  because real "감사합니다" (730 ms), "Thank you" (540 ms) and "네" (444 ms) must survive.
+- Echo-guard hits are `echo` with the decoded text in `filtered_text`.
+- `POST /v1/segments/{id}/retranscribe` `{"force": true}` (202) re-queues with force: no energy gate, VAD or
+  guard; `detect_path` is `forced-by-user`. The dashboard "Transcribe anyway" button uses the loopback twin
+  `/dash/api/segments/{id}/retranscribe`.
+- Live draft: finals that are stock phrases with utterance RMS under -45 dBFS are dropped and logged.
+- Transcripts store `no_speech_reason`, `speech_ms`, `filtered_text` (migration in `db.py`).

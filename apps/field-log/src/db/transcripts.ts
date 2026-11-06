@@ -9,6 +9,9 @@ export interface TranscriptSegmentWire {
   text?: string | null;
   language?: string | null;
   no_speech?: boolean;
+  no_speech_reason?: string | null;
+  speech_ms?: number | null;
+  filtered_text?: string | null;
   updated_server_ms?: number;
   error?: string | null;
 }
@@ -19,12 +22,15 @@ export async function applyTranscripts(segs: TranscriptSegmentWire[]): Promise<v
   await writeTx(async (q) => {
     for (const s of segs) {
       await q.runAsync(
-        `UPDATE segments SET t_status = ?, t_text = ?, t_language = ?, t_no_speech = ?, t_error = ?, t_updated_server_ms = ?
+        `UPDATE segments SET t_status = ?, t_text = ?, t_language = ?, t_no_speech = ?, t_no_speech_reason = ?, t_speech_ms = ?, t_filtered_text = ?, t_error = ?, t_updated_server_ms = ?
          WHERE segment_id = ? AND memo_id NOT IN (SELECT memo_id FROM memos WHERE deleted = 1) AND (t_updated_server_ms IS NULL OR t_updated_server_ms <= ?)`,
         s.status,
         s.text ?? '',
         s.language ?? null,
         s.no_speech ? 1 : 0,
+        s.no_speech_reason ?? null,
+        s.speech_ms ?? null,
+        s.filtered_text ?? null,
         s.error ?? null,
         s.updated_server_ms ?? 0,
         s.segment_id,

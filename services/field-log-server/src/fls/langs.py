@@ -10,6 +10,7 @@ from typing import Any
 import numpy as np
 
 from .engines.base import FinalEngine, FinalResult
+from .nospeech import OUT_OF_LIST_NO_VOICE_MS
 
 log = logging.getLogger("fls.langs")
 DEFAULT_LANGUAGES = ["ko", "en"]
@@ -67,12 +68,12 @@ def guarded_decode(engine: FinalEngine, audio: np.ndarray, sr: int, context: str
     res = engine.decode(audio, sr, context, language)
     if looks_like_echo(res.text, context):
         log.warning("echo guard: model returned its prompt or a language name; treated as no speech")
-        return FinalResult(text="", language="", no_speech=True)
+        return FinalResult(text="", language="", no_speech=True, no_speech_reason="echo", filtered_text=res.text)
     return res
 
 
 def decode_with_policy(engine: FinalEngine, audio: np.ndarray, languages: list[str],
-                       sr: int = 16000, context: str = "") -> FinalResult:
+                       sr: int = 16000, context: str = "", speech_ms: int | None = None) -> FinalResult:
     """One language: forced. Several: auto detection (the context stays empty, reserved for the
     personal vocabulary), re-decoded forced to the first language if the detected languages are
     not all in the list. `path` records what happened."""
@@ -83,5 +84,9 @@ def decode_with_policy(engine: FinalEngine, audio: np.ndarray, languages: list[s
     detected = [c for c in res.language.split(",") if c]
     if res.no_speech or all(c in languages for c in detected):
         return replace(res, path="auto")
+    if speech_ms is not None and speech_ms < OUT_OF_LIST_NO_VOICE_MS:
+        # Out-of-list detection on almost no speech: the forced re-decode would invent a greeting.
+        return FinalResult(text="", language="", no_speech=True, no_speech_reason="no_voice",
+                           path=f"auto({res.language})->skipped")
     again = guarded_decode(engine, audio, sr, context, first)
     return replace(again, path=f"auto({res.language})->forced:{first}")

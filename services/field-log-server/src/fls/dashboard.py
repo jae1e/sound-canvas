@@ -17,6 +17,7 @@ from .audio import load_16k_mono
 from .cer import cer
 from .conditioning import condition
 from .engines.aligner import safe_align
+from .events import requeue_final
 from .canon import canonical
 from .db import now_ms
 from .dsp_views import peaks, spectrogram_png
@@ -216,6 +217,8 @@ def create_dashboard(state: Any) -> FastAPI:
                     "status": t["status"], "engine": t["engine"], "text": t["text"], "language": t["language"],
                     "no_speech": bool(t["no_speech"]), "detect_path": t["detect_path"],
                     "words": _js(t["words"]), "words_kind": "words",
+                    "no_speech_reason": t["no_speech_reason"], "speech_ms": t["speech_ms"],
+                    "filtered_text": t["filtered_text"],
                     "rtf": float(t["rtf"]) if t["rtf"] is not None else None, "error": t["error"],
                     "updated_server_ms": t["updated_server_ms"],
                     "cer": with_cer(t["text"], ref_text) if t["status"] == "done" else None,
@@ -318,6 +321,17 @@ def create_dashboard(state: Any) -> FastAPI:
             db.execute("DELETE FROM reference_transcripts WHERE device_id=? AND segment_id=?",
                        (s["device_id"], segment_id))
         return {"ok": True}
+
+    @app.post("/dash/api/segments/{segment_id}/retranscribe")
+    def dash_retranscribe(segment_id: str):
+        """Transcribe anyway: internal (loopback) twin of the device endpoint."""
+        s = segment_row(segment_id)
+        err = requeue_final(db, s["device_id"], segment_id, True)
+        if err:
+            raise HTTPException(409 if err == "no_audio" else 404, err)
+        state.worker.notify()
+        state.notifier.notify()
+        return {"status": "queued"}
 
     @app.post("/dash/api/segments/{segment_id}/align")
     async def align(segment_id: str, request: Request):

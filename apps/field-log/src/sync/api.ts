@@ -96,3 +96,8 @@ export const apiTranscriptsSince = async (c: ServerConfig, sinceServerMs: number
       waitS ? (waitS + 10) * 1000 : 8000,
     ),
   );
+
+export async function apiRetranscribe(c: ServerConfig, segmentId: string): Promise<void> {
+  const res = await request(c, 'POST', `/v1/segments/${encodeURIComponent(segmentId)}/retranscribe`, { force: true });
+  if (res.status !== 202 && !res.ok) throw new HttpError(res.status, `HTTP ${res.status}`);
+}

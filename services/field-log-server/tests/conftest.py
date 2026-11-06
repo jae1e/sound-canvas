@@ -105,3 +105,19 @@ def dev(client) -> Device:
 @pytest.fixture
 def dev2(client) -> Device:
     return pair(client)
+
+
+@pytest.fixture(autouse=True)
+def fake_vad(monkeypatch, request):
+    """Test tones are not speech for Silero, so use a fake VAD: any non-silent audio counts as speech.
+    Tests that need the real model are marked `real_vad`."""
+    if request.node.get_closest_marker("real_vad"):
+        return
+    import fls.pipeline as pipeline
+    import fls.jobs as jobs
+
+    def fake(audio, threshold=0.5):
+        return [(0, int(len(audio) * 1000 / 16000))] if len(audio) and float(np.abs(audio).max()) > 1e-3 else []
+
+    monkeypatch.setattr(pipeline, "speech_spans", fake)
+    monkeypatch.setattr("fls.vad.speech_spans", fake)

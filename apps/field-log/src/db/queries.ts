@@ -100,6 +100,9 @@ export interface SegmentRow {
   status: 'queued' | 'running' | 'done' | 'failed';
   text: string;
   noSpeech: boolean;
+  noSpeechReason: string | null;
+  speechMs: number | null;
+  filteredText: string | null;
   language: string | null;
   error: string | null;
 }
@@ -171,6 +174,9 @@ export async function getMemoDetail(memoId: string): Promise<MemoDetail | null> 
       status: s.t_status,
       text: s.t_text,
       noSpeech: s.t_no_speech === 1,
+      noSpeechReason: s.t_no_speech_reason,
+      speechMs: s.t_speech_ms,
+      filteredText: s.t_filtered_text,
       language: s.t_language,
       error: s.t_error,
     })),

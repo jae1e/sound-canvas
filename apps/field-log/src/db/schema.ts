@@ -105,4 +105,9 @@ export const MIGRATIONS: string[] = [
   `
   ALTER TABLE memos ADD COLUMN title TEXT;
   `,
+  `
+  ALTER TABLE segments ADD COLUMN t_no_speech_reason TEXT;
+  ALTER TABLE segments ADD COLUMN t_speech_ms INTEGER;
+  ALTER TABLE segments ADD COLUMN t_filtered_text TEXT;
+  `,
 ];

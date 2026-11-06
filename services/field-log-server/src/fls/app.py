@@ -24,8 +24,10 @@ from .config import (ALLOWED_OBJECT_TYPES, MAX_EVENTS_PER_BATCH, MAX_LIVE_STREAM
 from .db import Database, now_ms
 from .engines.aligner import Aligner
 from .engines.base import FinalEngine, StreamingEngine
-from .events import enqueue_for_object, ingest
+from . import events as events_mod
+from .events import enqueue_for_object, ingest, requeue_final
 from .jobs import Worker
+from .nospeech import LIVE_STOCK_MAX_RMS_DBFS, is_stock_phrase
 from .store import HEX64, HashMismatch, ObjectStore, TooLarge
 
 log = logging.getLogger("fls.app")
@@ -110,6 +112,7 @@ def create_app(data_dir: Path, final_engine: FinalEngine, live_engine: Streaming
     app = FastAPI(title="Field Voice Log server", version=__version__, lifespan=lifespan,
                   docs_url=None, redoc_url=None, openapi_url=None)
     app.state.fls = state
+    events_mod._objects_path = state.store.path
 
     def device_id(request: Request) -> str:
         dev = auth.authenticate(db, request.headers.get("authorization"))
@@ -236,6 +239,9 @@ def create_app(data_dir: Path, final_engine: FinalEngine, live_engine: Streaming
             "text": r["text"] if done else None,
             "language": r["language"] if done else None,
             "no_speech": bool(r["no_speech"]),
+            "no_speech_reason": r["no_speech_reason"] if done else None,
+            "speech_ms": r["speech_ms"] if done else None,
+            "filtered_text": r["filtered_text"] if done else None,
             "confidence": r["confidence"],
             "words": json.loads(r["words"]) if r["words"] else None,
             "rtf": float(r["rtf"]) if r["rtf"] is not None else None,
@@ -283,6 +289,23 @@ def create_app(data_dir: Path, final_engine: FinalEngine, live_engine: Streaming
                     pass
         finally:
             notifier.unregister(waiter)
+
+    @app.post("/v1/segments/{segment_id}/retranscribe", status_code=202)
+    async def retranscribe(segment_id: str, request: Request, dev: str = Depends(device_id)):
+        try:
+            if (await request.json()).get("force") is not True:
+                raise ValueError
+        except Exception:  # noqa: BLE001
+            raise HTTPException(422, 'body must be {"force": true}') from None
+        err = requeue_final(db, dev, segment_id, True)
+        if err == "not_found":
+            raise HTTPException(404, "segment not found")
+        if err == "no_audio":
+            raise HTTPException(409, "audio not uploaded yet")
+        state.worker.notify()
+        notifier.notify()
+        log.info("retranscribe queued segment=%s", segment_id)
+        return {"segment_id": segment_id, "status": "queued"}
 
     # ---------------------------------------------------------------- live preview
     @app.websocket("/v1/live")
@@ -350,6 +373,10 @@ def create_app(data_dir: Path, final_engine: FinalEngine, live_engine: Streaming
 
     async def _send_events(ws: WebSocket, events) -> None:
         for e in events:
+            if e.kind == "final" and is_stock_phrase(e.text) and e.rms_dbfs is not None \
+                    and e.rms_dbfs < LIVE_STOCK_MAX_RMS_DBFS:
+                log.info("live final dropped (stock phrase, rms %.0f dBFS)", e.rms_dbfs)
+                continue
             if e.kind == "partial":
                 await ws.send_json({"type": "partial", "text": e.text, "utterance": e.utterance})
             else:

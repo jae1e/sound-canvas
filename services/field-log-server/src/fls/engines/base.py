@@ -15,6 +15,9 @@ class FinalResult:
     no_speech: bool
     confidence: int | None = None
     words: list[dict] | None = None
+    no_speech_reason: str | None = None  # silent | no_voice | stock_phrase | echo
+    speech_ms: int | None = None
+    filtered_text: str | None = None  # suppressed output (stock_phrase or echo only)
     path: str = ""  # language-decision path, filled by langs.decode_with_policy
 
 
@@ -34,6 +37,7 @@ class LiveEvent:
     utterance: int
     start_ms: int = 0
     end_ms: int = 0
+    rms_dbfs: float | None = None  # raw-audio RMS of the utterance (finals), for the stock-phrase filter
 
 
 class LiveStream(Protocol):

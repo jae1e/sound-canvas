@@ -280,7 +280,7 @@ function segmentCard(memoId, s) {
     const rowsT = [];
     if (current.final) {
       const f = current.final;
-      rowsT.push(["final", f.engine || "-", "final", f.status, f.language || "-", f.detect_path || "-", f.no_speech ? "(no speech)" : (f.text ?? ""), f.rtf, null, f.cer, f.words, "final", f.status === "done" && !f.no_speech]);
+      rowsT.push(["final", f.engine || "-", "final", f.status, f.language || "-", f.detect_path || "-", f.no_speech ? "(no speech" + (f.no_speech_reason ? ": " + f.no_speech_reason : "") + ")" + (f.filtered_text ? "  filtered: " + f.filtered_text : "") : (f.text ?? ""), f.rtf, null, f.cer, f.words, "final", f.status === "done" && !f.no_speech]);
     }
     for (const a of current.alts) rowsT.push([a.engine, a.engine, a.variant, a.status, a.language || "-", a.detect_path || "-", a.status === "failed" ? "error: " + a.error : (a.text ?? ""), a.rtf, a.processing_ms, a.cer, a.words, "alt:" + a.engine + "/" + a.variant, a.status === "done" && !!a.text]);
     table.replaceChildren(el("table", {},
@@ -319,9 +319,12 @@ function segmentCard(memoId, s) {
       metric("High band >4 kHz", s.hf_ratio_4k_ppm == null ? null : s.hf_ratio_4k_ppm + " ppm"),
       metric("Flags", s.flags.join(", ") || "none"), metric("Route at start", s.route ? routeLabel(s.route) + (s.route_reason ? ", switched: " + s.route_reason : "") : null),
       metric("Source", s.source), metric("Effects", eff), metric("Recovered", s.recovered ? "yes" : "no"),
+      metric("Speech (VAD)", s.final && s.final.speech_ms != null ? s.final.speech_ms + " ms" : null),
       metric("Segment id", s.segment_id)),
     el("h2", {}, "Transcripts"),
     table,
+    el("p", {}, el("button", { onclick: async ev => { ev.target.disabled = true; await api(`/dash/api/segments/${s.segment_id}/retranscribe`, { method: "POST" }); await refresh(); ev.target.disabled = false; } }, "Transcribe anyway"),
+      " ", el("span", { class: "muted" }, "Re-runs the final engine without the silence, VAD and stock-phrase checks.")),
     el("p", {}, el("button", { onclick: async ev => { ev.target.disabled = true; await api(`/dash/api/segments/${s.segment_id}/compare`, { method: "POST" }); await refresh(); ev.target.disabled = false; } }, "Run comparison"),
       " ", el("span", { class: "muted" }, "Queued behind real transcription jobs; results appear here.")),
     el("h2", {}, "Reference transcript"),

@@ -272,3 +272,29 @@ def _delete_memo(c: sqlite3.Connection, dev: str, memo_id: str, t: int, unlink: 
         c.execute("DELETE FROM object_owners WHERE sha256=?", (sha,))
         c.execute("INSERT OR IGNORE INTO object_tombstones(sha256, deleted_server_ms) VALUES (?,?)", (sha, t))
         unlink.append(sha)
+
+
+def requeue_final(db: Database, dev: str, segment_id: str, force: bool) -> str | None:
+    """Re-queue a segment's final job (force skips the no-speech checks). Returns None on success, else
+    "not_found" (unknown, other device's, or deleted memo) or "no_audio"."""
+    t = now_ms()
+    with db.tx() as c:
+        s = c.execute(
+            "SELECT s.object_sha256 FROM segments s LEFT JOIN memos m ON m.device_id=s.device_id AND "
+            "m.memo_id=s.memo_id WHERE s.device_id=? AND s.segment_id=? AND m.deleted_server_ms IS NULL",
+            (dev, segment_id)).fetchone()
+        if s is None:
+            return "not_found"
+        if not os.path.exists(_objects_path(s["object_sha256"])):
+            return "no_audio"
+        c.execute("INSERT INTO jobs(device_id, segment_id, object_sha256, status, force, created_server_ms, "
+                  "updated_server_ms) VALUES (?,?,?, 'queued', ?, ?, ?) ON CONFLICT(device_id, segment_id) DO "
+                  "UPDATE SET status='queued', attempts=0, error=NULL, force=excluded.force, "
+                  "updated_server_ms=excluded.updated_server_ms",
+                  (dev, segment_id, s["object_sha256"], 1 if force else 0, t, t))
+        c.execute("UPDATE transcripts SET status='queued', updated_server_ms=? WHERE device_id=? AND segment_id=?",
+                  (t, dev, segment_id))
+    return None
+
+
+_objects_path = lambda sha: ""  # replaced by the app with ObjectStore.path (keeps this module free of the store)

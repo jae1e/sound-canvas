@@ -17,6 +17,8 @@ import {
   journalRecordToEvent,
   mergeTranscript,
   segmentStartsMs,
+  shouldStopOnLeave,
+  noSpeechChip,
   DEFAULT_AUTO_STOP,
   parseSwitch,
   autoStopPayload,
@@ -642,5 +644,23 @@ describe('auto stop', () => {
   it('maps a left_app journal record to the event reason', () => {
     const e = journalRecordToEvent({ journalSeq: 1, kind: 'recording_stopped', memoId: 'm', recordingId: 'r', wallMs: 1, elapsedUs: 2, bootCount: 3, reason: 'left_app' });
     expect(e.payload).toMatchObject({ reason: 'left_app' });
+  });
+});
+
+describe('leave and no-speech helpers', () => {
+  it('stops only for the memo that native is recording', () => {
+    expect(shouldStopOnLeave({ recording: true, memoId: 'a' }, 'a')).toBe(true);
+    expect(shouldStopOnLeave({ recording: true, paused: true, memoId: 'a' }, 'a')).toBe(true);
+    expect(shouldStopOnLeave({ recording: true, memoId: 'b' }, 'a')).toBe(false);
+    expect(shouldStopOnLeave({ recording: false, memoId: 'a' }, 'a')).toBe(false);
+    expect(shouldStopOnLeave({ recording: true }, 'a')).toBe(false);
+  });
+  it('labels no-speech reasons', () => {
+    expect(noSpeechChip('silent', '')).toEqual({ key: 'noSpeechSilent' });
+    expect(noSpeechChip('no_voice', '')).toEqual({ key: 'noSpeechNoVoice' });
+    expect(noSpeechChip('echo', '')).toEqual({ key: 'noSpeechEcho' });
+    expect(noSpeechChip('stock_phrase', ' 감사합니다 ')).toEqual({ key: 'noSpeechStock', text: '감사합니다' });
+    expect(noSpeechChip('stock_phrase', '')).toEqual({ key: 'noSpeechStockPlain' });
+    expect(noSpeechChip(null, '')).toEqual({ key: 'noSpeechGeneric' });
   });
 });

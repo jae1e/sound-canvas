@@ -2,13 +2,13 @@ import { getCalendars } from 'expo-localization';
 import { Directory, File, Paths } from 'expo-file-system';
 import type { ImagePickerAsset } from 'expo-image-picker';
 import { PermissionsAndroid, Platform, ToastAndroid } from 'react-native';
-import { titleChanged, titlePayload, exifToWallMs, liveLanguageFor, initialLevelMonitor, objectsToSkip, type LocationPayload } from '../core';
+import { shouldStopOnLeave, titleChanged, titlePayload, exifToWallMs, liveLanguageFor, initialLevelMonitor, objectsToSkip, type LocationPayload } from '../core';
 import { writeTx } from '../db/db';
 import { appendEvent, newId } from '../db/events';
 import FlNative, { type LiveLanguage } from '../native';
 import { applyStatus, setRoute, useRecorder } from '../state/recorder';
 import { useSettings } from '../state/settings';
-import { liveUrl } from '../sync/api';
+import { apiRetranscribe, liveUrl } from '../sync/api';
 import { triggerSync } from '../sync/engine';
 import { tr } from '../i18n';
 import { ensureBluetoothPermission } from './permissions';
@@ -162,7 +162,19 @@ async function ensureAudioPermissions(): Promise<void> {
   }
 }
 
-export async function startMemoRecording(memoId: string): Promise<void> {
+let startingRecording: Promise<void> | null = null;
+
+export function startMemoRecording(memoId: string): Promise<void> {
+  const p = doStartMemoRecording(memoId);
+  startingRecording = p;
+  const clear = () => {
+    if (startingRecording === p) startingRecording = null;
+  };
+  p.then(clear, clear);
+  return p;
+}
+
+async function doStartMemoRecording(memoId: string): Promise<void> {
   const s = useSettings.getState();
   await ensureAudioPermissions();
   await ensureBluetoothPermission(s.inputPref, {
@@ -293,17 +305,38 @@ export async function setMemoTitle(memoId: string, raw: string): Promise<boolean
 let leaveStopping = false;
 
 /**
- * Called when the user navigates away from a memo that is being recorded: stops and saves without
- * asking. Does not block navigation; the stop (reason 'user') finishes in the background.
+ * Called from every way of leaving a memo screen (beforeRemove, blur, hardware back, unmount).
+ * Idempotent. Decides from the native status, not the JS store, and waits for a recording that is
+ * still starting (autostart after router.replace from /new). Never blocks navigation.
  */
-export function stopOnLeaveScreen(memoId: string): void {
-  const rec = useRecorder.getState();
-  if (!rec.recording || rec.memoId !== memoId || leaveStopping) return;
+export async function stopOnLeaveScreen(memoId: string, trigger: string): Promise<void> {
+  console.log('[fvl] leave-stop trigger', trigger, memoId);
+  if (leaveStopping) return;
   leaveStopping = true;
-  ToastAndroid.show(tr('stoppedOnLeave'), ToastAndroid.SHORT);
-  stopMemoRecording()
-    .catch(() => undefined)
-    .finally(() => {
-      leaveStopping = false;
-    });
+  try {
+    if (startingRecording) await startingRecording.catch(() => undefined);
+    const status = await FlNative.getStatus();
+    console.log('[fvl] leave-stop status', JSON.stringify({ recording: status.recording, paused: status.paused, memoId: status.memoId }));
+    if (!shouldStopOnLeave(status, memoId)) return;
+    ToastAndroid.show(tr('stoppedOnLeave'), ToastAndroid.SHORT);
+    await stopMemoRecording();
+    console.log('[fvl] leave-stop done', memoId);
+  } catch (e) {
+    console.log('[fvl] leave-stop failed', (e as Error).message);
+  } finally {
+    leaveStopping = false;
+  }
+}
+
+/** "Transcribe anyway" for a segment the server marked as no speech. */
+export async function transcribeAnyway(segmentId: string): Promise<void> {
+  const st = useSettings.getState();
+  await apiRetranscribe({ baseUrl: st.serverUrl, token: st.token }, segmentId);
+  await writeTx((q) =>
+    q.runAsync(
+      "UPDATE segments SET t_status = 'running', t_no_speech = 0, t_no_speech_reason = NULL, t_filtered_text = NULL, t_text = '' WHERE segment_id = ?",
+      segmentId,
+    ),
+  );
+  triggerSync();
 }

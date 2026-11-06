@@ -57,6 +57,7 @@ class _Stream:
         self.utt_base = 0  # sample position of the last reset
         self.last_text = ""
         self.closed = False
+        self._sumsq, self._n = 0.0, 0
 
     def _times(self) -> tuple[int, int]:
         try:
@@ -76,11 +77,13 @@ class _Stream:
         endpoint = final or self.rec.is_endpoint(self.s)
         if endpoint and text:
             a, b = self._times()
-            out.append(LiveEvent("final", text, self.utt, a, b))
+            rms = 10 * np.log10(max(self._sumsq / max(self._n, 1), 1e-12))
+            out.append(LiveEvent("final", text, self.utt, a, b, rms))
             self.utt += 1
             self.last_text = ""
             self.rec.reset(self.s)
             self.utt_base = self.pos
+            self._sumsq, self._n = 0.0, 0
         elif endpoint and final:
             self.rec.reset(self.s)
         elif text and text != self.last_text:
@@ -92,6 +95,8 @@ class _Stream:
 
     def feed(self, pcm16: np.ndarray) -> list[LiveEvent]:
         x = pcm16.astype(np.float32) / 32768.0
+        self._sumsq += float(np.sum(x * x))
+        self._n += len(x)
         if self.cond is not None:
             x = self.cond.process(x)
         self.pos += len(x)

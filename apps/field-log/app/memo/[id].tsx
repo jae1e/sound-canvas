@@ -1,11 +1,11 @@
-import { useLocalSearchParams, useNavigation, useRouter } from 'expo-router';
-import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Alert, Image, Modal, Pressable, ScrollView, Text, TextInput, ToastAndroid, View } from 'react-native';
-import { autoTitle, durationLabel, stampLabel, controlPhase, type ControlAction, formatPlace, isSilentPeak, mergeTranscript, segmentStartsMs, type DraftUtt, type FinalSeg } from '../../src/core';
+import { useFocusEffect, useLocalSearchParams, useNavigation, useRouter } from 'expo-router';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Alert, BackHandler, Image, Modal, Pressable, ScrollView, Text, TextInput, ToastAndroid, View } from 'react-native';
+import { noSpeechChip, autoTitle, durationLabel, stampLabel, controlPhase, type ControlAction, formatPlace, isSilentPeak, mergeTranscript, segmentStartsMs, type DraftUtt, type FinalSeg } from '../../src/core';
 import { getMemoDetail, type MemoDetail, type SegmentRow } from '../../src/db/queries';
 import { useLang, useT, type Key } from '../../src/i18n';
 import { confirmDeleteMemo } from '../../src/memo/confirmDelete';
-import { stopOnLeaveScreen, pauseMemoRecording, resumeMemoRecording, saveNote, startMemoRecording, stopMemoRecording } from '../../src/memo/actions';
+import { transcribeAnyway, stopOnLeaveScreen, pauseMemoRecording, resumeMemoRecording, saveNote, startMemoRecording, stopMemoRecording } from '../../src/memo/actions';
 import { playRecording, stopPlayback, togglePlayback } from '../../src/memo/playback';
 import { usePlayback, useRecorder } from '../../src/state/recorder';
 import { BigButton, Chip, Row, TrustChips, useRouteText } from '../../src/ui/components';
@@ -84,16 +84,35 @@ const statusKey = (seg: FinalSeg): Key =>
 function SegmentLine({ seg, row, label, onPlay }: { seg: FinalSeg; row?: SegmentRow; label: string; onPlay: () => void }) {
   const t = useT();
   const routeText = useRouteText();
+  const chip = noSpeechChip(row?.noSpeechReason ?? null, row?.filteredText || seg.text);
+  const noSpeechLabel = t(chip.key).replace('{text}', chip.text ?? '');
+  const isNoSpeech = seg.noSpeech && seg.status === 'done';
   const showText = seg.status === 'done' && !seg.noSpeech && seg.text.trim().length > 0;
   return (
     <Pressable accessibilityRole="button" onPress={onPlay} style={[s.card, { marginVertical: 4 }]}>
       <View style={{ flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center' }}>
         <Text style={s.small}>{`▶ ${label}`}</Text>
-        <Chip glyph={seg.status === 'done' ? '✓' : seg.status === 'failed' ? '✕' : '…'} label={t(statusKey(seg))} active={seg.status === 'failed'} />
+        {seg.noSpeech && seg.status === 'done' ? (
+          <Chip glyph="○" label={noSpeechLabel} active={false} />
+        ) : (
+          <Chip glyph={seg.status === 'done' ? '✓' : seg.status === 'failed' ? '✕' : '…'} label={t(statusKey(seg))} active={seg.status === 'failed'} />
+        )}
         {row && isSilentPeak(row.peakDbfsX100) && <Chip glyph="✕" label={t('silentSegment')} active />}
         {row?.flags.includes('clipped') && <Chip glyph="▲" label={t('clipped')} active />}
         {row?.flags.includes('narrowband') && <Chip glyph="▼" label={t('narrowband')} active />}
       </View>
+      {isNoSpeech && (
+        <View style={{ flexDirection: 'row', marginTop: 6 }}>
+          <BigButton label={t('playSegment')} variant="outline" onPress={onPlay} style={{ flex: 1, minHeight: 48, marginRight: 6 }} />
+          <BigButton
+            label={t('transcribeAnyway')}
+            variant="outline"
+            onPress={() => transcribeAnyway(seg.segmentId).catch((e: Error) => Alert.alert(t('error'), e.message))}
+            style={{ flex: 1, minHeight: 48, marginLeft: 6 }}
+          />
+        </View>
+      )}
+      {seg.status === 'running' && <Text style={s.small}>{t('transcribing')}</Text>}
       {row?.route && <Text style={s.small}>{`${t('segmentInput')}: ${routeText(row.route)}`}</Text>}
       {showText && <Text style={[s.body, { marginTop: 4 }]}>{seg.text}</Text>}
       {seg.status === 'failed' && row?.error ? <Text style={s.small}>{row.error}</Text> : null}
@@ -165,11 +184,27 @@ export default function MemoScreen() {
   const play = usePlayback();
   const navigation = useNavigation();
 
-  // Back, header back or any navigation away from this memo stops and saves the recording.
+  // Every way of leaving stops and saves a recording of this memo (idempotent, decided from native status).
   useEffect(() => {
     const nav = navigation as unknown as { addListener: (e: 'beforeRemove', cb: () => void) => () => void };
-    return nav.addListener('beforeRemove', () => stopOnLeaveScreen(id));
+    const off = nav.addListener('beforeRemove', () => void stopOnLeaveScreen(id, 'beforeRemove'));
+    return () => {
+      off();
+      void stopOnLeaveScreen(id, 'unmount');
+    };
   }, [navigation, id]);
+  useFocusEffect(
+    useCallback(() => {
+      const sub = BackHandler.addEventListener('hardwareBackPress', () => {
+        void stopOnLeaveScreen(id, 'hardwareBack');
+        return false; // let navigation proceed
+      });
+      return () => {
+        sub.remove();
+        void stopOnLeaveScreen(id, 'blur');
+      };
+    }, [id]),
+  );
   const routeText = useRouteText();
   const active = rec.recording && rec.memoId === id;
   const otherActive = rec.recording && rec.memoId !== id;
