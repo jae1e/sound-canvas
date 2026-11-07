@@ -1,4 +1,5 @@
 export default {
+  'coach.volume': 'Media volume',
   'coach.deleted': 'Recording deleted', 'coach.undo': 'Undo',
   'coach.voiceDefaults': 'Voice defaults', 'coach.storage': 'Storage used',
   'coach.stability.unknown': 'Not enough sound', 'coach.stability.steady': 'Steady', 'coach.stability.developing': 'Developing', 'coach.stability.unstable': 'Unsteady', 'coach.tip.sound': 'Try singing a little longer', 'coach.tip.steady': 'Try holding a comfortable note steadily', 'coach.tip.beat': 'Listen for the beat and try again', 'coach.tip.continue': 'Keep practising at a comfortable volume',

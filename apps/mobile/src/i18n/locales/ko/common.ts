@@ -1,4 +1,5 @@
 export default {
+  'coach.volume': '미디어 음량',
   'coach.deleted': '녹음을 삭제했어요', 'coach.undo': '실행 취소',
   'coach.voiceDefaults': '음성 기본값', 'coach.storage': '저장 공간',
   'coach.stability.unknown': '소리가 부족해요', 'coach.stability.steady': '안정적', 'coach.stability.developing': '연습 중', 'coach.stability.unstable': '흔들림', 'coach.tip.sound': '조금 더 길게 소리를 내 보세요', 'coach.tip.steady': '편안한 음을 일정하게 유지해 보세요', 'coach.tip.beat': '박자를 들으며 다시 불러 보세요', 'coach.tip.continue': '편안한 음량으로 계속 연습해 보세요',
