@@ -69,7 +69,7 @@ Every issue found in testing or review goes here: symptom, root cause, fix with 
 - **Symptom (U), 2026-11-07, build 446772.** 등록 (Enrol) and 서버 확인 (check server) showed `fetch failed: java.net.UnknownServiceException: CLEARTEXT communication to 100.84.83.35 not permitted by network security policy`.
 - **Root cause (M).** Android blocks plain `http://` by default. Field Voice Log sets `usesCleartextTraffic: true` through `expo-build-properties`; the Voice Coach `app.json` did not. The port missed a build setting, not code.
 - **Fix.** `usesCleartextTraffic: true` in `apps/mobile/app.json`, as in Field Voice Log. The traffic stays inside the Tailscale tailnet (WireGuard-encrypted), and the API binds only to the tailnet IP.
-- **Status.** Fixed in the next build.
+- **Status.** Fixed in build 446815 (M: the manifest has `usesCleartextTraffic`); waiting for the user to pair.
 - **Lesson.** When porting a client of the home server, port the network settings too. The error text did show up on screen, which confirms the VC-05 rule pays off.
 
 ## Releases
@@ -78,3 +78,4 @@ Every issue found in testing or review goes here: symptom, root cause, fix with 
 |---|---|---|---|
 | 446772 (0.2.0) | `dd3ae5a` | 2026-11-07 | P0: Voice Coach name and tabs, hidden Travel/Work, server pairing, in-app update, mic-sharing fixes. 71.5 MB. On the server and the private GitHub draft (`voice-coach-446772-dd3ae5a.apk`). Signed with the same key as earlier builds (M: apksigner certificate SHA-256 `fac61745…`) |
 | 446812 (0.2.0) | `b627ba0` | 2026-11-07 | UI fixes VC-04 and VC-05. 74.0 MB. Server and private GitHub draft (`voice-coach-446812-b627ba0.apk`); 446772 was removed from the draft |
+| 446815 (0.2.0) | `fcecc84` | 2026-11-07 | VC-06 cleartext fix plus the 446812 UI fixes. Server and private GitHub draft (`voice-coach-446815-fcecc84.apk`); 446812 was removed from the draft |
