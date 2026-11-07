@@ -51,7 +51,7 @@ class AudioCapture(
   private fun newRecorder(): AudioRecord? {
     val minBuf = AudioRecord.getMinBufferSize(SAMPLE_RATE, AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT)
     if (minBuf <= 0) return null
-    val rec = AudioRecord.Builder()
+    val builder = AudioRecord.Builder()
       .setAudioSource(MediaRecorder.AudioSource.VOICE_COMMUNICATION)
       .setAudioFormat(
         AudioFormat.Builder()
@@ -61,7 +61,8 @@ class AudioCapture(
           .build(),
       )
       .setBufferSizeInBytes(maxOf(minBuf * 2, SAMPLE_RATE * 2)) // >= 1 s of audio
-      .build()
+    if (Build.VERSION.SDK_INT >= 30) builder.setPrivacySensitive(false)
+    val rec = builder.build()
     return if (rec.state == AudioRecord.STATE_INITIALIZED) rec else { rec.release(); null }
   }
 
@@ -128,6 +129,7 @@ class AudioCapture(
         val c = object : AudioManager.AudioRecordingCallback() {
           override fun onRecordingConfigChanged(configs: MutableList<AudioRecordingConfiguration>) {
             val mine = configs.firstOrNull { it.clientAudioSessionId == sessionId }
+            if (mine != null) emit("captureState", mapOf("silenced" to mine.isClientSilenced))
             log.log(
               "record_config",
               mapOf("clientSilenced" to mine?.isClientSilenced, "activeConfigs" to configs.size, "found" to (mine != null)),

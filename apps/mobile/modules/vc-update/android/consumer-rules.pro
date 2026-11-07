@@ -1,0 +1,2 @@
+-keep class expo.modules.vcupdate.VcUpdateModule { *; }
+-keep class expo.modules.vcupdate.VcUpdatesFileProvider { *; }
