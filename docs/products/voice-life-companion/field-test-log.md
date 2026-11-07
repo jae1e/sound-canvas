@@ -81,6 +81,29 @@ Every issue found in testing or review goes here: symptom, root cause, fix with 
 - **Note.** The Qwen interface has no separate verbatim instruction, so the context sentence is unchanged (api-v0 rule). Fillers may be dropped by the ASR; the app must also count them from the audio (UX v2, section 5.4).
 - **Lesson.** For server features, test against the real engine on the live server with a throwaway device, not only with fakes, and check that deletes leave shared data alone.
 
+## VC-08 — Release APK crashed at start on the x86_64 emulator
+
+- **Symptom (2026-11-07, emulator vc-test, branch vc-p1-ui):** "Voice Coach keeps stopping" at launch. Logcat: `couldn't find DSO to load: libreactnative.so`.
+- **Root cause:** release builds ship arm64-v8a only. The x86_64 emulator's ARM translation is not used by React Native's SoLoader. This does not affect the phone.
+- **Fix:** `VC_EMULATOR=1` adds x86_64 to `buildArchs` in `apps/mobile/app.config.ts`, for emulator builds only (commit 432f886 on vc-p1-ui). Phone releases stay arm64-only.
+- **Status:** fixed; the emulator build runs.
+- **Lesson:** build emulator screenshots with `VC_EMULATOR=1`. Never ship that APK.
+
+## VC-09 — First P1 UI build, compared with the design on the emulator
+
+- **Symptom (2026-11-07):** the screens work, but they differ from design v2 in many places:
+  - the third tab reads "녹음" instead of "기록";
+  - device names are raw ("sdk_gphone64…"), not "휴대폰 마이크";
+  - the input pill has no level bar;
+  - recording shows no stop square and no timer;
+  - the beat sheet has no on/off switch and no rhythm dot rows;
+  - Settings repeats the "서버 연결" button;
+  - a 4 s take showed 0:00.
+- **Root cause:** the worker built from the written brief without checking the screens, and wrote minified one-line components.
+- **Fix:** a 15-item fix list was sent back with emulator and design screenshots (request vc-p1-ui-fix1).
+- **Status:** in progress.
+- **Lesson:** compare every UI round on the emulator before it ships. Require prettier-formatted, small components.
+
 ## Releases
 
 | Build | Commit | Date | Notes |
