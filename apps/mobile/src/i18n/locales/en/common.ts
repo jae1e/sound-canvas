@@ -1,4 +1,8 @@
 export default {
+  'coach.beatOff': 'Beat off',
+  'coach.justRecorded': 'Just recorded',
+  'coach.details': 'Details',
+  'coach.next': 'Next:',
   'coach.phoneSpeaker': 'Phone speaker',
   'coach.phoneMic': 'Phone microphone',
   'coach.volume': 'Media volume',

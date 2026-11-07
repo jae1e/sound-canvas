@@ -1,4 +1,8 @@
 export default {
+  'coach.beatOff': '박자 끔',
+  'coach.justRecorded': '방금 녹음',
+  'coach.details': '자세히',
+  'coach.next': '다음엔:',
   'coach.phoneSpeaker': '휴대폰 스피커',
   'coach.phoneMic': '휴대폰 마이크',
   'coach.volume': '미디어 음량',
