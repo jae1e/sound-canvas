@@ -7,11 +7,15 @@ describe('take migration', () => {
   it('retains legacy rows and assigns them the song kind', async () => {
     const SQL = await initSqlJs();
     const db = new SQL.Database();
-    const migration = (name: string) => readFileSync(join(__dirname, 'migrations', name), 'utf8').replaceAll('--> statement-breakpoint', '');
-    for (const name of ['0000_init.sql', '0001_aspiring_hedge_knight.sql', '0002_dear_lucky_pierre.sql']) db.run(migration(name));
+    const migration = (name: string) =>
+      readFileSync(join(__dirname, 'migrations', name), 'utf8').replaceAll('--> statement-breakpoint', '');
+    for (const name of ['0000_init.sql', '0001_aspiring_hedge_knight.sql', '0002_dear_lucky_pierre.sql'])
+      db.run(migration(name));
     db.run("INSERT INTO takes (id, file_uri, created_at) VALUES ('old', '/old.wav', 1)");
     db.run(migration('0003_breezy_garia.sql'));
-    expect(db.exec('SELECT id, file_uri, kind, recovered FROM takes')[0].values).toEqual([['old', '/old.wav', 'song', 0]]);
+    expect(db.exec('SELECT id, file_uri, kind, recovered FROM takes')[0].values).toEqual([
+      ['old', '/old.wav', 'song', 0],
+    ]);
     db.close();
   });
 });

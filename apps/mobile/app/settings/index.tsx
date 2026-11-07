@@ -15,7 +15,6 @@ import * as SecureStore from 'expo-secure-store';
 import { DEFAULT_SERVER_URL, enroll, getPairing } from '../../src/update/pairing';
 import { checkForUpdate } from '../../src/update/updater';
 
-
 export default function SettingsScreen() {
   const { t } = useTranslation();
   const settings = useSettings((s) => s.settings);
@@ -67,11 +66,13 @@ export default function SettingsScreen() {
       }
     } catch (error) {
       const failure = error as { name?: string; message?: string };
-      setServerState(failure.name === 'AbortError'
-        ? t('common.server.timeout')
-        : failure.name === 'TypeError' || failure.message === 'Network request failed'
-          ? t('common.server.networkError')
-          : t('common.server.errorDetail', { message: failure.message ?? t('common.server.unreachable') }));
+      setServerState(
+        failure.name === 'AbortError'
+          ? t('common.server.timeout')
+          : failure.name === 'TypeError' || failure.message === 'Network request failed'
+            ? t('common.server.networkError')
+            : t('common.server.errorDetail', { message: failure.message ?? t('common.server.unreachable') }),
+      );
     } finally {
       clearTimeout(timeout);
       checkingServerRef.current = false;
@@ -82,7 +83,23 @@ export default function SettingsScreen() {
   useFocusEffect(
     useCallback(() => {
       void checkServer();
-      try { setStorageBytes(getDb().select().from(takes).all().reduce((sum, row) => sum + (new File(row.fileUri).size ?? 0) + (row.asrPath ? new File(row.asrPath).size ?? 0 : 0), 0)); } catch { setStorageBytes(0); }
+      try {
+        setStorageBytes(
+          getDb()
+            .select()
+            .from(takes)
+            .all()
+            .reduce(
+              (sum, row) =>
+                sum +
+                (new File(row.fileUri).size ?? 0) +
+                (row.asrPath ? (new File(row.asrPath).size ?? 0) : 0),
+              0,
+            ),
+        );
+      } catch {
+        setStorageBytes(0);
+      }
     }, [checkServer]),
   );
 
@@ -96,11 +113,13 @@ export default function SettingsScreen() {
       void checkForUpdate(false);
     } catch (error) {
       const failure = error as { name?: string; message?: string };
-      setServerState(failure.name === 'AbortError'
-        ? t('common.server.timeout')
-        : failure.name === 'TypeError' || failure.message === 'Network request failed'
-          ? t('common.server.networkError')
-          : t('common.server.errorDetail', { message: failure.message ?? t('common.error') }));
+      setServerState(
+        failure.name === 'AbortError'
+          ? t('common.server.timeout')
+          : failure.name === 'TypeError' || failure.message === 'Network request failed'
+            ? t('common.server.networkError')
+            : t('common.server.errorDetail', { message: failure.message ?? t('common.error') }),
+      );
     } finally {
       setEnrolling(false);
     }
@@ -112,57 +131,88 @@ export default function SettingsScreen() {
     setTimeout(() => setHighlightPairing(false), 1800);
   };
 
-  const langLabel = (l: AppSettings['language']) => (l === 'auto' ? t('settings.language.auto') : l === 'ko' ? '한국어' : 'English');
+  const langLabel = (l: AppSettings['language']) =>
+    l === 'auto' ? t('settings.language.auto') : l === 'ko' ? '한국어' : 'English';
 
   return (
     <ScrollView ref={scrollRef} style={shared.screen} contentContainerStyle={shared.content}>
       <UpdateSettingsSection onPairPress={focusPairing} />
       <View onLayout={(event) => setPairingTop(event.nativeEvent.layout.y)}>
-      <Card style={highlightPairing ? { borderColor: colors.primary, borderWidth: 2 } : undefined}>
-        <Text style={shared.h2}>{t('common.server.pairing')}</Text>
-        <TextInput
-          style={{ borderWidth: 1, borderColor: '#bbb', padding: 10, marginVertical: 8 }}
-          value={serverUrl}
-          onChangeText={setServerUrl}
-          autoCapitalize="none"
-          keyboardType="url"
-          onEndEditing={() => void SecureStore.setItemAsync('vc.serverUrl', serverUrl.trim())}
-        />
-        <TextInput
-          style={{ borderWidth: 1, borderColor: '#bbb', padding: 10, marginVertical: 8, letterSpacing: 4 }}
-          value={pairCode}
-          onChangeText={(value) => setPairCode(value.toUpperCase())}
-          maxLength={8}
-          autoCapitalize="characters"
-          placeholder={t('common.server.pairCode')}
-        />
-        <Button
-          label={enrolling ? t('common.server.enrolling') : t('common.server.enroll')}
-          busy={enrolling}
-          disabled={pairCode.trim().length !== 8}
-          onPress={() => void submitEnrollment()}
-        />
-        <Button label={checkingServer ? t('common.server.checking') : t('common.server.check')} busy={checkingServer} disabled={checkingServer} onPress={() => void checkServer()} />
-        <Text style={shared.body}>{serverState}</Text>
-      </Card>
+        <Card style={highlightPairing ? { borderColor: colors.primary, borderWidth: 2 } : undefined}>
+          <Text style={shared.h2}>{t('common.server.pairing')}</Text>
+          <TextInput
+            style={{ borderWidth: 1, borderColor: '#bbb', padding: 10, marginVertical: 8 }}
+            value={serverUrl}
+            onChangeText={setServerUrl}
+            autoCapitalize="none"
+            keyboardType="url"
+            onEndEditing={() => void SecureStore.setItemAsync('vc.serverUrl', serverUrl.trim())}
+          />
+          <TextInput
+            style={{ borderWidth: 1, borderColor: '#bbb', padding: 10, marginVertical: 8, letterSpacing: 4 }}
+            value={pairCode}
+            onChangeText={(value) => setPairCode(value.toUpperCase())}
+            maxLength={8}
+            autoCapitalize="characters"
+            placeholder={t('common.server.pairCode')}
+          />
+          <Button
+            label={enrolling ? t('common.server.enrolling') : t('common.server.enroll')}
+            busy={enrolling}
+            disabled={pairCode.trim().length !== 8}
+            onPress={() => void submitEnrollment()}
+          />
+          <Button
+            label={checkingServer ? t('common.server.checking') : t('common.server.check')}
+            busy={checkingServer}
+            disabled={checkingServer}
+            onPress={() => void checkServer()}
+          />
+          <Text style={shared.body}>{serverState}</Text>
+        </Card>
       </View>
       <Card>
         <Text style={shared.h2}>{t('common.labs.title')}</Text>
-        <Button label={showLabs ? t('common.labs.hide') : t('common.labs.title')} onPress={() => setShowLabs(!showLabs)} />
-        {showLabs && <View style={[shared.row, { justifyContent: 'space-between' }]}><Text style={shared.body}>{t('common.labs.showHidden')}</Text><Switch value={hiddenModes} onValueChange={(v) => { setHiddenModes(v); update({ showHiddenModes: v }); }} /></View>}
+        <Button
+          label={showLabs ? t('common.labs.hide') : t('common.labs.title')}
+          onPress={() => setShowLabs(!showLabs)}
+        />
+        {showLabs && (
+          <View style={[shared.row, { justifyContent: 'space-between' }]}>
+            <Text style={shared.body}>{t('common.labs.showHidden')}</Text>
+            <Switch
+              value={hiddenModes}
+              onValueChange={(v) => {
+                setHiddenModes(v);
+                update({ showHiddenModes: v });
+              }}
+            />
+          </View>
+        )}
       </Card>
       <Card>
         <Text style={shared.h2}>{t('settings.language.title')}</Text>
         <View style={[shared.row, { flexWrap: 'wrap' }]}>
           {LANGUAGE_SETTINGS.map((l) => (
-            <Chip key={l} label={langLabel(l)} selected={settings.language === l} onPress={() => update({ language: l })} />
+            <Chip
+              key={l}
+              label={langLabel(l)}
+              selected={settings.language === l}
+              onPress={() => update({ language: l })}
+            />
           ))}
         </View>
         <Text style={shared.muted}>{t('settings.language.hint')}</Text>
       </Card>
 
-      <Card><Text style={shared.h2}>{t('common.coach.voiceDefaults')}</Text><Text style={shared.muted}>{t('common.coach.coming')}</Text></Card>
-      <Card><Text style={shared.h2}>{t('common.coach.storage')}</Text><Text style={shared.body}>{(storageBytes / 1048576).toFixed(1)} MB</Text></Card>
+      <Card>
+        <Text style={shared.h2}>{t('common.coach.voiceDefaults')}</Text>
+        <Text style={shared.muted}>{t('common.coach.coming')}</Text>
+      </Card>
+      <Card>
+        <Text style={shared.h2}>{t('common.coach.storage')}</Text>
+        <Text style={shared.body}>{(storageBytes / 1048576).toFixed(1)} MB</Text>
+      </Card>
     </ScrollView>
   );
 }

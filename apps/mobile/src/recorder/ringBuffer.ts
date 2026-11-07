@@ -13,7 +13,14 @@ export class RingBuffer<T> {
     this.count = Math.min(this.count + 1, this.capacity);
   }
   values(): T[] {
-    return Array.from({ length: this.count }, (_, i) => this.data[(this.next - this.count + i + this.capacity) % this.capacity] as T);
+    return Array.from(
+      { length: this.count },
+      (_, i) => this.data[(this.next - this.count + i + this.capacity) % this.capacity] as T,
+    );
   }
-  clear(): void { this.next = 0; this.count = 0; this.data.fill(undefined); }
+  clear(): void {
+    this.next = 0;
+    this.count = 0;
+    this.data.fill(undefined);
+  }
 }

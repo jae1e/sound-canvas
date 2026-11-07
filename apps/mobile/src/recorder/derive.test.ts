@@ -1,5 +1,13 @@
 import { describe, expect, it } from 'vitest';
-import { calibrationMedian, centerPitchRange, centsColor, groupByDay, nextTip, rangeLabel, stabilityLabel } from './derive';
+import {
+  calibrationMedian,
+  centerPitchRange,
+  centsColor,
+  groupByDay,
+  nextTip,
+  rangeLabel,
+  stabilityLabel,
+} from './derive';
 import { RingBuffer } from './ringBuffer';
 
 describe('recorder derivations', () => {
@@ -23,7 +31,12 @@ describe('recorder derivations', () => {
     expect([...groupByDay(items, (n) => n).keys()]).toEqual(['2026-01-01', '2026-01-02']);
   });
   it('retains the most recent frames in order', () => {
-    const b = new RingBuffer<number>(2); b.push(1); b.push(2); b.push(3);
-    expect(b.values()).toEqual([2, 3]); b.clear(); expect(b.values()).toEqual([]);
+    const b = new RingBuffer<number>(2);
+    b.push(1);
+    b.push(2);
+    b.push(3);
+    expect(b.values()).toEqual([2, 3]);
+    b.clear();
+    expect(b.values()).toEqual([]);
   });
 });

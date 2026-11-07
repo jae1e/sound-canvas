@@ -32,11 +32,21 @@ export default function RootLayout() {
 
   useEffect(() => {
     if (!success) return;
-    const reconcile = () => { void reconcileTakes().then(() => setRecoveryError(false), () => setRecoveryError(true)); };
+    const reconcile = () => {
+      void reconcileTakes().then(
+        () => setRecoveryError(false),
+        () => setRecoveryError(true),
+      );
+    };
     reconcile();
-    const state = AppState.addEventListener('change', (next) => { if (next === 'active') reconcile(); });
+    const state = AppState.addEventListener('change', (next) => {
+      if (next === 'active') reconcile();
+    });
     const stopped = VcAudio.addListener('onTakeStopped', reconcile);
-    return () => { state.remove(); stopped.remove(); };
+    return () => {
+      state.remove();
+      stopped.remove();
+    };
   }, [success]);
 
   if (error) {
@@ -58,12 +68,28 @@ export default function RootLayout() {
   return (
     <>
       <StatusBar style="dark" />
-      {recoveryError ? <Text accessibilityRole="alert" style={{ backgroundColor: '#FEF3C7', color: '#92400E', padding: 12 }}>{t('common.takes.recoveryError')}</Text> : null}
-      <Stack screenOptions={{ headerStyle: { backgroundColor: colors.bg }, headerShadowVisible: false, contentStyle: { backgroundColor: colors.bg } }}>
+      {recoveryError ? (
+        <Text accessibilityRole="alert" style={{ backgroundColor: '#FEF3C7', color: '#92400E', padding: 12 }}>
+          {t('common.takes.recoveryError')}
+        </Text>
+      ) : null}
+      <Stack
+        screenOptions={{
+          headerStyle: { backgroundColor: colors.bg },
+          headerShadowVisible: false,
+          contentStyle: { backgroundColor: colors.bg },
+        }}
+      >
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-        {showHiddenModes ? <Stack.Screen name="work/index" options={{ title: t('common.mode.work') }} /> : null}
-        {showHiddenModes ? <Stack.Screen name="work/routine" options={{ title: t('routine.entry.title') }} /> : null}
-        {showHiddenModes ? <Stack.Screen name="travel/index" options={{ title: t('common.mode.travel') }} /> : null}
+        {showHiddenModes ? (
+          <Stack.Screen name="work/index" options={{ title: t('common.mode.work') }} />
+        ) : null}
+        {showHiddenModes ? (
+          <Stack.Screen name="work/routine" options={{ title: t('routine.entry.title') }} />
+        ) : null}
+        {showHiddenModes ? (
+          <Stack.Screen name="travel/index" options={{ title: t('common.mode.travel') }} />
+        ) : null}
         <Stack.Screen name="voice-coach/index" options={{ title: t('common.mode.coach') }} />
         <Stack.Screen name="journal/index" options={{ title: t('common.journal') }} />
         <Stack.Screen name="journal/[id]" options={{ title: t('common.journal') }} />

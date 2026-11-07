@@ -12,7 +12,10 @@ export function noteName(midi: number): string {
 export function rangeLabel(low: number | null, high: number | null): string | null {
   return low === null || high === null ? null : `${noteName(low)}–${noteName(high)}`;
 }
-export function nextTip(stability: number | null, beatOffset: number | null): 'sound' | 'steady' | 'beat' | 'continue' {
+export function nextTip(
+  stability: number | null,
+  beatOffset: number | null,
+): 'sound' | 'steady' | 'beat' | 'continue' {
   if (stability === null) return 'sound';
   if (stability > 50) return 'steady';
   if (beatOffset !== null && Math.abs(beatOffset) > 80) return 'beat';
@@ -36,7 +39,8 @@ export function groupByDay<T>(items: readonly T[], time: (item: T) => number): M
     const d = new Date(time(item));
     const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
     const group = groups.get(key) ?? [];
-    group.push(item); groups.set(key, group);
+    group.push(item);
+    groups.set(key, group);
   }
   return groups;
 }

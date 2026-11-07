@@ -10,5 +10,7 @@ describe('RingBuffer', () => {
     buffer.push(6);
     expect(buffer.values()).toEqual([6]);
   });
-  it('rejects invalid capacities', () => { expect(() => new RingBuffer(0)).toThrow(); });
+  it('rejects invalid capacities', () => {
+    expect(() => new RingBuffer(0)).toThrow();
+  });
 });
