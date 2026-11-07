@@ -41,16 +41,32 @@ Every issue found in testing or review goes here: symptom, root cause, fix with 
   - No `tabBarIcon` was set.
   - The tab screens hide the header and do not apply the top safe-area inset.
   - None of these show up in `pnpm check` or `expo export`.
-- **Fix.** Sent to a Codex worker (branch `vc-p0-ui`):
-  - correct the keys, and add a test that fails on any key missing in en or ko;
+- **Fix.** `b8f9e75` (merged in `b627ba0`):
+  - corrected the keys to `common.tabs.*`, and added a test that fails on any key missing in en or ko;
   - Ionicons tab icons;
-  - tab headers handle the safe area;
+  - the tab navigator header now handles the safe area;
   - a Home redesign with a Continue card and Song/Speech coach cards.
-- **Status.** Fix in progress.
+- **Status.** Fixed in build 446812; waiting for the user's check on the device.
 - **Lesson.** Reviewing the code is not enough for UI work. Before handing a build to the user, look at each screen on a device or emulator, or at least render the screens, and test that translation keys resolve.
+
+## VC-05 — The update button did nothing, and buttons gave no press feedback
+
+- **Symptom (U), 2026-11-07, build 446772.** Tapping 업데이트 (update) had no visible effect. The user also could not tell whether any button had registered a tap.
+- **Root cause (M).**
+  - The app was not paired; the server has no Voice Coach device. `checkForUpdate()` and `startUpdate()` returned silently when there was no token.
+  - The Button component only dimmed slightly while pressed.
+- **Fix.** `3bd4c05` (merged in `b627ba0`):
+  - when not paired, the app says "서버와 먼저 연결하세요" (pair with the server first), and the Pair action scrolls to and highlights the pairing card;
+  - update checks always end in a visible result: checking, up to date (build N), a new build, or a translated error;
+  - enrolment and the server check show busy and success or error states;
+  - all buttons and tappable cards have a ripple, a tinted pressed state and a 0.97 scale; busy buttons show a spinner and are disabled;
+  - tests cover the not-paired and error paths.
+- **Status.** Fixed in build 446812. The user still has to pair (code given on 2026-11-07) and install this build from the GitHub draft, because 446772 was never paired.
+- **Lesson.** No user action may end silently (FVL FT-27 again). Every action ends in success, an error, or a "do X first" message. This belongs in ARCHITECTURE.md as a rule.
 
 ## Releases
 
 | Build | Commit | Date | Notes |
 |---|---|---|---|
 | 446772 (0.2.0) | `dd3ae5a` | 2026-11-07 | P0: Voice Coach name and tabs, hidden Travel/Work, server pairing, in-app update, mic-sharing fixes. 71.5 MB. On the server and the private GitHub draft (`voice-coach-446772-dd3ae5a.apk`). Signed with the same key as earlier builds (M: apksigner certificate SHA-256 `fac61745…`) |
+| 446812 (0.2.0) | `b627ba0` | 2026-11-07 | UI fixes VC-04 and VC-05. 74.0 MB. Server and private GitHub draft (`voice-coach-446812-b627ba0.apk`); 446772 was removed from the draft |

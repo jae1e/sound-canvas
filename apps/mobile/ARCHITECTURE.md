@@ -20,3 +20,7 @@ Travel Guide and Work Partner remain hidden behind Settings → Labs → Show hi
 ## Updates
 
 Check at start and resume no more than hourly. Download through `vc-update`, show progress and speed, allow cancellation, request install permission when needed, and clean old update files on start. Do not update during recording.
+
+## Feedback rule
+
+No user action ends silently. Every button or tappable card shows a pressed state; long actions show a busy spinner and are disabled until they finish; every action ends with a visible result: success, an error in words, or "do X first", for example "Pair with your server first". See field-test log VC-05 and Field Voice Log FT-27.
