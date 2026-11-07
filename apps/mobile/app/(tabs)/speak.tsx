@@ -356,7 +356,12 @@ export default function SpeakTab() {
   }
   const lastSilent =
     lastRow?.transcriptState === 'no_speech' ||
-    !!(lastAnalysis && !lastAnalysis.syllableTimesMs.length && !lastAnalysis.midi?.some((v) => v !== null));
+    !!(
+      lastAnalysis &&
+      lastRow?.transcriptState !== 'done' &&
+      !lastAnalysis.syllableTimesMs.length &&
+      !lastAnalysis.midi?.some((v) => v !== null)
+    );
   const planRow = (
     icon: keyof typeof Ionicons.glyphMap,
     title: string,
