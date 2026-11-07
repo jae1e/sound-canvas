@@ -33,6 +33,7 @@ A second message the same day: "It is good for Speak and Sing to share component
 3. **Settings live where they act.** Input and output are chips on the recorder, tempo is a chip on the recorder, and the plan is a card on the speech recorder. The Settings screen only holds server, update, language and Labs.
 4. **Results in words first, then graphs.** After a take: one summary line, one next action, then details.
 5. **No silent action.** Every tap gives feedback (ARCHITECTURE.md "Feedback rule").
+6. **Live graphs are independent of recording** (user, 2026-11-07). The graphs show the live microphone whenever a recorder screen is open: before, during and after a take. Recording never changes their look, pauses them, or covers them. Result cards sit below the graphs. Recording is shown only by the record button, which becomes a stop square, and the red timer.
 
 ## 2. Navigation
 
