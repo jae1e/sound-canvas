@@ -29,6 +29,7 @@ interface Runner {
  */
 export function VoiceCoachScreen(props: VoiceCoachScreenProps) {
   const { lang } = props;
+  const onRecordingChange = props.onRecordingChange;
   const t = useMemo(() => makeT(lang), [lang]);
   const live = useLiveTracker();
 
@@ -52,6 +53,7 @@ export function VoiceCoachScreen(props: VoiceCoachScreenProps) {
   const cancel = useRef(false);
   const recording = useRef(false);
   recording.current = live.state.recording;
+  useEffect(() => { onRecordingChange?.(live.state.recording); }, [live.state.recording, onRecordingChange]);
   const lastTake = useRef<string | null>(null);
   const running = useRef(false);
 

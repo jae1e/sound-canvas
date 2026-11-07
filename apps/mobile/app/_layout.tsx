@@ -9,17 +9,22 @@ import { configureLlm } from '../src/llm/setup';
 import { useSettings } from '../src/settings/store';
 import { colors, shared } from '../src/theme';
 import { restoreWorkSession } from '../src/work/bootstrap';
+import { startUpdater } from '../src/update/updater';
+
+export const unstable_settings = { initialRouteName: '(tabs)' };
 
 export default function RootLayout() {
   const { t } = useTranslation();
   const { success, error } = useDatabaseMigrations();
   const loaded = useSettings((s) => s.loaded);
+  const showHiddenModes = useSettings((s) => s.settings.showHiddenModes);
 
   useEffect(() => {
     if (!success) return;
     useSettings.getState().load();
     configureLlm();
-    restoreWorkSession();
+    restoreWorkSession(useSettings.getState().settings.showHiddenModes);
+    return startUpdater();
   }, [success]);
 
   if (error) {
@@ -42,14 +47,13 @@ export default function RootLayout() {
     <>
       <StatusBar style="dark" />
       <Stack screenOptions={{ headerStyle: { backgroundColor: colors.bg }, headerShadowVisible: false, contentStyle: { backgroundColor: colors.bg } }}>
-        <Stack.Screen name="index" options={{ title: 'Voice Life Companion' }} />
-        <Stack.Screen name="work/index" options={{ title: t('common.mode.work') }} />
-        <Stack.Screen name="work/routine" options={{ title: t('routine.entry.title') }} />
-        <Stack.Screen name="travel/index" options={{ title: t('common.mode.travel') }} />
+        <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+        {showHiddenModes ? <Stack.Screen name="work/index" options={{ title: t('common.mode.work') }} /> : null}
+        {showHiddenModes ? <Stack.Screen name="work/routine" options={{ title: t('routine.entry.title') }} /> : null}
+        {showHiddenModes ? <Stack.Screen name="travel/index" options={{ title: t('common.mode.travel') }} /> : null}
         <Stack.Screen name="voice-coach/index" options={{ title: t('common.mode.coach') }} />
         <Stack.Screen name="journal/index" options={{ title: t('common.journal') }} />
         <Stack.Screen name="journal/[id]" options={{ title: t('common.journal') }} />
-        <Stack.Screen name="settings/index" options={{ title: t('common.settings') }} />
         <Stack.Screen name="settings/diagnostics" options={{ headerShown: false }} />
       </Stack>
     </>
