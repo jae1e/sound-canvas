@@ -1,4 +1,18 @@
 export default {
+  'coach.inputSubtitle': 'Speak to see the level of the microphone in use.',
+  'coach.inputBuiltin': 'Built in · recommended for singing',
+  'coach.inputBluetooth': 'Call quality · may affect singing tone',
+  'coach.usbMic': 'USB microphone',
+  'coach.usbAbsent': 'Shown here when connected',
+  'coach.inputFooter':
+    'The microphone is locked during a take. If disconnected, recording continues on the phone microphone.',
+  'coach.outputSubtitle': 'Beat, reference tones and playback come out here.',
+  'coach.outputSystem': 'Follows Android settings (now: {{name}})',
+  'coach.bluetooth': 'Bluetooth',
+  'coach.bluetoothCalibrated': 'Bluetooth · latency calibrated {{ms}} ms',
+  'coach.outputSpeaker': 'Beat sounds may be picked up by the microphone',
+  'coach.volumeLabel': 'Volume',
+  'coach.recalibrate': 'Recalibrate latency',
   'coach.beatOff': 'Beat off',
   'coach.justRecorded': 'Just recorded',
   'coach.details': 'Details',

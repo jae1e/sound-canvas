@@ -243,6 +243,7 @@ export default function SingTab() {
         onClose={() => setSheet(null)}
         theme="dark"
         devices={devices}
+        rmsDb={frame?.rmsDb ?? -100}
         onError={showError}
       />
       <OutputSheet

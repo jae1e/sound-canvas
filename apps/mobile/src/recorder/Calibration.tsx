@@ -9,10 +9,12 @@ export function Calibration({
   deviceKey,
   theme,
   onError,
+  onSaved,
 }: {
   deviceKey: string;
   theme: 'dark' | 'light';
   onError: () => void;
+  onSaved?: (value: number) => void;
 }) {
   const { t } = useTranslation();
   const [active, setActive] = useState(false);
@@ -28,7 +30,10 @@ export function Calibration({
       .then((s) => {
         if (live && s) {
           const n = JSON.parse(s)[deviceKey];
-          if (typeof n === 'number') setSaved(n);
+          if (typeof n === 'number') {
+            setSaved(n);
+            onSaved?.(n);
+          }
         }
       })
       .catch(onError);
@@ -36,7 +41,7 @@ export function Calibration({
       live = false;
       activeRef.current = false;
     };
-  }, [deviceKey, onError]);
+  }, [deviceKey, onError, onSaved]);
   const finish = async () => {
     if (!activeRef.current || !clicks.current || taps.current.length < 8) return;
     activeRef.current = false;
@@ -53,6 +58,7 @@ export function Calibration({
       stored[deviceKey] = rounded;
       await SecureStore.setItemAsync(KEY, JSON.stringify(stored));
       setSaved(rounded);
+      onSaved?.(rounded);
     } catch {
       onError();
     }
@@ -84,7 +90,7 @@ export function Calibration({
       }}
       style={({ pressed }) => ({
         padding: 14,
-        marginTop: 8,
+        marginTop: 0,
         borderRadius: 12,
         backgroundColor: theme === 'dark' ? '#222936' : '#F6F5F1',
         opacity: pressed ? 0.7 : 1,
@@ -95,7 +101,7 @@ export function Calibration({
           ? `${t('common.coach.tapClicks')} ${count}/8`
           : saved === null
             ? t('common.coach.calibrate')
-            : t('common.coach.calibrated', { ms: saved })}
+            : t('common.coach.recalibrate')}
       </Text>
     </Pressable>
   );
