@@ -9,25 +9,12 @@ import { getDb } from '../../src/db/client';
 import { takes } from '../../src/db/schema';
 import { deleteTakeRow } from '../../src/db/repos/coach';
 import { useTranslation } from '../../src/i18n';
-import { groupByDay, rangeLabel } from '../../src/recorder/derive';
+import { groupByDay } from '../../src/recorder/derive';
+import { takeSummary } from '../../src/recorder/takeSummary';
 import { formatDuration } from '../../src/recorder/SingControls';
 type Row = typeof takes.$inferSelect;
 function TakeRow({ row, onPress, onDelete }: { row: Row; onPress: () => void; onDelete: () => void }) {
   const { t } = useTranslation();
-  let result: string[] = [];
-  try {
-    const analysis = JSON.parse(row.analysisJson ?? '{}');
-    const range = rangeLabel(analysis.rangeLowMidi ?? null, analysis.rangeHighMidi ?? null);
-    if (range) result.push(range);
-  } catch {
-    /* Legacy row. */
-  }
-  try {
-    const beat = JSON.parse(row.beatJson ?? '{}');
-    if (typeof beat.bpm === 'number') result.push(`${beat.bpm} BPM`);
-  } catch {
-    /* Legacy row. */
-  }
   return (
     <Swipeable
       onSwipeableOpen={onDelete}
@@ -95,8 +82,7 @@ function TakeRow({ row, onPress, onDelete }: { row: Row; onPress: () => void; on
             )}
           </View>
           <Text numberOfLines={1} style={{ color: '#9A9DA6', fontSize: 12 }}>
-            {new Date(row.createdAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}
-            {result.length ? ` · ${result.join(' · ')}` : ''}
+            {takeSummary(row.createdAt, row.analysisJson, row.beatJson)}
           </Text>
         </View>
         <Text style={{ color: '#9A9DA6' }}>{formatDuration(row.durationMs ?? 0)}</Text>
