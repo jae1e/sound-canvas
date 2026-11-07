@@ -114,9 +114,7 @@ export function countTranscriptFillers(
       } else {
         const normalized = normalizeKo(lower),
           target = normalizeKo(key);
-        match =
-          normalized === target ||
-          (normalized.startsWith(target) && hasParticleBoundary(normalized.slice(target.length)));
+        match = normalized === target || isElongatedFiller(normalized, target);
       }
       if (match) {
         byFiller[f] = (byFiller[f] ?? 0) + 1;
@@ -133,11 +131,14 @@ function clean(s: string): string {
 function normalizeKo(s: string): string {
   return s.replace(/[^가-힣ㄱ-ㅎㅏ-ㅣ]/gu, '');
 }
-/** Particle suffix allowlist avoids prefix false positives such as 그것 and 그래서. */
-function hasParticleBoundary(s: string): boolean {
-  return /^(은|는|이|가|을|를|에|에서|으로|로|도|만|랑|와|과|의|께|한테|부터|까지|요|죠|고|서|면|니|네|다)/u.test(
-    s,
-  );
+/**
+ * Korean fillers match whole tokens only. 그 and 저 are fillers when they stand alone, but with a particle they
+ * are real words (그는 "he", 저는 "I", 이제는 "now"), so particles never extend a match. Stretched sounds still
+ * count: a one-syllable filler followed only by 으/어/음 or ㅡ (음음, 어어, 그으, 어음).
+ */
+function isElongatedFiller(token: string, filler: string): boolean {
+  if (filler.length !== 1 || !token.startsWith(filler) || token.length === filler.length) return false;
+  return /^[으어음ㅡ]+$/u.test(token.slice(filler.length));
 }
 /** Gaps >=1.5s derived from transcript word timing and/or native pause spans; duplicates are removed by rounded endpoints. */
 export function longPauses(

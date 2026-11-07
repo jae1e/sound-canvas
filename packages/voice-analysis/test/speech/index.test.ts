@@ -85,7 +85,7 @@ describe('speech planning and rates', () => {
   });
 });
 describe('speech transcript and audio metrics', () => {
-  it('matches Korean filler token without matching 그것/그래서 and supports attached particles', () => {
+  it('matches Korean fillers as whole tokens only (그는, 그것, 그래서 and 약간은 are words)', () => {
     const r = countTranscriptFillers(
       [
         { w: '그는', start_ms: 0, end_ms: 1 },
@@ -96,8 +96,8 @@ describe('speech transcript and audio metrics', () => {
       ],
       'ko',
     );
-    expect(r.total).toBe(3);
-    expect(r.indices).toEqual([0, 3, 4]);
+    expect(r.total).toBe(1);
+    expect(r.indices).toEqual([3]);
   });
   it('matches English phrase fillers as words', () =>
     expect(
