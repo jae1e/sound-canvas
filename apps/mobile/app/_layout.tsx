@@ -1,3 +1,4 @@
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect, useState } from 'react';
@@ -66,7 +67,7 @@ export default function RootLayout() {
   }
 
   return (
-    <>
+    <GestureHandlerRootView style={{ flex: 1 }}>
       <StatusBar style="dark" />
       {recoveryError ? (
         <Text accessibilityRole="alert" style={{ backgroundColor: '#FEF3C7', color: '#92400E', padding: 12 }}>
@@ -96,6 +97,6 @@ export default function RootLayout() {
         <Stack.Screen name="settings/index" options={{ title: t('common.settings') }} />
         <Stack.Screen name="settings/diagnostics" options={{ headerShown: false }} />
       </Stack>
-    </>
+    </GestureHandlerRootView>
   );
 }

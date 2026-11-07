@@ -128,7 +128,7 @@ export default function SingTab() {
         startMs.current = started.startMs;
         setElapsedMs(Math.max(0, VcAudio.nowMs() - started.startMs));
         try {
-          saveStartedTake(started, 'song');
+          saveStartedTake(started, 'song', beat.enabled ? beat.bpm : undefined);
         } catch (error) {
           await VcAudio.stopTake();
           throw error;

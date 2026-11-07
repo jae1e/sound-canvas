@@ -6,7 +6,7 @@ import { takes } from '../db/schema';
 import { persistStoppedTake } from './takePersistence';
 
 /** Save the take identity before waiting for a stop event. */
-export function saveStartedTake(take: TakeStarted, kind: 'song' | 'speech'): void {
+export function saveStartedTake(take: TakeStarted, kind: 'song' | 'speech', bpm?: number): void {
   const details = { kind, inputJson: JSON.stringify(take.input), outputJson: JSON.stringify(take.output) };
   getDb()
     .insert(takes)

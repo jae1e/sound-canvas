@@ -8,11 +8,18 @@ export function persistStoppedTake(db: AppDb, take: TakeStopped): void {
   db.transaction((tx) => {
     const existing = tx.select().from(takes).where(eq(takes.id, take.id)).get();
     const durationMs = take.durationMs > 0 ? Math.round(take.durationMs) : (existing?.durationMs ?? 0);
+    let beat: Record<string, unknown> = {};
+    try {
+      beat = JSON.parse(existing?.beatJson ?? '{}');
+    } catch {
+      /* Legacy row. */
+    }
     const values = {
       fileUri: take.path,
       durationMs,
       asrPath: take.asrPath,
       beatJson: JSON.stringify({
+        ...beat,
         timesMs: take.beatTimesMs,
         outputLatencyMs: take.outputLatencyMs,
         inputChanges: take.inputChanges,
