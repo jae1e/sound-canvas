@@ -1,0 +1,5 @@
+# Session microphone lifecycle
+
+The foreground service starts from the JS `startSession` call while the activity is visible. It returns `START_NOT_STICKY`, has no boot receiver, and rejects missing, unexpected, retried or redelivered start intents. It does not persist or restore a session after process or service death. The notification only stops the session. Within an active session, the platform recognizer may restart listening after an utterance, and the sherpa capture may recreate a failed recorder; these are continuations of that explicitly started session, not recovery after service death.
+
+On Android 10 and later, `captureState` reports whether the session's own AudioRecord is silenced when its recording configuration changes. On Android 11 and later this recorder requests non-privacy-sensitive capture. The platform recognizer owns its own capture and does not expose its audio session ID here, so this event applies only to the sherpa session capture. Device behavior and simultaneous recording still require on-device verification.

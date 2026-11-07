@@ -82,6 +82,10 @@ class SessionService : Service() {
       stopSession("notification_stop")
       return START_NOT_STICKY
     }
+    if (intent?.action != ACTION_START || flags != 0) {
+      if (SessionRuntime.service == null) stopSelf(startId)
+      return START_NOT_STICKY
+    }
     if (SessionRuntime.service != null) return START_NOT_STICKY // already running
     startSession()
     return START_NOT_STICKY // a killed session is not auto-restarted: the mic cannot start from the background anyway
@@ -407,6 +411,7 @@ class SessionService : Service() {
   }
 
   companion object {
+    const val ACTION_START = "expo.modules.vlcsessionservice.START"
     const val ACTION_STOP = "expo.modules.vlcsessionservice.STOP"
     private const val CHANNEL_ID = "vlc_session"
     private const val NOTIFICATION_ID = 4711

@@ -42,7 +42,7 @@ class VlcSessionServiceModule : Module() {
     Name("VlcSessionService")
 
     Events(
-      "sessionState", "sessionError", "pipelineState", "sessionSttEngine", "audioLevel",
+      "sessionState", "sessionError", "captureState", "pipelineState", "sessionSttEngine", "audioLevel",
       "speechStart", "partialTranscript", "finalTranscript", "echoSuppressed",
       "ttsStart", "ttsDone", "sessionVoice",
       "cueDue", "cueAudible",
@@ -95,7 +95,7 @@ class VlcSessionServiceModule : Module() {
       )
       SessionRuntime.prepareStart(cfg)
       try {
-        ContextCompat.startForegroundService(ctx, Intent(ctx, SessionService::class.java))
+        ContextCompat.startForegroundService(ctx, Intent(ctx, SessionService::class.java).setAction(SessionService.ACTION_START))
       } catch (e: Exception) {
         throw CodedException("START_REJECTED", e.toString(), e)
       }

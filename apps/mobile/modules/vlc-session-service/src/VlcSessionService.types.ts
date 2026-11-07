@@ -347,7 +347,11 @@ export type PaceSegmentDoneEvent = {
 };
 export type PaceStatus = { active: boolean; segments: number; pendingBeats: number; cachedClips: number };
 
+/** Android capture silencing state (API 29+). */
+export type CaptureStateEvent = { silenced: boolean };
+
 export type VlcSessionServiceModuleEvents = {
+  captureState: (e: CaptureStateEvent) => void;
   pacePrepareProgress: (e: PacePrepareProgressEvent) => void;
   paceBeat: (e: PaceBeatEvent) => void;
   paceSegmentDone: (e: PaceSegmentDoneEvent) => void;
