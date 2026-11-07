@@ -1,6 +1,5 @@
 import { useFocusEffect, useRouter } from 'expo-router';
 import { activateKeepAwakeAsync, deactivateKeepAwake } from 'expo-keep-awake';
-import { eq } from 'drizzle-orm';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Linking, PermissionsAndroid, Platform, Pressable, Text, View } from 'react-native';
 import VcAudio from '../../modules/vc-audio/src/VcAudioModule';
@@ -11,7 +10,6 @@ import type {
   TakeStopped,
 } from '../../modules/vc-audio/src/VcAudio.types';
 import { getDb } from '../../src/db/client';
-import { takes } from '../../src/db/schema';
 import { useTranslation } from '../../src/i18n';
 import { AudioBar } from '../../src/recorder/AudioBar';
 import { InputSheet, OutputSheet } from '../../src/recorder/DeviceSheets';
@@ -21,6 +19,7 @@ import { RecordButton } from '../../src/recorder/RecordButton';
 import { BeatSheet, type BeatSettings } from '../../src/recorder/BeatSheet';
 import { Toast } from '../../src/recorder/Toast';
 import { nextTip, rangeLabel, stabilityLabel } from '../../src/recorder/derive';
+import { persistAnalysis, persistStoppedTake } from '../../src/recorder/takePersistence';
 import { reconcileTakes, saveStartedTake } from '../../src/recorder/reconcile';
 import { useMonitor } from '../../src/recorder/useMonitor';
 import { setUpdateRecording } from '../../src/update/updater';
@@ -81,13 +80,10 @@ export default function SingTab() {
     async (take: TakeStopped) => {
       setRecording(false);
       try {
+        persistStoppedTake(getDb(), take);
         await reconcileTakes();
         const analysis = await VcAudio.analyzeTake(take.path, { beatTimesMs: take.beatTimesMs });
-        getDb()
-          .update(takes)
-          .set({ analysisJson: JSON.stringify(analysis) })
-          .where(eq(takes.id, take.id))
-          .run();
+        persistAnalysis(getDb(), take.id, analysis);
         setResult({ id: take.id, analysis });
       } catch {
         showError();
