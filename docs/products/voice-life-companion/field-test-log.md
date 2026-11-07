@@ -69,8 +69,17 @@ Every issue found in testing or review goes here: symptom, root cause, fix with 
 - **Symptom (U), 2026-11-07, build 446772.** 등록 (Enrol) and 서버 확인 (check server) showed `fetch failed: java.net.UnknownServiceException: CLEARTEXT communication to 100.84.83.35 not permitted by network security policy`.
 - **Root cause (M).** Android blocks plain `http://` by default. Field Voice Log sets `usesCleartextTraffic: true` through `expo-build-properties`; the Voice Coach `app.json` did not. The port missed a build setting, not code.
 - **Fix.** `usesCleartextTraffic: true` in `apps/mobile/app.json`, as in Field Voice Log. The traffic stays inside the Tailscale tailnet (WireGuard-encrypted), and the API binds only to the tailnet IP.
-- **Status.** Fixed in build 446815 (M: the manifest has `usesCleartextTraffic`); waiting for the user to pair.
+- **Status.** Verified (M): the phone enrolled on build 446815 at 16:00 on 2026-11-07, and the server lists it as `com.jae1e.voicelifecompanion`.
 - **Lesson.** When porting a client of the home server, port the network settings too. The error text did show up on screen, which confirms the VC-05 rule pays off.
+
+## VC-07 — Coach transcription, checked end to end on the live server
+
+- **Check (M), 2026-11-07.** After merging `9d379c4` and restarting the server, an existing 10.4 s Korean Field Voice Log recording was posted to `/v1/coach/transcribe?lang=auto` from a temporary Voice Coach test device.
+  - The job finished in a few seconds with language `ko`. The text matched the Field Voice Log transcript, with word timestamps for all 21 words.
+  - `DELETE` returned 204, and the shared object stayed, because Field Voice Log still owns it.
+  - Afterwards the test device and its owner row were removed by hand.
+- **Note.** The Qwen interface has no separate verbatim instruction, so the context sentence is unchanged (api-v0 rule). Fillers may be dropped by the ASR; the app must also count them from the audio (UX v2, section 5.4).
+- **Lesson.** For server features, test against the real engine on the live server with a throwaway device, not only with fakes, and check that deletes leave shared data alone.
 
 ## Releases
 
