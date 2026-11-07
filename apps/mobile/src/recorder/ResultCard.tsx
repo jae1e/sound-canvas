@@ -39,8 +39,6 @@ export function ResultCard({
   onPress: () => void;
 }) {
   const { t } = useTranslation();
-  const stable = analysis.stabilityCents !== null && analysis.stabilityCents <= 25;
-  const offsetGood = analysis.beatOffsetMs !== null && Math.abs(analysis.beatOffsetMs) <= 80;
   return (
     <Pressable
       onPress={onPress}
@@ -61,10 +59,22 @@ export function ResultCard({
         </Text>
         <Text style={{ color: '#8A93A5', fontSize: 12 }}>{t('common.coach.details')} ›</Text>
       </View>
+      <ResultDetails analysis={analysis} theme="dark" />
+    </Pressable>
+  );
+}
+
+export function ResultDetails({ analysis, theme }: { analysis: TakeAnalysis; theme: 'dark' | 'light' }) {
+  const { t } = useTranslation();
+  const stable = analysis.stabilityCents !== null && analysis.stabilityCents <= 25;
+  const offsetGood = analysis.beatOffsetMs !== null && Math.abs(analysis.beatOffsetMs) <= 80;
+  const dark = theme === 'dark';
+  return (
+    <View>
       <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 5 }}>
         <ResultChip
-          color="#CBD1DC"
-          background="#27303D"
+          color={dark ? '#CBD1DC' : '#55585F'}
+          background={dark ? '#27303D' : '#E8E6E0'}
         >{`${t('common.coach.range')} ${rangeLabel(analysis.rangeLowMidi, analysis.rangeHighMidi) ?? '—'}`}</ResultChip>
         <ResultChip color={stable ? '#5EEAD4' : '#FBBF24'} background={stable ? '#173A33' : '#40371E'}>
           {t(`common.coach.stability.${stabilityLabel(analysis.stabilityCents)}`)}
@@ -76,10 +86,12 @@ export function ResultCard({
           >{`${t('common.coach.beat')} ${analysis.beatOffsetMs >= 0 ? '+' : ''}${Math.round(analysis.beatOffsetMs)} ms`}</ResultChip>
         )}
       </View>
-      <Text style={{ color: '#AAB2C1', fontSize: 12, marginTop: 7 }}>
-        <Text style={{ fontWeight: '800', color: '#E8EBF1' }}>{t('common.coach.next')} </Text>
+      <Text style={{ color: dark ? '#AAB2C1' : '#6C6F78', fontSize: 12, marginTop: 7 }}>
+        <Text style={{ fontWeight: '800', color: dark ? '#E8EBF1' : '#1B1D22' }}>
+          {t('common.coach.next')}{' '}
+        </Text>
         {t(`common.coach.tip.${nextTip(analysis.stabilityCents, analysis.beatOffsetMs)}`)}
       </Text>
-    </Pressable>
+    </View>
   );
 }

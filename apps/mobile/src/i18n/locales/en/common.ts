@@ -1,4 +1,10 @@
 export default {
+  'coach.play': 'Play',
+  'coach.pause': 'Pause',
+  'coach.silentTake': 'Almost no sound',
+  'coach.rename': 'Rename recording',
+  'coach.backFive': 'Back 5 seconds',
+  'coach.forwardFive': 'Forward 5 seconds',
   'coach.inputSubtitle': 'Speak to see the level of the microphone in use.',
   'coach.inputBuiltin': 'Built in · recommended for singing',
   'coach.inputBluetooth': 'Call quality · may affect singing tone',

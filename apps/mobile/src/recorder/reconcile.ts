@@ -6,11 +6,21 @@ import { takes } from '../db/schema';
 import { persistStoppedTake } from './takePersistence';
 
 /** Save the take identity before waiting for a stop event. */
-export function saveStartedTake(take: TakeStarted, kind: 'song' | 'speech', bpm?: number): void {
+export function saveStartedTake(
+  take: TakeStarted,
+  kind: 'song' | 'speech',
+  beat?: { bpm: number; pattern: string },
+): void {
   const details = { kind, inputJson: JSON.stringify(take.input), outputJson: JSON.stringify(take.output) };
   getDb()
     .insert(takes)
-    .values({ id: take.id, fileUri: take.path, ...details, createdAt: Date.now() })
+    .values({
+      id: take.id,
+      fileUri: take.path,
+      ...details,
+      createdAt: Date.now(),
+      beatJson: beat ? JSON.stringify(beat) : null,
+    })
     .onConflictDoUpdate({ target: takes.id, set: { ...details, recovered: 0 } })
     .run();
 }

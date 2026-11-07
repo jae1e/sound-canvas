@@ -1,4 +1,10 @@
 export default {
+  'coach.play': '재생',
+  'coach.pause': '일시정지',
+  'coach.silentTake': '소리가 거의 없어요',
+  'coach.rename': '녹음 이름 변경',
+  'coach.backFive': '5초 뒤로',
+  'coach.forwardFive': '5초 앞으로',
   'coach.inputSubtitle': '말해 보세요. 소리가 들어오는 마이크의 막대가 움직여요.',
   'coach.inputBuiltin': '내장 · 노래에 권장',
   'coach.inputBluetooth': '통화 품질 · 노래 음색이 뭉개져요',

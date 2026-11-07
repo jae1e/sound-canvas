@@ -23,7 +23,7 @@ function useFrames(frames: Props['frames']) {
   }, [frames]);
   return snapshot;
 }
-const Lanes = memo(function Lanes({ bottom, theme }: { bottom: number; theme: 'dark' | 'light' }) {
+export const Lanes = memo(function Lanes({ bottom, theme }: { bottom: number; theme: 'dark' | 'light' }) {
   const dark = theme === 'dark';
   return (
     <>

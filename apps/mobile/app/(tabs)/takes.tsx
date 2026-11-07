@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
-import { useFocusEffect, useRouter } from 'expo-router';
-import { desc } from 'drizzle-orm';
+import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
+import { desc, eq } from 'drizzle-orm';
 import { useCallback, useRef, useState } from 'react';
 import { Pressable, ScrollView, Text, View } from 'react-native';
 import Swipeable from 'react-native-gesture-handler/ReanimatedSwipeable';
@@ -107,6 +107,7 @@ function TakeRow({ row, onPress, onDelete }: { row: Row; onPress: () => void; on
 export default function TakesTab() {
   const { t } = useTranslation();
   const router = useRouter();
+  const { deleteId } = useLocalSearchParams<{ deleteId?: string }>();
   const [rows, setRows] = useState<Row[]>([]);
   const [filter, setFilter] = useState<'all' | 'song' | 'speech'>('all');
   const [error, setError] = useState('');
@@ -119,28 +120,38 @@ export default function TakesTab() {
       setError(t('common.coach.error'));
     }
   }, [t]);
+  const remove = useCallback(
+    (row: Row) => {
+      if (timer.current) return;
+      setPending(row.id);
+      timer.current = setTimeout(() => {
+        void VcAudio.deleteTake(row.fileUri).then(
+          () => {
+            deleteTakeRow(getDb(), row.id);
+            timer.current = null;
+            setPending(null);
+            refresh();
+          },
+          () => {
+            timer.current = null;
+            setPending(null);
+            setError(t('common.coach.error'));
+          },
+        );
+      }, 5000);
+    },
+    [refresh, t],
+  );
   useFocusEffect(
     useCallback(() => {
       refresh();
-    }, [refresh]),
+      if (deleteId) {
+        const row = getDb().select().from(takes).where(eq(takes.id, deleteId)).get();
+        router.setParams({ deleteId: undefined });
+        if (row) remove(row);
+      }
+    }, [refresh, deleteId, remove, router]),
   );
-  const remove = (row: Row) => {
-    if (pending) return;
-    setPending(row.id);
-    timer.current = setTimeout(() => {
-      void VcAudio.deleteTake(row.fileUri).then(
-        () => {
-          deleteTakeRow(getDb(), row.id);
-          setPending(null);
-          refresh();
-        },
-        () => {
-          setPending(null);
-          setError(t('common.coach.error'));
-        },
-      );
-    }, 5000);
-  };
   const groups = groupByDay(
     rows.filter((r) => r.id !== pending && (filter === 'all' || r.kind === filter)),
     (r) => r.createdAt,
@@ -188,6 +199,7 @@ export default function TakesTab() {
         <Pressable
           onPress={() => {
             if (timer.current) clearTimeout(timer.current);
+            timer.current = null;
             setPending(null);
           }}
           style={{
