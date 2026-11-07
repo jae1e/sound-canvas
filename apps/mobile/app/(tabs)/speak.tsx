@@ -22,6 +22,7 @@ import { reconcileTakes, saveStartedTake } from '../../src/recorder/reconcile';
 import { useSettings } from '../../src/settings/store';
 import { ActivePractice } from '../../src/speech-coach/ActivePractice';
 import { PlanEditor, newPlan } from '../../src/speech-coach/PlanEditor';
+import { processSpeechQueue, rebuildSpeechReport } from '../../src/speech-coach/processing';
 import { VoiceStrip } from '../../src/speech-coach/VoiceStrip';
 
 type SheetName = 'input' | 'output' | 'timer' | 'pacer' | 'plans' | null;
@@ -69,7 +70,7 @@ export default function SpeakTab() {
   }, [plan, recording]);
   const finish = useCallback(async (take: TakeStopped) => {
     recordingRef.current = false; setRecording(false);
-    try { persistStoppedTake(getDb(), take); await reconcileTakes(); const analysis = await VcAudio.analyzeTake(take.path); persistAnalysis(getDb(), take.id, analysis); }
+    try { persistStoppedTake(getDb(), take); await reconcileTakes(); const analysis = await VcAudio.analyzeTake(take.path); persistAnalysis(getDb(), take.id, analysis); const row = getDb().select().from(takes).where(eq(takes.id, take.id)).get(); if (row) rebuildSpeechReport(row); void processSpeechQueue(); }
     catch { showError(); }
   }, [showError]);
   useEffect(() => { const sub = VcAudio.addListener('onTakeStopped', (take) => { if (recordingRef.current) void finish(take); }); return () => sub.remove(); }, [finish]);
