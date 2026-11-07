@@ -1,5 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
-import type { SpeechReport } from '@vlc/voice-analysis';
+import type { SpeechReport, SpeechTakeAnalysis } from '@vlc/voice-analysis';
 import { IMPROMPTU_TOPICS, INTERVIEW_QUESTIONS, pickRandom } from '@vlc/voice-analysis';
 import { desc, eq } from 'drizzle-orm';
 import { useFocusEffect, useLocalSearchParams, useNavigation, useRouter } from 'expo-router';
@@ -348,6 +348,15 @@ export default function SpeakTab() {
   } catch {
     /* An older report may be unavailable. */
   }
+  let lastAnalysis: SpeechTakeAnalysis | null = null;
+  try {
+    lastAnalysis = lastRow?.analysisJson ? (JSON.parse(lastRow.analysisJson) as SpeechTakeAnalysis) : null;
+  } catch {
+    /* An older analysis may be unavailable. */
+  }
+  const lastSilent =
+    lastRow?.transcriptState === 'no_speech' ||
+    !!(lastAnalysis && !lastAnalysis.syllableTimesMs.length && !lastAnalysis.midi?.some((v) => v !== null));
   const planRow = (
     icon: keyof typeof Ionicons.glyphMap,
     title: string,
@@ -525,10 +534,13 @@ export default function SpeakTab() {
                 </Text>
                 <Text style={{ color: '#6C6F78', marginTop: 4 }}>
                   {formatDuration(lastReport.durationMs)} · {t('speak.pace')}{' '}
-                  {lastReport.tiles.pace.value === null
+                  {lastSilent || lastReport.tiles.pace.value === null
                     ? '—'
                     : t(lastReport.tiles.pace.status === 'good' ? 'speak.good' : 'speak.caution')}{' '}
-                  · {t('speak.fillersValue', { count: lastReport.tiles.fillers.value ?? '—' })}
+                  ·{' '}
+                  {lastSilent || lastReport.tiles.fillers.value === null
+                    ? `${t('speak.fillers')} —`
+                    : t('speak.fillersValue', { count: lastReport.tiles.fillers.value })}
                 </Text>
               </View>
               <Text style={{ color: '#9A9DA6', fontSize: 22 }}>›</Text>
