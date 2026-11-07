@@ -35,6 +35,7 @@ export type Phase =
   | 'preparing'
   | 'needsPermission'
   | 'downloading'
+  | 'readyToInstall'
   | 'installing'
   | 'error';
 
@@ -46,6 +47,8 @@ export type State = {
   speedBps: number;
   lastSampleMs: number | null;
   error: string | null;
+  /** Verified APK waiting for the installer (phase readyToInstall or installing). */
+  apkPath: string | null;
 };
 
 export const initialState: State = {
@@ -56,6 +59,7 @@ export const initialState: State = {
   speedBps: 0,
   lastSampleMs: null,
   error: null,
+  apkPath: null,
 };
 
 export type Event =
@@ -67,7 +71,9 @@ export type Event =
   | { t: 'start'; recording: boolean; canInstall: boolean }
   | { t: 'permissionGranted' }
   | { t: 'progress'; bytes: number; totalBytes: number; atMs: number }
-  | { t: 'downloaded' }
+  | { t: 'downloaded'; path: string }
+  | { t: 'openInstaller' }
+  | { t: 'resumed' }
   | { t: 'fail'; message: string }
   | { t: 'cancel' };
 
@@ -76,13 +82,11 @@ const busyPhases: Phase[] = ['checking', 'preparing', 'downloading', 'installing
 export function reduceUpdate(state: State, event: Event): State {
   switch (event.t) {
     case 'check':
-      return busyPhases.includes(state.phase)
-        ? state
-        : { ...state, phase: 'checking', error: null };
+      return busyPhases.includes(state.phase) ? state : { ...state, phase: 'checking', error: null };
     case 'notPaired':
       return { ...state, phase: 'unpaired', error: null };
     case 'prepareInstall':
-      return ['available', 'error', 'needsPermission'].includes(state.phase)
+      return ['available', 'error', 'needsPermission', 'readyToInstall'].includes(state.phase)
         ? { ...state, phase: 'preparing', error: null }
         : state;
     case 'checked':
@@ -98,7 +102,9 @@ export function reduceUpdate(state: State, event: Event): State {
     case 'start': {
       if (
         !state.build?.newer ||
-        !(['available', 'error', 'needsPermission', 'preparing'] as Phase[]).includes(state.phase)
+        !(['available', 'error', 'needsPermission', 'preparing', 'readyToInstall'] as Phase[]).includes(
+          state.phase,
+        )
       ) {
         return state;
       }
@@ -129,9 +135,7 @@ export function reduceUpdate(state: State, event: Event): State {
     case 'progress': {
       if (state.phase !== 'downloading') return state;
       const instantSpeed =
-        state.lastSampleMs !== null &&
-        event.atMs > state.lastSampleMs &&
-        event.bytes >= state.bytes
+        state.lastSampleMs !== null && event.atMs > state.lastSampleMs && event.bytes >= state.bytes
           ? ((event.bytes - state.bytes) * 1000) / (event.atMs - state.lastSampleMs)
           : 0;
       const speedBps = instantSpeed
@@ -148,12 +152,22 @@ export function reduceUpdate(state: State, event: Event): State {
       };
     }
     case 'downloaded':
-      return state.phase === 'downloading' ? { ...state, phase: 'installing' } : state;
+      // Android blocks activity starts from the background, so the installer opens only from the screen
+      // (VC-11): the APK waits in readyToInstall until the app is in the foreground or the user taps 설치.
+      return state.phase === 'downloading'
+        ? { ...state, phase: 'readyToInstall', apkPath: event.path }
+        : state;
+    case 'openInstaller':
+      return state.phase === 'readyToInstall' && state.apkPath ? { ...state, phase: 'installing' } : state;
+    case 'resumed':
+      // Back in the app while "installing": the installer was dismissed, failed, or never appeared.
+      // A successful install restarts the app, so it never comes back here.
+      return state.phase === 'installing' ? { ...state, phase: 'readyToInstall' } : state;
     case 'fail':
       return { ...state, phase: 'error', error: event.message };
     case 'cancel':
-      return ['downloading', 'needsPermission'].includes(state.phase)
-        ? { ...state, phase: 'available', error: null }
+      return ['downloading', 'needsPermission', 'readyToInstall'].includes(state.phase)
+        ? { ...state, phase: 'available', error: null, apkPath: null }
         : state;
   }
 }

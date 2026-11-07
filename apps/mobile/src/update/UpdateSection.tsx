@@ -4,7 +4,7 @@ import { Button, Card } from '../components/ui';
 import { useTranslation } from '../i18n';
 import { colors, shared } from '../theme';
 import { downloadPercent, formatMb } from './core';
-import { cancelUpdate, checkForUpdate, startUpdate, useUpdater } from './updater';
+import { cancelUpdate, checkForUpdate, openInstaller, startUpdate, useUpdater } from './updater';
 
 export function UpdateBanner({ onPress }: { onPress: () => void }) {
   const { t } = useTranslation();
@@ -101,6 +101,12 @@ export function UpdateSettingsSection({ paired }: { paired: boolean }) {
         {updater.phase === 'downloading' ? (
           <Button label={t('common.update.cancel')} onPress={() => void cancelUpdate()} />
         ) : null}
+        {updater.phase === 'readyToInstall' ? (
+          <>
+            <Text style={shared.body}>{t('common.update.readyToInstall')}</Text>
+            <Button label={t('common.update.install')} kind="primary" onPress={() => void openInstaller()} />
+          </>
+        ) : null}
         {['available', 'needsPermission'].includes(updater.phase) ? (
           <Button
             label={t('common.update.install')}
@@ -128,6 +134,7 @@ export function UpdateSettingsSection({ paired }: { paired: boolean }) {
         updater.phase !== 'unpaired' &&
         updater.phase !== 'preparing' &&
         updater.phase !== 'downloading' &&
+        updater.phase !== 'readyToInstall' &&
         updater.phase !== 'installing' ? (
           <Button
             label={checkBusy ? t('common.update.checking') : t('common.update.check')}

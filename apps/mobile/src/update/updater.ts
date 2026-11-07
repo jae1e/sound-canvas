@@ -42,13 +42,10 @@ async function fetchLatest(url: string, token: string, versionCode: number): Pro
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 8000);
   try {
-    const response = await fetch(
-      `${url.replace(/\/+$/, '')}/v1/app/latest?version_code=${versionCode}`,
-      {
-        headers: { Authorization: `Bearer ${token}` },
-        signal: controller.signal,
-      },
-    );
+    const response = await fetch(`${url.replace(/\/+$/, '')}/v1/app/latest?version_code=${versionCode}`, {
+      headers: { Authorization: `Bearer ${token}` },
+      signal: controller.signal,
+    });
     if (response.status === 404) return null;
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
     return (await response.json()) as Build;
@@ -76,11 +73,7 @@ export async function checkForUpdate(silent = false): Promise<void> {
       return;
     }
     if (useUpdater.getState().versionCode === 0) await loadAppInfo().catch(() => undefined);
-    const build = await fetchLatest(
-      pairing.url,
-      pairing.token,
-      useUpdater.getState().versionCode,
-    );
+    const build = await fetchLatest(pairing.url, pairing.token, useUpdater.getState().versionCode);
     useUpdater.setState({ lastCheckMs: Date.now() });
     dispatch({ t: 'checked', build });
   } catch (error) {
@@ -124,8 +117,8 @@ async function downloadUpdate(build: Build): Promise<void> {
       `voice-coach-${build.version_code}.apk`,
       build.sha256,
     );
-    dispatch({ t: 'downloaded' });
-    await VcUpdate.installApk(path);
+    dispatch({ t: 'downloaded', path });
+    if (AppState.currentState === 'active') await openInstaller();
   } catch (error) {
     if (useUpdater.getState().phase !== 'available') {
       const message = errorCode(error);
@@ -134,6 +127,18 @@ async function downloadUpdate(build: Build): Promise<void> {
     }
   } finally {
     subscription.remove();
+  }
+}
+
+/** Opens the system installer for the downloaded APK. Call only while the app is on screen. */
+export async function openInstaller(): Promise<void> {
+  dispatch({ t: 'openInstaller' });
+  const { phase, apkPath } = useUpdater.getState();
+  if (phase !== 'installing' || !apkPath) return;
+  try {
+    await VcUpdate.installApk(apkPath);
+  } catch (error) {
+    dispatch({ t: 'fail', message: errorCode(error) });
   }
 }
 
@@ -175,6 +180,7 @@ export async function cancelUpdate(): Promise<void> {
 }
 
 async function onResume(): Promise<void> {
+  dispatch({ t: 'resumed' });
   if (
     useUpdater.getState().phase === 'needsPermission' &&
     (await VcUpdate.canInstallPackages().catch(() => false))
@@ -187,7 +193,9 @@ async function onResume(): Promise<void> {
 
 export function startUpdater(): () => void {
   void VcUpdate.cleanupUpdates(false).catch(() => undefined);
-  void loadAppInfo().then(maybeAutoCheck).catch(() => undefined);
+  void loadAppInfo()
+    .then(maybeAutoCheck)
+    .catch(() => undefined);
   const subscription = AppState.addEventListener('change', (state) => {
     if (state === 'active') void onResume();
   });

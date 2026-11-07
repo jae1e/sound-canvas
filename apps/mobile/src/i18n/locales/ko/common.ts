@@ -93,6 +93,7 @@ export default {
   'update.install': '설치',
   'update.cancel': '취소',
   'update.permission': '시스템 설정에서 보이스 코치의 알 수 없는 앱 설치를 허용한 뒤 돌아오세요.',
+  'update.readyToInstall': '다운로드 완료 · 설치를 눌러 주세요',
   'update.installing': '설치 프로그램 여는 중…',
   'update.preparing': '업데이트 준비 중…',
   'update.downloading': '업데이트 내려받는 중…',

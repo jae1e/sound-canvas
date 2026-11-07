@@ -24,7 +24,8 @@ class VcUpdateModule : Module() {
     AsyncFunction("cancelDownload") { id: String -> Updates.cancel(id) }
     AsyncFunction("canInstallPackages") { Updates.canInstall(context) }
     AsyncFunction("openInstallPermissionSettings") { Updates.openInstallSettings(context) }
-    AsyncFunction("installApk") { path: String -> Updates.install(context, path) }
+    // Start the installer from the visible activity: starts from the application context are blocked in the background (VC-11).
+    AsyncFunction("installApk") { path: String -> Updates.install(appContext.currentActivity ?: context, path) }
     AsyncFunction("cleanupUpdates") { all: Boolean?, promise: Promise ->
       val ctx = context
       io.execute { run(promise, "ERR_CLEANUP") { Updates.cleanup(ctx, all == true) } }

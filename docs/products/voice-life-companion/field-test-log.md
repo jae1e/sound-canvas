@@ -116,6 +116,15 @@ Every issue found in testing or review goes here: symptom, root cause, fix with 
 - **Status:** fixed (be5d958..43660a6, plus 'no live pace verdict before speech' and an amber '!' for a missed target). Checked on the emulator: plan sheet, a planned take with the cue card and section bar, and a silent report ("말소리가 거의 없었어요", tiles "측정 안 됨", tip "마이크 가까이에서 다시 말해 보세요"). Merged as ed6c963. Not yet tested with real speech or a finished transcript.
 - **Lesson:** test reports with silence and with no target, not only with good speech.
 
+## VC-11 — Update stuck on "설치 프로그램 여는 중…"
+
+- **Symptom (2026-11-07 23:30, phone, update 447216 → 447253):** after the download, the screen stayed on "설치 프로그램 여는 중…". No installer appeared. The server log shows that the full APK was sent (75,320,838 bytes).
+- **Root cause (likely):** the installer intent was started from the application context when the download finished. Android blocks activity starts from the background. If the app was not on screen at that moment, nothing opened, and the update screen had no way out of "installing". This was not confirmed with device logs.
+- **Workaround used:** the user closed the app and opened it again, then the update installed.
+- **Fix:** a new `readyToInstall` state holds the downloaded APK. The installer opens at once only while the app is active; otherwise the screen shows "다운로드 완료 · 설치를 눌러 주세요" and a 설치 button. Coming back to the app while "installing" returns to `readyToInstall`. The installer starts from the current activity. Tests are in `src/update/core.test.ts`. Ships with the next build.
+- **Status:** fixed in code; not yet tested on the phone.
+- **Lesson:** every waiting state needs an exit on resume (ARCHITECTURE.md: reconcile on start and resume). Never start activities from a background completion.
+
 ## Releases
 
 | Build | Commit | Date | Notes |

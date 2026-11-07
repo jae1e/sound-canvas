@@ -95,6 +95,7 @@ export default {
   'update.install': 'Install',
   'update.cancel': 'Cancel',
   'update.permission': 'Allow Voice Coach to install unknown apps in system settings, then return here.',
+  'update.readyToInstall': 'Downloaded · tap Install',
   'update.installing': 'Opening installer…',
   'update.preparing': 'Preparing update…',
   'update.downloading': 'Downloading update…',
