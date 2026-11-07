@@ -1,0 +1,13 @@
+import { useRef } from 'react';
+import { Pressable, Text, View } from 'react-native';
+import type { BeatPattern } from '../../modules/vc-audio/src/VcAudio.types';
+import VcAudio from '../../modules/vc-audio/src/VcAudioModule';
+import { useTranslation } from '../i18n';
+import { Sheet } from './Sheet';
+export type BeatSettings = { bpm: number; beatsPerBar: 2 | 3 | 4 | 6; pattern: BeatPattern; countIn: boolean; enabled: boolean };
+export function BeatSheet({ visible, onClose, theme, value, onChange }: { visible: boolean; onClose: () => void; theme: 'dark' | 'light'; value: BeatSettings; onChange: (value: BeatSettings) => void }) {
+  const { t } = useTranslation(); const taps = useRef<number[]>([]); const color = theme === 'dark' ? '#E8EBF1' : '#1B1D22';
+  const button = (label: string, action: () => void, active = false) => <Pressable key={label} onPress={action} style={({ pressed }) => ({ padding: 12, minWidth: 48, alignItems: 'center', borderRadius: 12, backgroundColor: active ? '#28534F' : theme === 'dark' ? '#222936' : '#F6F5F1', opacity: pressed ? 0.6 : 1 })}><Text style={{ color }}>{label}</Text></Pressable>;
+  const patch = (p: Partial<BeatSettings>) => onChange({ ...value, ...p });
+  return <Sheet visible={visible} onClose={onClose} theme={theme} title={t('common.coach.beat')}><View style={{ flexDirection: 'row', justifyContent: 'space-around', alignItems: 'center', marginBottom: 12 }}>{button('−', () => patch({ bpm: Math.max(30, value.bpm - 1) }))}<Text style={{ color, fontSize: 30, fontWeight: '800' }}>{value.bpm} BPM</Text>{button('+', () => patch({ bpm: Math.min(240, value.bpm + 1) }))}{button(value.enabled ? '●' : '○', () => patch({ enabled: !value.enabled }), value.enabled)}</View>{button(t('common.coach.tapTempo'), () => { const now = VcAudio.nowMs(); taps.current = [...taps.current.filter((n) => now - n < 3000), now].slice(-5); if (taps.current.length > 1) { const span = now - taps.current[0]; if (span > 0) patch({ bpm: Math.max(30, Math.min(240, Math.round(60000 * (taps.current.length - 1) / span))) }); } })}<View style={{ flexDirection: 'row', gap: 8, marginTop: 12 }}>{([4, 3, 6, 2] as const).map((n) => button(`${n}/${n === 6 ? 8 : 4}`, () => patch({ beatsPerBar: n }), value.beatsPerBar === n))}</View><View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 12 }}>{(['click', 'eight', 'sixteen', 'ballad', 'shuffle', 'bossa', 'hiphop'] as const).map((p) => button(t(`common.coach.pattern.${p}`), () => patch({ pattern: p }), value.pattern === p))}</View><View style={{ marginTop: 12 }}>{button(`${t('common.coach.countIn')}  ${value.countIn ? '✓' : '○'}`, () => patch({ countIn: !value.countIn }), value.countIn)}</View></Sheet>;
+}
