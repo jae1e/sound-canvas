@@ -80,15 +80,6 @@ export function ActivePractice({
   const pace = lang === 'en' ? rollingEnglishWpm(syllables) : syllables;
   const band = baseline ?? paceBand(lang);
   const paceStatus = classifyPace(pace, band);
-  const progress = plan?.sections.length
-    ? Math.min(
-        1,
-        sectionIndex / plan.sections.length +
-          (current?.budgetMs
-            ? Math.min(1, Math.max(0, elapsed - sectionStart) / current.budgetMs) / plan.sections.length
-            : 0),
-      )
-    : 0;
   return (
     <View style={{ flex: 1, paddingHorizontal: 16 }}>
       <View style={{ alignItems: 'center', paddingTop: 20 }}>
@@ -101,10 +92,30 @@ export function ActivePractice({
         </Text>
       </View>
       {!!plan?.sections.length && (
-        <View style={{ height: 7, backgroundColor: '#E3E1DC', borderRadius: 5, marginVertical: 12 }}>
-          <View
-            style={{ height: 7, width: `${progress * 100}%`, borderRadius: 5, backgroundColor: '#4F46E5' }}
-          />
+        <View style={{ flexDirection: 'row', gap: 3, height: 8, marginVertical: 12 }}>
+          {plan.sections.map((section, index) => {
+            const fraction =
+              index < sectionIndex
+                ? 1
+                : index > sectionIndex
+                  ? 0
+                  : section.budgetMs
+                    ? Math.min(1, Math.max(0, elapsed - sectionStart) / section.budgetMs)
+                    : 0;
+            return (
+              <View
+                key={section.id}
+                style={{
+                  flex: section.budgetMs || 1,
+                  backgroundColor: '#C8C4FA',
+                  borderRadius: 5,
+                  overflow: 'hidden',
+                }}
+              >
+                <View style={{ width: `${fraction * 100}%`, height: 8, backgroundColor: '#4F46E5' }} />
+              </View>
+            );
+          })}
         </View>
       )}
       {plan?.kind === 'script' && !!plan.script ? (
@@ -149,7 +160,7 @@ export function ActivePractice({
         >
           <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
             <Text style={{ color: '#4F46E5', fontWeight: '800' }}>
-              {sectionIndex + 1} / {plan?.sections.length}
+              {sectionIndex + 1} / {plan?.sections.length} {t('speak.section')}
             </Text>
             {current.budgetMs !== null && (
               <Text style={{ color: '#6C6F78' }}>
@@ -159,11 +170,11 @@ export function ActivePractice({
               </Text>
             )}
           </View>
-          <Text style={{ fontSize: 24, fontWeight: '800', color: '#1B1D22', marginVertical: 12 }}>
+          <Text style={{ fontSize: 28, fontWeight: '800', color: '#1B1D22', marginVertical: 12 }}>
             {current.name}
           </Text>
           {current.keyPoints.filter(Boolean).map((point, i) => (
-            <Text key={i} style={{ fontSize: 18, lineHeight: 30, color: '#1B1D22' }}>
+            <Text key={i} style={{ fontSize: 19, lineHeight: 30, color: '#1B1D22' }}>
               • {point}
             </Text>
           ))}
@@ -175,9 +186,7 @@ export function ActivePractice({
         <View style={{ flex: 1, backgroundColor: '#FFF', borderRadius: 20, padding: 18 }}>
           <Text style={{ color: '#1B1D22', fontSize: 23, fontWeight: '800', lineHeight: 34 }}>{prompt}</Text>
         </View>
-      ) : (
-        <View style={{ flex: 1 }} />
-      )}
+      ) : null}
       {!hidePace && (
         <View style={{ backgroundColor: '#FFF', borderRadius: 20, padding: 16, marginTop: 12 }}>
           <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
@@ -218,6 +227,7 @@ export function ActivePractice({
         </View>
       )}
       <VoiceStrip frames={frames} />
+      <View style={{ flex: 1 }} />
       <View style={{ alignItems: 'center', paddingBottom: 16 }}>
         <RecordButton theme="light" recording disabled={busy} label={t('speak.stop')} onPress={onStop} />
         <Text style={{ color: '#6C6F78', marginTop: 5 }}>{t('speak.stop')}</Text>

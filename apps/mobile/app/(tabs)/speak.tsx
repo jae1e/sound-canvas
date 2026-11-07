@@ -2,6 +2,7 @@ import { IMPROMPTU_TOPICS, INTERVIEW_QUESTIONS, pickRandom } from '@vlc/voice-an
 import { desc, eq } from 'drizzle-orm';
 import { useFocusEffect, useLocalSearchParams, useNavigation, useRouter } from 'expo-router';
 import { activateKeepAwakeAsync, deactivateKeepAwake } from 'expo-keep-awake';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
@@ -52,6 +53,7 @@ const card = {
 const ink = '#1B1D22';
 export default function SpeakTab() {
   const { t } = useTranslation();
+  const insets = useSafeAreaInsets();
   const router = useRouter();
   const navigation = useNavigation();
   const repeat = useLocalSearchParams<{ planId?: string; targetMs?: string; repeat?: string }>();
@@ -340,7 +342,7 @@ export default function SpeakTab() {
   const promptText = [...IMPROMPTU_TOPICS, ...INTERVIEW_QUESTIONS].find((p) => p.id === plan?.promptId)?.text;
   if (recording)
     return (
-      <View style={{ flex: 1, backgroundColor: '#F6F5F1', paddingTop: 36 }}>
+      <View style={{ flex: 1, backgroundColor: '#F6F5F1', paddingTop: insets.top + 8 }}>
         <View style={{ flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: 18 }}>
           <Text style={{ color: '#6C6F78' }}>
             {plan?.title ?? t('speak.free')} · {t('speak.nth', { count: practiceNumber })}
