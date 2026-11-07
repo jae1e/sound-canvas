@@ -14,7 +14,7 @@ object SpeechAnalysis {
     val sorted = points.map { it.rmsDb }.sorted()
     val low = sorted[((sorted.size - 1) * 0.1).toInt()]
     val high = sorted[((sorted.size - 1) * 0.9).toInt()]
-    val silence = if (high - low < 12) min(low - 1, -55.0) else low + 0.3 * (high - low)
+    val silence = if (high - low < 12) -55.0 else low + 0.3 * (high - low)
     val smooth = points.indices.map { i ->
       val a = max(0, i - 2); val b = min(points.lastIndex, i + 2)
       (a..b).sumOf { points[it].rmsDb } / (b - a + 1)

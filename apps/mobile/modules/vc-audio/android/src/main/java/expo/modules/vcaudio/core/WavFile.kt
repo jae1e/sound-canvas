@@ -46,9 +46,10 @@ class WavWriter(val file: File, private val sampleRate: Int) {
 
   fun close() {
     if (closed) return
-    flushHeader()
-    closed = true
-    raf.close()
+    try { flushHeader() } finally {
+      closed = true
+      raf.close()
+    }
   }
 
   private fun header(dataLen: Long): ByteArray {

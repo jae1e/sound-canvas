@@ -45,6 +45,7 @@ class AudioOutput(private val context: Context, private val routes: DeviceRoutes
   private val beatHistory = ArrayDeque<Pair<Double, Double>>()
   private var player: MediaPlayer? = null
   private var playbackState = "stopped"
+  init { routes.currentOutput = { synchronized(lock) { track?.routedDevice ?: player?.routedDevice } } }
   private val playbackTick = object : Runnable {
     override fun run() {
       synchronized(lock) {
@@ -85,11 +86,12 @@ class AudioOutput(private val context: Context, private val routes: DeviceRoutes
   /** Schedules one complete bar starting at the next downbeat. */
   fun countInEndMs(): Double? = synchronized(lock) {
     if (!beat) return null
-    val barSteps = config.beats * 4L
+    val divisions = if (config.pattern == "shuffle" && !config.pacer) 3 else 4
+    val barSteps = config.beats * divisions.toLong()
     val nextBar = ((subdivision + barSteps - 1) / barSteps) * barSteps
     countFrom = nextBar
     countUntil = nextBar + barSteps
-    val endFrame = beatOrigin + kotlin.math.round(countUntil * 48000.0 * 60.0 / config.bpm / 4.0).toLong()
+    val endFrame = beatOrigin + BeatMath.subdivisionFrame(countUntil, config.bpm, 48000, divisions)
     heardTime(endFrame, outputLatency())
   }
   fun beatsBetween(start: Double, end: Double): Pair<List<Double>, Double> = synchronized(lock) {
@@ -98,7 +100,8 @@ class AudioOutput(private val context: Context, private val routes: DeviceRoutes
   }
   fun isMasked(time: Double): Boolean = synchronized(lock) {
     val output = routes.activeOutput()
-    output != null && routes.info(output)["type"] == "speaker" && beatHistory.any { kotlin.math.abs(it.first - time) <= 30.0 }
+    output != null && routes.info(output)["type"] == "speaker" &&
+      (beatHistory.lastIndex downTo maxOf(0, beatHistory.size - 8)).any { kotlin.math.abs(beatHistory[it].first - time) <= 30.0 }
   }
   fun routeChanged() = synchronized(lock) { track?.setPreferredDevice(routes.preferredOutput()); player?.setPreferredDevice(routes.preferredOutput()) }
   fun calibration(count: Int): List<Double> {
@@ -118,9 +121,9 @@ class AudioOutput(private val context: Context, private val routes: DeviceRoutes
     val t = AudioTrack.Builder().setAudioAttributes(attrs)
       .setAudioFormat(AudioFormat.Builder().setSampleRate(48000).setChannelMask(AudioFormat.CHANNEL_OUT_MONO).setEncoding(AudioFormat.ENCODING_PCM_16BIT).build())
       .setTransferMode(AudioTrack.MODE_STREAM).setPerformanceMode(AudioTrack.PERFORMANCE_MODE_LOW_LATENCY)
-      .setBufferSizeInBytes(maxOf(AudioTrack.getMinBufferSize(48000, AudioFormat.CHANNEL_OUT_MONO, AudioFormat.ENCODING_PCM_16BIT), 4096)).build()
+      .setBufferSizeInBytes(maxOf(AudioTrack.getMinBufferSize(48000, AudioFormat.CHANNEL_OUT_MONO, AudioFormat.ENCODING_PCM_16BIT), 960)).build()
     if (t.state != AudioTrack.STATE_INITIALIZED) { t.release(); throw CodedException("ERR_AUDIO", "Could not open media output", null) }
-    t.setPreferredDevice(routes.preferredOutput()); track = t
+    routes.preferredOutput()?.let { t.setPreferredDevice(it) }; track = t
     worker = Thread({ render(t) }, "vc-audio-mixer").also { it.start() }
   }
   private fun heardTime(frame: Long, latency: Double): Double {
@@ -137,32 +140,33 @@ class AudioOutput(private val context: Context, private val routes: DeviceRoutes
       t.play()
       while (true) {
         synchronized(lock) {
+          if (track !== t) break
           if (!beat && clicks == null && toneFrame < 0 && voices.isEmpty()) {
             if (track === t) { track = null; worker = null }
             break
           }
           val c = config
-          val stepFrames = 48000.0 * 60 / c.bpm / 4
+          val divisions = if (c.pattern == "shuffle" && !c.pacer) 3 else 4
           for (i in buffer.indices) {
             val frame = framesWritten + i
             if (beat && frame >= beatFrame) {
               val step = subdivision
-              val beatIndex = step / 4
-              val barStep = (step % (c.beats * 4L)).toInt()
-              val accent = barStep == 0 || (c.beats == 6 && barStep == 12)
-              if (step % 4 == 0L) {
+              val beatIndex = step / divisions
+              val barStep = (step % (c.beats * divisions.toLong())).toInt()
+              val accent = barStep == 0 || (c.beats == 6 && barStep == 3 * divisions)
+              if (step % divisions == 0L) {
                 val latency = outputLatency(); val at = heardTime(frame, latency)
                 beatHistory.addLast(at to latency)
                 while (beatHistory.size > 65536) beatHistory.removeFirst()
                 val event = mapOf<String, Any?>("bar" to (beatIndex / c.beats + 1).toInt(), "beat" to (beatIndex % c.beats + 1).toInt(), "atMs" to at, "countIn" to (step >= countFrom && step < countUntil))
                 main.post { emit("onBeat", event) }
               }
-              val names = if (c.pacer) { if (barStep % 4 == 0) listOf("click") else emptyList() }
-                else if (c.pattern == "click") { if (barStep % 4 == 0) listOf(if (accent) "accent" else "click") else emptyList() }
-                else BeatMath.pattern(c.pattern)[barStep % 16] ?: emptyList()
+              val names = if (c.pacer) { if (barStep % divisions == 0) listOf("click") else emptyList() }
+                else if (c.pattern == "click") { if (barStep % divisions == 0) listOf(if (accent) "accent" else "click") else emptyList() }
+                else BeatMath.pattern(c.pattern)[barStep % (divisions * 4)] ?: emptyList()
               names.forEach { voices.add(Voice(it)) }
               subdivision++
-              beatFrame = beatOrigin + kotlin.math.round(subdivision * stepFrames).toLong()
+              beatFrame = beatOrigin + BeatMath.subdivisionFrame(subdivision, c.bpm, 48000, divisions)
             }
             clicks?.let { request ->
               if (request.nextFrame < 0) {
@@ -201,11 +205,17 @@ class AudioOutput(private val context: Context, private val routes: DeviceRoutes
           }
           framesWritten += buffer.size
         }
-        val n = t.write(buffer, 0, buffer.size, AudioTrack.WRITE_BLOCKING)
-        if (n < 0) throw IllegalStateException("AudioTrack write failed: $n")
+        var offset = 0
+        while (offset < buffer.size) {
+          val n = t.write(buffer, offset, buffer.size - offset, AudioTrack.WRITE_BLOCKING)
+          if (n <= 0) throw IllegalStateException("AudioTrack write failed: $n")
+          offset += n
+        }
       }
+    } catch (e: Exception) {
+      android.util.Log.w("VcAudio", "Audio output stopped", e)
     } finally {
-      synchronized(lock) { if (track === t) { track = null; worker = null }; clicks?.done?.countDown(); clicks = null }
+      synchronized(lock) { if (track === t) { track = null; worker = null; clicks?.done?.countDown(); clicks = null } }
       try { t.stop() } catch (_: Exception) { }; t.release()
     }
   }
@@ -213,12 +223,15 @@ class AudioOutput(private val context: Context, private val routes: DeviceRoutes
     stopPlayer("stopped")
     val mp = MediaPlayer()
     try {
-      mp.setAudioAttributes(attrs); mp.setDataSource(File(path).absolutePath); mp.setPreferredDevice(routes.preferredOutput())
+      mp.setAudioAttributes(attrs); mp.setDataSource(File(path).absolutePath); routes.preferredOutput()?.let { mp.setPreferredDevice(it) }
       mp.setOnCompletionListener { synchronized(lock) { if (player === mp) stopPlayer("ended") } }
       mp.setOnErrorListener { _, what, extra -> synchronized(lock) { if (player === mp) { playbackEvent("error", "$what/$extra"); stopPlayer(null) } }; true }
       mp.prepare(); player = mp; if (startMs != null) mp.seekTo(startMs.toInt().coerceAtLeast(0)); mp.start()
       playbackState = "playing"; playbackEvent("playing"); main.postDelayed(playbackTick, 100)
-    } catch (e: Exception) { mp.release(); throw e }
+    } catch (e: Exception) {
+      mp.release(); emit("onPlayback", mapOf("state" to "error", "positionMs" to 0, "durationMs" to 0, "error" to (e.message ?: e.toString())))
+      throw e
+    }
   }
   fun pause() = synchronized(lock) { player?.let { it.pause(); playbackState = "paused"; playbackEvent("paused") } }
   fun resume() = synchronized(lock) { player?.let { it.start(); playbackState = "playing"; playbackEvent("playing") } }
@@ -237,7 +250,11 @@ class AudioOutput(private val context: Context, private val routes: DeviceRoutes
     player = null; try { mp.stop() } catch (_: Exception) { }; mp.release(); playbackState = "stopped"
   }
   fun stopAll() {
-    synchronized(lock) { beat = false; clicks?.done?.countDown(); clicks = null; toneFrame = -1 }
+    synchronized(lock) {
+      beat = false; clicks?.done?.countDown(); clicks = null; toneFrame = -1
+      val old = track; track = null; worker = null
+      try { old?.pause(); old?.flush() } catch (_: Exception) { }
+    }
     stopPlayback()
   }
 }

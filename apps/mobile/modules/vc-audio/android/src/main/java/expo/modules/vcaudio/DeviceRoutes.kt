@@ -19,6 +19,7 @@ class DeviceRoutes(private val context: Context, private val locked: () -> Boole
   private val audio = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
   private val prefs = context.getSharedPreferences("vc_audio", Context.MODE_PRIVATE)
   private val handler = Handler(Looper.getMainLooper())
+  @Volatile var currentOutput: () -> AudioDeviceInfo? = { null }
   private val callback = object : AudioDeviceCallback() {
     override fun onAudioDevicesAdded(added: Array<out AudioDeviceInfo>) = changed()
     override fun onAudioDevicesRemoved(removed: Array<out AudioDeviceInfo>) = changed()
@@ -40,13 +41,13 @@ class DeviceRoutes(private val context: Context, private val locked: () -> Boole
   fun key(d: AudioDeviceInfo): String {
     val t = type(d)
     val name = d.productName?.toString().orEmpty()
-    val address = if (t == "builtin" || t == "speaker") "" else try { d.address.orEmpty() } catch (_: SecurityException) { "" }
+    val address = if (t != "bluetooth" && t != "usb") "" else try { d.address.orEmpty() } catch (_: SecurityException) { "" }
     val hash = if (address.isEmpty()) "" else MessageDigest.getInstance("SHA-256").digest(address.toByteArray()).take(6).joinToString("") { "%02x".format(it.toInt() and 255) }
     return "$t:$name:$hash"
   }
   fun info(d: AudioDeviceInfo): Map<String, Any> {
     val key = key(d)
-    return mapOf("key" to key, "type" to type(d), "productName" to d.productName.toString(), "addressHash" to key.substringAfterLast(':'), "callQuality" to (d.isSource && isBluetoothMic(d)))
+    return mapOf("key" to key, "type" to type(d), "productName" to d.productName?.toString().orEmpty(), "addressHash" to key.substringAfterLast(':'), "callQuality" to (d.isSource && isBluetoothMic(d)))
   }
   fun inputs() = audio.getDevices(AudioManager.GET_DEVICES_INPUTS).filter(::allowed).distinctBy(::key)
   fun outputs() = audio.getDevices(AudioManager.GET_DEVICES_OUTPUTS).filter(::allowed).distinctBy(::key)
@@ -59,6 +60,7 @@ class DeviceRoutes(private val context: Context, private val locked: () -> Boole
   fun builtin(): AudioDeviceInfo? = inputs().firstOrNull { type(it) == "builtin" }
   fun preferredOutput(): AudioDeviceInfo? = prefs.getString("outputKey", null)?.let { k -> outputs().firstOrNull { key(it) == k } }
   fun activeOutput(): AudioDeviceInfo? {
+    try { currentOutput()?.let { return it } } catch (_: Exception) { }
     preferredOutput()?.let { return it }
     if (Build.VERSION.SDK_INT < 33) return null
     return try {

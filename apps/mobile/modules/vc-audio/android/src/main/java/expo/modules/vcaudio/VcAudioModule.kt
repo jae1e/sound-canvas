@@ -13,7 +13,9 @@ import expo.modules.vcaudio.core.ReviewAnalysis
 import expo.modules.vcaudio.core.WavReader
 import java.io.File
 import android.os.SystemClock
+import expo.modules.kotlin.Promise
 import expo.modules.kotlin.exception.CodedException
+import java.util.concurrent.Executors
 import expo.modules.kotlin.modules.Module
 import expo.modules.kotlin.modules.ModuleDefinition
 
@@ -21,9 +23,13 @@ import expo.modules.kotlin.modules.ModuleDefinition
 class VcAudioModule : Module() {
   private val context: Context get() = appContext.reactContext ?: throw CodedException("ERR_NO_CONTEXT", "React context unavailable", null)
   private val routes: DeviceRoutes by lazy { DeviceRoutes(context, { capture.taking }) {
-    capture.devicesChanged()
-    output.routeChanged()
-    sendEvent("onDevices", routes.snapshot(capture.activeInput ?: routes.selectedInput()))
+    try {
+      io.execute {
+        capture.devicesChanged()
+        output.routeChanged()
+        sendEvent("onDevices", routes.snapshot(capture.activeInput ?: routes.selectedInput()))
+      }
+    } catch (_: java.util.concurrent.RejectedExecutionException) { }
   } }
   private val output: AudioOutput by lazy { AudioOutput(context, routes) { name, event -> sendEvent(name, event) } }
   private val capture: CaptureEngine by lazy { CaptureEngine(context, routes, { output.isMasked(it) }, { start, end -> output.beatsBetween(start, end) }) { name, event -> sendEvent(name, event) } }
@@ -37,48 +43,61 @@ class VcAudioModule : Module() {
     }
   }
   private val main = Handler(Looper.getMainLooper())
+  private val io = Executors.newCachedThreadPool()
+  private fun runAsync(promise: Promise, block: () -> Any?) {
+    io.execute {
+      try { val result = block(); promise.resolve(if (result === Unit) null else result) }
+      catch (e: CodedException) { promise.reject(e) }
+      catch (e: Throwable) { promise.reject(CodedException("ERR_AUDIO", e.message ?: e.toString(), e)) }
+    }
+  }
 
   override fun definition() = ModuleDefinition {
     Name("VcAudio")
     Events("onDevices", "onFrame", "onMonitorState", "onTakeStopped", "onBeat", "onPlayback")
     OnCreate { routes.register(); main.post { ProcessLifecycleOwner.get().lifecycle.addObserver(lifecycleObserver) } }
-    OnDestroy { routes.unregister(); capture.stop(); output.stopAll(); main.post { ProcessLifecycleOwner.get().lifecycle.removeObserver(lifecycleObserver) } }
+    OnDestroy { routes.unregister(); capture.stop(); output.stopAll(); io.shutdown(); main.post { ProcessLifecycleOwner.get().lifecycle.removeObserver(lifecycleObserver) } }
     AsyncFunction("getDevices") { routes.snapshot(capture.activeInput ?: routes.selectedInput()) }
-    AsyncFunction("setInputPreference") { pref: Map<String, Any?> -> routes.setInput(pref); capture.devicesChanged(); routes.snapshot(capture.activeInput ?: routes.selectedInput()).also { sendEvent("onDevices", it) } }
-    AsyncFunction("setOutputPreference") { pref: Map<String, Any?> -> routes.setOutput(pref); output.routeChanged(); routes.snapshot().also { sendEvent("onDevices", it) } }
-    AsyncFunction("startMonitor") {
+    AsyncFunction("setInputPreference") { pref: Map<String, Any?>, promise: Promise -> runAsync(promise) { capture.withPreferencesUnlocked {
+      routes.setInput(pref); capture.devicesChanged(); routes.snapshot(capture.activeInput ?: routes.selectedInput()).also { sendEvent("onDevices", it) }
+    } } }
+    AsyncFunction("setOutputPreference") { pref: Map<String, Any?> -> capture.withPreferencesUnlocked {
+      routes.setOutput(pref); output.routeChanged(); routes.snapshot(capture.activeInput ?: routes.selectedInput()).also { sendEvent("onDevices", it) }
+    } }
+    AsyncFunction("startMonitor") { promise: Promise -> runAsync(promise) {
       if (!ProcessLifecycleOwner.get().lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)) throw CodedException("ERR_STATE", "The app is not in the foreground", null)
       capture.start()
-    }
+    } }
     AsyncFunction("stopMonitor") { capture.stop() }
-    AsyncFunction("startTake") { options: Map<String, Any?> ->
+    AsyncFunction("startTake") { options: Map<String, Any?>, promise: Promise -> runAsync(promise) {
       if (!ProcessLifecycleOwner.get().lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)) throw CodedException("ERR_STATE", "The app is not in the foreground", null)
       capture.start()
-      capture.begin(options["kind"] as? String ?: "", if (options["countIn"] == true) output.countInEndMs() else null)
-    }
+      capture.begin(options["kind"] as? String ?: "") { if (options["countIn"] == true) output.countInEndMs() else null }
+    } }
     AsyncFunction("stopTake") { capture.end("user") }
     AsyncFunction("deleteTake") { path: String ->
       val dir = File(context.filesDir, "takes").canonicalFile
       val file = File(path).canonicalFile
       if (file.parentFile != dir || file.extension != "wav" || file.name.endsWith(".asr.wav")) throw CodedException("ERR_ARGUMENT", "Invalid take path", null)
-      if (capture.taking) throw CodedException("ERR_LOCKED", "Cannot delete while recording", null)
-      file.delete(); File(dir, "${file.nameWithoutExtension}.asr.wav").delete(); Unit
+      capture.deleteTake(file)
     }
     AsyncFunction("setBeat") { config: Map<String, Any?> -> output.setBeat(config) }
     AsyncFunction("startBeat") { output.startBeat() }
     AsyncFunction("stopBeat") { output.stopBeat() }
     Function("nowMs") { SystemClock.elapsedRealtimeNanos() / 1_000_000.0 }
-    AsyncFunction("playCalibrationClicks") { count: Int -> output.calibration(count) }
-    AsyncFunction("setOutputLatency") { key: String, latency: Double -> output.setLatency(key, latency) }
+    AsyncFunction("playCalibrationClicks") { count: Int, promise: Promise -> runAsync(promise) { output.calibration(count) } }
+    AsyncFunction("setOutputLatency") { key: String, latency: Double ->
+      capture.withPreferencesUnlocked { output.setLatency(key, latency) }
+    }
     AsyncFunction("getMediaVolume") { output.getVolume() }
     AsyncFunction("setMediaVolume") { volume: Double -> output.setVolume(volume) }
     AsyncFunction("playTestTone") { output.testTone() }
-    AsyncFunction("play") { path: String, start: Double? -> output.play(path, start) }
+    AsyncFunction("play") { path: String, start: Double?, promise: Promise -> runAsync(promise) { output.play(path, start) } }
     AsyncFunction("pause") { output.pause() }
     AsyncFunction("resume") { output.resume() }
     AsyncFunction("stop") { output.stopPlayback() }
     AsyncFunction("seek") { position: Double -> output.seek(position) }
-    AsyncFunction("analyzeTake") { path: String, options: Map<String, Any?>? ->
+    AsyncFunction("analyzeTake") { path: String, options: Map<String, Any?>?, promise: Promise -> runAsync(promise) {
       val maxPoints = (options?.get("maxPoints") as? Number)?.toInt() ?: 3000
       val buckets = (options?.get("waveformBuckets") as? Number)?.toInt() ?: 400
       if (maxPoints !in 1..100000 || buckets !in 1..100000) throw CodedException("ERR_ARGUMENT", "Invalid analysis size", null)
@@ -90,6 +109,6 @@ class VcAudioModule : Module() {
       val wav = try { WavReader.read(File(path)) } catch (_: Exception) { null }
         ?: throw CodedException("ERR_AUDIO", "Take is missing or is not a mono PCM16 WAV", null)
       ReviewAnalysis.analyze(wav, maxPoints, buckets, beats)
-    }
+    } }
   }
 }

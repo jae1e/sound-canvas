@@ -10,6 +10,7 @@ import android.media.AudioFormat
 import android.media.AudioManager
 import android.media.AudioTimestamp
 import android.media.AudioRecord
+import android.media.AudioRouting
 import android.media.AudioRecordingConfiguration
 import android.media.MediaRecorder
 import android.os.Handler
@@ -17,6 +18,8 @@ import android.os.Looper
 import android.os.Process
 import android.os.SystemClock
 import androidx.core.content.ContextCompat
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.ProcessLifecycleOwner
 import expo.modules.kotlin.exception.CodedException
 import expo.modules.vcaudio.core.FrameAnalyzer
 import expo.modules.vcaudio.core.Resampler
@@ -38,6 +41,8 @@ class CaptureEngine(private val context: Context, private val routes: DeviceRout
   @Volatile private var running = false
   @Volatile private var silenced = false
   @Volatile var activeInput: AudioDeviceInfo? = null; private set
+  private var preferredInput: AudioDeviceInfo? = null
+  private var routeListener: AudioRouting.OnRoutingChangedListener? = null
   private var communication = false
   private var callback: AudioManager.AudioRecordingCallback? = null
   private var take: Take? = null
@@ -68,7 +73,18 @@ class CaptureEngine(private val context: Context, private val routes: DeviceRout
     }
   }
   val taking: Boolean get() = synchronized(lock) { take != null }
-  private class Take(val id: String, val path: File, val asrPath: File?, val writer: WavWriter, val asr: WavWriter?, val resampler: Resampler?, var start: Double, val input: AudioDeviceInfo, val scheduled: Double?) {
+  fun <T> withPreferencesUnlocked(action: () -> T): T = synchronized(lock) {
+    if (take != null) throw CodedException("ERR_LOCKED", "Device preferences are locked during a take", null)
+    action()
+  }
+  fun deleteTake(file: File) = synchronized(lock) {
+    if (take?.path?.canonicalFile == file) throw CodedException("ERR_LOCKED", "Cannot delete the active take", null)
+    val asr = File(file.parentFile, "${file.nameWithoutExtension}.asr.wav")
+    if (file.exists() && !file.delete()) throw CodedException("ERR_IO", "Could not delete take", null)
+    if (asr.exists() && !asr.delete()) throw CodedException("ERR_IO", "Could not delete speech copy", null)
+    Unit
+  }
+  private class Take(val id: String, val path: File, val asrPath: File?, val writer: WavWriter, val asr: WavWriter?, val resampler: Resampler?, var start: Double, var input: AudioDeviceInfo, val scheduled: Double?) {
     val started = CountDownLatch(1)
     var hasStarted = false
     val changes = mutableListOf<Map<String, Any?>>()
@@ -86,6 +102,7 @@ class CaptureEngine(private val context: Context, private val routes: DeviceRout
   @SuppressLint("MissingPermission")
   fun start() = synchronized(lock) {
     if (running) return@synchronized
+    if (!ProcessLifecycleOwner.get().lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)) throw CodedException("ERR_STATE", "The app is not in the foreground", null)
     if (!hasPermission()) throw CodedException("ERR_PERMISSION", "RECORD_AUDIO is not granted", null)
     val selected = routes.selectedInput() ?: throw CodedException("ERR_INPUT", "No input device is available", null)
     var input = selected
@@ -103,25 +120,44 @@ class CaptureEngine(private val context: Context, private val routes: DeviceRout
         AudioRecord.Builder().setAudioSource(src).setAudioFormat(AudioFormat.Builder().setSampleRate(48000).setChannelMask(AudioFormat.CHANNEL_IN_MONO).setEncoding(AudioFormat.ENCODING_PCM_16BIT).build())
           .setBufferSizeInBytes(max(minBuffer * 2, 48000)).setPrivacySensitive(false).build()
       } catch (_: Exception) { null }
-      if (candidate != null && candidate.state == AudioRecord.STATE_INITIALIZED) { rec = candidate; source = name; break }
+      if (candidate != null && candidate.state == AudioRecord.STATE_INITIALIZED) {
+        try {
+          if (candidate.setPreferredDevice(input)) {
+            candidate.startRecording()
+            if (candidate.recordingState == AudioRecord.RECORDSTATE_RECORDING) { rec = candidate; source = name; break }
+          }
+        } catch (_: Exception) { }
+      }
       candidate?.release()
     }
-    val current = rec ?: run { clearBluetooth(); throw CodedException("ERR_AUDIO", "Could not open microphone", null) }
-    if (!current.setPreferredDevice(input)) { current.release(); clearBluetooth(); throw CodedException("ERR_INPUT", "Could not select microphone", null) }
-    try { current.startRecording() } catch (e: Exception) { current.release(); clearBluetooth(); throw e }
-    if (current.recordingState != AudioRecord.RECORDSTATE_RECORDING) { current.release(); clearBluetooth(); throw CodedException("ERR_AUDIO", "Could not start microphone", null) }
-    record = current; activeInput = input; running = true; silenced = false; generation++
-    val session = current.audioSessionId
-    val cb = object : AudioManager.AudioRecordingCallback() {
-      override fun onRecordingConfigChanged(configs: List<AudioRecordingConfiguration>) {
-        val config = configs.firstOrNull { it.clientAudioSessionId == session } ?: return
-        if (silenced != config.isClientSilenced) { silenced = config.isClientSilenced; state() }
+    val current = rec ?: run { clearBluetooth(); throw CodedException("ERR_AUDIO", "Could not start microphone", null) }
+    record = current; activeInput = input; preferredInput = input; running = true; silenced = false; generation++
+    val listener = AudioRouting.OnRoutingChangedListener {
+      val actual = current.routedDevice ?: return@OnRoutingChangedListener
+      synchronized(lock) {
+        if (record !== current || activeInput?.let(routes::key) == routes.key(actual)) return@synchronized
+        activeInput = actual
+        take?.let { t -> if (t.hasStarted) t.changes.add(mapOf("atMs" to (now() - t.start).coerceAtLeast(0.0), "input" to routes.info(actual), "reason" to "system")) }
+        val target = preferredInput
+        if (take != null && target != null && routes.inputs().any { routes.key(it) == routes.key(target) } && routes.key(actual) != routes.key(target)) current.setPreferredDevice(target)
+        emit("onDevices", routes.snapshot(activeInput))
       }
     }
+    routeListener = listener; current.addOnRoutingChangedListener(listener, main)
+    val session = current.audioSessionId
+    fun updateSilenced(configs: List<AudioRecordingConfiguration>) {
+      val config = configs.firstOrNull { it.clientAudioSessionId == session } ?: return
+      if (silenced != config.isClientSilenced) { silenced = config.isClientSilenced; state() }
+    }
+    val cb = object : AudioManager.AudioRecordingCallback() {
+      override fun onRecordingConfigChanged(configs: List<AudioRecordingConfiguration>) = updateSilenced(configs)
+    }
     callback = cb; audio.registerAudioRecordingCallback(cb, main)
+    updateSilenced(audio.activeRecordingConfigurations)
     val runId = generation
     Thread({ loop(current, runId) }, "vc-audio-capture").start()
     state()
+    emit("onDevices", routes.snapshot(activeInput))
   }
   private fun selectBluetooth(input: AudioDeviceInfo): Boolean {
     try {
@@ -136,17 +172,17 @@ class CaptureEngine(private val context: Context, private val routes: DeviceRout
   }
   private fun clearBluetooth() { if (communication) { try { audio.clearCommunicationDevice() } catch (_: Exception) { }; communication = false } }
   fun devicesChanged() = synchronized(lock) {
-    val current = activeInput ?: return@synchronized
+    val current = preferredInput ?: return@synchronized
     val stillPresent = routes.inputs().firstOrNull { routes.key(it) == routes.key(current) }
     val target = if (take != null) stillPresent ?: routes.builtin() else routes.selectedInput()
     if (target == null || routes.key(current) == routes.key(target)) return@synchronized
     if (routes.isBluetoothMic(target)) { if (!selectBluetooth(target)) return@synchronized } else clearBluetooth()
     if (record?.setPreferredDevice(target) == true) {
-      activeInput = target
-      take?.changes?.add(mapOf("atMs" to (now() - take!!.start).coerceAtLeast(0.0), "input" to routes.info(target), "reason" to "device_disconnected"))
-    }
+      activeInput = target; preferredInput = target
+      take?.let { t -> if (t.hasStarted) t.changes.add(mapOf("atMs" to (now() - t.start).coerceAtLeast(0.0), "input" to routes.info(target), "reason" to "device_disconnected")) }
+    } else if (routes.isBluetoothMic(target)) clearBluetooth()
   }
-  fun begin(kind: String, scheduled: Double? = null): Map<String, Any?> {
+  fun begin(kind: String, schedule: () -> Double?): Map<String, Any?> {
     if (kind != "speech" && kind != "song") throw CodedException("ERR_ARGUMENT", "Unknown take kind", null)
     start()
     val t = synchronized(lock) {
@@ -156,14 +192,30 @@ class CaptureEngine(private val context: Context, private val routes: DeviceRout
       try { ContextCompat.startForegroundService(context, Intent(context, RecordingService::class.java)) } catch (e: Exception) { RecordingService.latch = null; throw e }
       if (!latch.await(5, TimeUnit.SECONDS) || RecordingService.failure != null) { RecordingService.latch = null; context.stopService(Intent(context, RecordingService::class.java)); throw CodedException("ERR_SERVICE", RecordingService.failure ?: "Foreground service timed out", null) }
       RecordingService.latch = null
+      if (!ProcessLifecycleOwner.get().lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)) {
+        context.stopService(Intent(context, RecordingService::class.java))
+        throw CodedException("ERR_STATE", "The app left the foreground", null)
+      }
       val dir = File(context.filesDir, "takes").also { it.mkdirs() }
       val id = UUID.randomUUID().toString(); val path = File(dir, "$id.wav"); val asr = if (kind == "speech") File(dir, "$id.asr.wav") else null
-      val t = Take(id, path, asr, WavWriter(path, 48000), asr?.let { WavWriter(it, 16000) }, asr?.let { Resampler() }, 0.0, input, scheduled)
+      var writer: WavWriter? = null
+      var asrWriter: WavWriter? = null
+      val t = try {
+        writer = WavWriter(path, 48000)
+        asrWriter = asr?.let { WavWriter(it, 16000) }
+        Take(id, path, asr, writer, asrWriter, asr?.let { Resampler() }, 0.0, input, schedule())
+      } catch (e: Exception) {
+        try { writer?.close() } catch (_: Exception) { }
+        try { asrWriter?.close() } catch (_: Exception) { }
+        path.delete(); asr?.delete(); context.stopService(Intent(context, RecordingService::class.java))
+        throw e
+      }
       take = t
+      RecordingService.onInterrupted = { Thread { synchronized(lock) { if (take === t) end("error") } }.start() }
       emit("onDevices", routes.snapshot(activeInput))
       t
     }
-    val timeout = ((scheduled ?: now()) - now()).coerceAtLeast(0.0).toLong() + 5000
+    val timeout = ((t.scheduled ?: now()) - now()).coerceAtLeast(0.0).toLong() + 5000
     if (!t.started.await(timeout, TimeUnit.MILLISECONDS) || !t.hasStarted) {
       synchronized(lock) { if (take === t) end("error") }
       throw CodedException("ERR_AUDIO", "Take did not start", null)
@@ -172,19 +224,25 @@ class CaptureEngine(private val context: Context, private val routes: DeviceRout
   }
   fun end(reason: String): Map<String, Any?> = synchronized(lock) {
     val t = take ?: throw CodedException("ERR_NO_TAKE", "No take is recording", null)
-    take = null; t.started.countDown(); t.writer.close(); t.asr?.close(); context.stopService(Intent(context, RecordingService::class.java))
+    take = null; RecordingService.onInterrupted = null; t.started.countDown()
+    var closeFailed = false
+    try { t.writer.close() } catch (_: Exception) { closeFailed = true }
+    try { t.asr?.close() } catch (_: Exception) { closeFailed = true }
+    context.stopService(Intent(context, RecordingService::class.java))
+    val finalReason = if (closeFailed) "error" else reason
     val timeline = beatTimes(t.start, t.start + t.writer.durationS * 1000)
-    val result = mapOf<String, Any?>("id" to t.id, "path" to t.path.absolutePath, "asrPath" to t.asrPath?.absolutePath, "durationMs" to t.writer.durationS * 1000, "sizeBytes" to t.path.length().toDouble(), "reason" to reason, "beatTimesMs" to timeline.first, "inputChanges" to t.changes.toList(), "outputLatencyMs" to timeline.second)
+    val result = mapOf<String, Any?>("id" to t.id, "path" to t.path.absolutePath, "asrPath" to t.asrPath?.absolutePath, "durationMs" to t.writer.durationS * 1000, "sizeBytes" to t.path.length().toDouble(), "reason" to finalReason, "beatTimesMs" to timeline.first, "inputChanges" to t.changes.toList(), "outputLatencyMs" to timeline.second)
     emit("onTakeStopped", result); emit("onDevices", routes.snapshot(activeInput)); result
   }
   fun stop(reason: String = "stopped") {
     synchronized(lock) {
-      if (take != null) end(if (reason == "left_app") "left_app" else if (reason == "error") "error" else "user")
+      if (take != null) end(if (reason in listOf("left_app", "error", "permission")) reason else "user")
       if (!running) return
       running = false; generation++; val old = record; record = null
       callback?.let { audio.unregisterAudioRecordingCallback(it) }; callback = null
+      routeListener?.let { old?.removeOnRoutingChangedListener(it) }; routeListener = null
       try { old?.stop() } catch (_: Exception) { }
-      activeInput = null; clearBluetooth(); state(reason)
+      activeInput = null; preferredInput = null; clearBluetooth(); state(reason)
     }
   }
   private fun loop(rec: AudioRecord, id: Int) {
@@ -211,7 +269,7 @@ class CaptureEngine(private val context: Context, private val routes: DeviceRout
           take?.let { t ->
             val skip = if (!t.hasStarted && t.scheduled != null) kotlin.math.ceil((t.scheduled - chunkTime) * 48).toInt().coerceIn(0, hop) else 0
             if (skip < hop) {
-              if (!t.hasStarted) { t.start = chunkTime + skip / 48.0; t.hasStarted = true; t.started.countDown() }
+              if (!t.hasStarted) { t.start = chunkTime + skip / 48.0; t.input = activeInput ?: t.input; t.hasStarted = true; t.started.countDown() }
               val samples = if (skip == 0) chunk else chunk.copyOfRange(skip, hop)
               val count = hop - skip
               t.writer.write(samples, count)
@@ -232,7 +290,7 @@ class CaptureEngine(private val context: Context, private val routes: DeviceRout
         if (syllable || (peakDb - smooth >= 6.0 && !wasVoiced)) { peakDb = smooth; valley = smooth; wasVoiced = false }
         queueFrame(time, f.f0, midi, f.voicing, f.rmsDb.coerceIn(-100.0, 0.0), peak / 32768.0, syllable)
       }
-    } catch (e: Exception) { if (running && generation == id) { main.post { stop("error") } } }
+    } catch (e: Exception) { if (running && generation == id) { main.post { stop(if (hasPermission()) "error" else "permission") } } }
     finally { rec.release() }
   }
 }

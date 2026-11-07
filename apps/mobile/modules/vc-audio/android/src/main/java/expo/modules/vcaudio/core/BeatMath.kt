@@ -24,7 +24,7 @@ object BeatMath {
     "eight" -> mapOf(0 to listOf("kick", "hat"), 2 to listOf("hat"), 4 to listOf("snare", "hat"), 6 to listOf("hat"), 8 to listOf("kick", "hat"), 10 to listOf("hat"), 12 to listOf("snare", "hat"), 14 to listOf("hat"))
     "sixteen" -> (0..15).associateWith { i -> listOf("hat") + when (i) { 0, 8 -> listOf("kick"); 4, 12 -> listOf("snare"); else -> emptyList() } }
     "ballad" -> mapOf(0 to listOf("kick", "hat"), 4 to listOf("hat"), 8 to listOf("snare", "hat"), 12 to listOf("hat"))
-    "shuffle" -> mapOf(0 to listOf("kick", "hat"), 3 to listOf("hat"), 4 to listOf("snare", "hat"), 7 to listOf("hat"), 8 to listOf("kick", "hat"), 11 to listOf("hat"), 12 to listOf("snare", "hat"), 15 to listOf("hat"))
+    "shuffle" -> mapOf(0 to listOf("kick", "hat"), 2 to listOf("hat"), 3 to listOf("snare", "hat"), 5 to listOf("hat"), 6 to listOf("kick", "hat"), 8 to listOf("hat"), 9 to listOf("snare", "hat"), 11 to listOf("hat"))
     "bossa" -> mapOf(0 to listOf("kick", "rim"), 3 to listOf("shaker"), 4 to listOf("rim"), 7 to listOf("shaker"), 8 to listOf("kick"), 10 to listOf("rim"), 12 to listOf("shaker"), 14 to listOf("rim"))
     "hiphop" -> mapOf(0 to listOf("kick", "hat"), 2 to listOf("hat"), 4 to listOf("snare", "hat"), 7 to listOf("hat"), 8 to listOf("kick", "hat"), 11 to listOf("kick"), 12 to listOf("snare", "hat"), 14 to listOf("hat"))
     else -> throw IllegalArgumentException("Unknown pattern: $name")
