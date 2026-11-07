@@ -75,6 +75,9 @@ class VcAudioModule : Module() {
       capture.begin(options["kind"] as? String ?: "") { if (options["countIn"] == true) output.countInEndMs() else null }
     } }
     AsyncFunction("stopTake") { capture.end("user") }
+    AsyncFunction("getState") { capture.snapshot() }
+    AsyncFunction("ackTake") { id: String -> capture.acknowledge(id) }
+    AsyncFunction("listTakeFiles") { capture.listTakeFiles() }
     AsyncFunction("deleteTake") { path: String ->
       val dir = File(context.filesDir, "takes").canonicalFile
       val file = File(path).canonicalFile
