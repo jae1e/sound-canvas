@@ -151,3 +151,4 @@ Every issue found in testing or review goes here: symptom, root cause, fix with 
 | 447216 | 36b2bc0 | 2026-11-07 | Sing redesign: live pitch and waveform, input/output sheets, beat, take review, 기록; 말하기 still a placeholder. First device run of the vc-audio engine. |
 | 447253 | ed6c963 | 2026-11-07 | 말하기 coach: plans and editor, quick practices, live clock, cue card and pace, report, server transcription queue. Sing as in 447216. |
 | 447293 | ffce699 | 2026-11-07 | VC-11 update hand-off fix (readyToInstall), VC-12 edge-to-edge insets and themed navigation bar. |
+| 447335 | 4f28383 | 2026-11-08 | VC-12 follow-up: the tab bar uses React Navigation's own inset on every tab. Supersedes 447293. |
