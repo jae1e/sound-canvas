@@ -6,7 +6,7 @@ import type { AudioDevice, DevicesEvent } from '../../modules/vc-audio/src/VcAud
 import { useTranslation } from '../i18n';
 import { Sheet } from './Sheet';
 import { Calibration } from './Calibration';
-import { deviceLabel, rmsLevel, uniqueDevices } from './deviceLabels';
+import { deviceLabel, outputDevices, outputLabel, rmsLevel, uniqueDevices } from './deviceLabels';
 type Props = {
   visible: boolean;
   onClose: () => void;
@@ -180,14 +180,16 @@ export function OutputSheet({ visible, onClose, theme, devices, onError }: Props
       <DeviceRow
         theme={theme}
         name={t('common.coach.system')}
-        subtitle={t('common.coach.outputSystem', { name: deviceLabel(devices?.activeOutput, 'output', t) })}
+        subtitle={t('common.coach.outputSystem', {
+          name: outputLabel(devices?.activeOutput, devices?.outputs ?? [], t),
+        })}
         icon="settings-outline"
         selected={devices?.outputPreference.mode === 'system'}
         onPress={() => {
           void VcAudio.setOutputPreference({ mode: 'system' }).catch(onError);
         }}
       />
-      {uniqueDevices(devices?.outputs ?? []).map((device) => (
+      {outputDevices(devices?.outputs ?? []).map((device) => (
         <DeviceRow
           key={device.key}
           theme={theme}

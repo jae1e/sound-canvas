@@ -1,7 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Pressable, Text, View } from 'react-native';
 import { useTranslation } from '../i18n';
-import { deviceLabel, rmsLevel } from './deviceLabels';
+import { deviceLabel, outputLabel, rmsLevel } from './deviceLabels';
 import type { DevicesEvent } from '../../modules/vc-audio/src/VcAudio.types';
 export function AudioBar({
   theme,
@@ -45,7 +45,9 @@ export function AudioBar({
             color={dark ? '#5EEAD4' : '#4F46E5'}
           />
           <Text numberOfLines={1} style={{ flex: 1, color: dark ? '#D6DBE4' : '#33363D', fontSize: 13 }}>
-            {deviceLabel(kind === 'input' ? devices?.activeInput : devices?.activeOutput, kind, t)}
+            {kind === 'input'
+              ? deviceLabel(devices?.activeInput, 'input', t)
+              : outputLabel(devices?.activeOutput, devices?.outputs ?? [], t)}
           </Text>
           <Ionicons
             name={devices?.locked ? 'lock-closed-outline' : 'chevron-down'}

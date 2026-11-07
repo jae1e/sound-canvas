@@ -19,3 +19,22 @@ export function uniqueDevices(devices: AudioDevice[]): AudioDevice[] {
 export function rmsLevel(db: number): number {
   return Math.max(0, Math.min(1, (db + 60) / 60));
 }
+
+/** Android's contract reports the earpiece as "other"; match the built-in speaker's product name when present. */
+export function outputDevices(devices: AudioDevice[]): AudioDevice[] {
+  const unique = uniqueDevices(devices);
+  const speaker = unique.find((device) => device.type === 'speaker');
+  if (!speaker) return unique;
+  return unique.filter((device) => !(device.type === 'other' && device.productName === speaker.productName));
+}
+
+export function outputLabel(
+  device: AudioDevice | null | undefined,
+  outputs: AudioDevice[],
+  t: (key: string) => string,
+): string {
+  const speaker = outputs.find((item) => item.type === 'speaker');
+  if (device?.type === 'other' && speaker && speaker.productName === device.productName)
+    return t('common.coach.phoneSpeaker');
+  return deviceLabel(device, 'output', t);
+}
