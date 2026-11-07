@@ -4,6 +4,8 @@ Product and conversation handoff — November 3, 2026
 
 Status: the user has selected a personal-use product direction and explicitly wants all three modes in the first implementation. No application has been implemented as part of this documentation task.
 
+> **Current direction (user decision, 2026-11-07).** The app is renamed **Voice Coach / 보이스 코치** and focuses on its song and speech coaches. Travel Guide and Work Partner are hidden behind Settings → Labs; their code is kept. This supersedes the "all three modes together" decision below (D01), which is kept for history. Plan, decisions and phases: [voice-coach-renovation-plan.md](voice-coach-renovation-plan.md). Server contract: [coach-server-api.md](coach-server-api.md). Test issues: [field-test-log.md](field-test-log.md).
+
 ## Read This First
 
 This document is the product brief. Read [implementation-handoff.md](implementation-handoff.md) for behavior, state, architecture, and acceptance criteria, [earbud-compatibility.md](earbud-compatibility.md) for device research and launch/control constraints, and [technical-decisions.md](technical-decisions.md) for the proposed stack (Android first with iPhone later, Expo/React Native with TypeScript, on-device-first speech, tiered LLM routing, Korea walking routing).
@@ -45,7 +47,7 @@ Rejected by the user: Explore/둘러보기, Sidekick/함께하기, Routine Partn
 
 | ID | Decision | Status |
 | --- | --- | --- |
-| D01 | Build Voice Life Companion with all three modes in the first implementation | Explicit user instruction |
+| D01 | Build Voice Life Companion with all three modes in the first implementation (superseded on 2026-11-07 by the Voice Coach focus) | Explicit user instruction |
 | D02 | Prioritize something the user will personally use over selecting a market first | Explicit user preference |
 | D03 | Convenience is the primary product principle | Explicit user preference carried from earlier research |
 | D04 | Assume headphones during activities, or a nearby phone in a quiet environment | Explicit user assumption |
