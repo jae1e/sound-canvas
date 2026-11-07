@@ -1,5 +1,6 @@
 export default {
-  title: '보이스 라이프 컴패니언',
+  title: '보이스 코치',
+  continue: '이어하기',
   'resume.title': '작업 파트너 이어가기',
   'resume.step': '{{index}}/{{total}} 단계: {{label}}',
   'resume.noStep': '세션 진행 중',

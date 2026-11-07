@@ -11,7 +11,6 @@ type NativeModule = { addListener: (name: 'location', cb: (e: { latitude: number
 /** The native session service is Android-only and only emits while a session runs. */
 function loadNative(): NativeModule | null {
   try {
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
     const mod = require('../../modules/vlc-session-service').default as NativeModule | undefined;
     return mod && typeof mod.addListener === 'function' ? mod : null;
   } catch {

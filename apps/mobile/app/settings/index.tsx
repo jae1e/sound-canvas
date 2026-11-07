@@ -1,7 +1,7 @@
 import Constants from 'expo-constants';
 import { useRouter } from 'expo-router';
-import { useState } from 'react';
-import { Alert, ScrollView, Switch, Text, View } from 'react-native';
+import { useEffect, useState } from 'react';
+import { Alert, ScrollView, Switch, Text, TextInput, View } from 'react-native';
 
 import VlcSessionService from '../../modules/vlc-session-service';
 import { useAudioRoute } from '../../src/audio/useAudioRoute';
@@ -14,6 +14,9 @@ import { Stepper } from '../../src/settings/components/Stepper';
 import { VoicePreview } from '../../src/settings/components/VoicePreview';
 import { useSettings } from '../../src/settings/store';
 import { shared } from '../../src/theme';
+import { UpdateSettingsSection } from '../../src/update/UpdateSection';
+import { DEFAULT_SERVER_URL, enroll } from '../../src/update/pairing';
+import * as SecureStore from 'expo-secure-store';
 
 const VOICE_NAMES = ['F1', 'F2', 'F3', 'F4', 'F5', 'M1', 'M2', 'M3', 'M4', 'M5'];
 
@@ -25,6 +28,18 @@ export default function SettingsScreen() {
   const update = useSettings((s) => s.update);
   const { output, refresh } = useAudioRoute();
   const [routeError, setRouteError] = useState(false);
+  const [serverUrl, setServerUrl] = useState(DEFAULT_SERVER_URL);
+  const [pairCode, setPairCode] = useState('');
+  const [serverState, setServerState] = useState('');
+  const [showLabs, setShowLabs] = useState(false);
+  const [hiddenModes, setHiddenModes] = useState(settings.showHiddenModes);
+  const [enrolling, setEnrolling] = useState(false);
+
+  useEffect(() => { void SecureStore.getItemAsync('vc.serverUrl').then((v) => v && setServerUrl(v)); }, []);
+  const checkServer = async () => {
+    try { const r = await fetch(`${serverUrl.replace(/\/+$/, '')}/v1/health`); setServerState(r.ok ? t('common.server.connected') : t('common.server.unreachable')); }
+    catch { setServerState(t('common.server.unreachable')); }
+  };
 
   const applyRoute = (mode: AppSettings['outputRoute']) => {
     setRouteError(false);
@@ -52,6 +67,20 @@ export default function SettingsScreen() {
 
   return (
     <ScrollView style={shared.screen} contentContainerStyle={shared.content}>
+      <UpdateSettingsSection />
+      <Card>
+        <Text style={shared.h2}>{t('common.server.pairing')}</Text>
+        <TextInput style={{ borderWidth: 1, borderColor: '#bbb', padding: 10, marginVertical: 8 }} value={serverUrl} onChangeText={setServerUrl} autoCapitalize="none" keyboardType="url" onEndEditing={() => void SecureStore.setItemAsync('vc.serverUrl', serverUrl.trim())} />
+        <TextInput style={{ borderWidth: 1, borderColor: '#bbb', padding: 10, marginVertical: 8, letterSpacing: 4 }} value={pairCode} onChangeText={setPairCode} maxLength={8} autoCapitalize="characters" placeholder={t('common.server.pairCode')} />
+        <Button label={enrolling ? t('common.server.enrolling') : t('common.server.enroll')} disabled={enrolling || pairCode.length !== 8} onPress={() => { setEnrolling(true); void enroll(serverUrl, pairCode).then(() => { setPairCode(''); setServerState(t('common.server.connected')); }).catch((e: Error) => setServerState(e.message)).finally(() => setEnrolling(false)); }} />
+        <Button label={t('common.server.check')} onPress={() => void checkServer()} />
+        <Text style={shared.body}>{serverState}</Text>
+      </Card>
+      <Card>
+        <Text style={shared.h2}>{t('common.labs.title')}</Text>
+        <Button label={showLabs ? t('common.labs.hide') : t('common.labs.title')} onPress={() => setShowLabs(!showLabs)} />
+        {showLabs && <View style={[shared.row, { justifyContent: 'space-between' }]}><Text style={shared.body}>{t('common.labs.showHidden')}</Text><Switch value={hiddenModes} onValueChange={(v) => { setHiddenModes(v); update({ showHiddenModes: v }); }} /></View>}
+      </Card>
       <Card>
         <Text style={shared.h2}>{t('settings.language.title')}</Text>
         <View style={[shared.row, { flexWrap: 'wrap' }]}>

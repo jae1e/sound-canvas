@@ -1,5 +1,6 @@
 export default {
-  title: 'Voice Life Companion',
+  title: 'Voice Coach',
+  continue: 'Continue',
   'resume.title': 'Resume Work Partner',
   'resume.step': 'Step {{index}}/{{total}}: {{label}}',
   'resume.noStep': 'Session in progress',

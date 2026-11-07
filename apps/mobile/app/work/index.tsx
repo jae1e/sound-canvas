@@ -10,6 +10,7 @@ import { StartPanel } from '../../src/work/ui/StartPanel';
 import { SummaryPanel } from '../../src/work/ui/SummaryPanel';
 import { deriveView } from '../../src/work/view';
 import { useSettings } from '../../src/settings/store';
+import { Redirect } from 'expo-router';
 
 /** Work Partner: start a session, edit the plan, run it hands-free, review it. */
 export default function WorkScreen() {
@@ -17,6 +18,9 @@ export default function WorkScreen() {
   const session = useWork((s) => s.session);
   const title = useWork((s) => s.title);
   const level = useSettings((s) => s.settings.nudgeLevel);
+  const showHiddenModes = useSettings((s) => s.settings.showHiddenModes);
+
+  if (!showHiddenModes) return <Redirect href="/(tabs)" />;
 
   if (!session) {
     return (

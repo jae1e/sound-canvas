@@ -43,6 +43,7 @@ export interface VoiceCoachScreenProps {
    * unmount. Commands are rejected (resolve false) while they do not apply, for example "stop" without a take.
    */
   onControls?: (controls: VoiceCoachControls | null) => void;
+  onRecordingChange?: (recording: boolean) => void;
 }
 
 export interface VoiceCoachControls {

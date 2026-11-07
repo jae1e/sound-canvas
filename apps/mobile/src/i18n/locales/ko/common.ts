@@ -1,4 +1,7 @@
 export default {
+  'tabs.home': '홈', 'tabs.sing': '노래', 'tabs.speak': '말하기', 'tabs.takes': '녹음', 'tabs.settings': '설정',
+  'update.available': '업데이트가 있어요 · 자세히 보기', 'update.section': '앱 업데이트', 'update.current': '현재 버전', 'update.check': '업데이트 확인', 'update.checking': '확인 중…', 'update.latest': '최신 버전입니다', 'update.install': '설치', 'update.cancel': '취소', 'update.permission': '시스템 설정에서 보이스 코치의 알 수 없는 앱 설치를 허용한 뒤 돌아오세요.', 'update.installing': '설치 프로그램 여는 중…',
+  'server.connected': '서버: 연결됨', 'server.unreachable': '서버: 연결할 수 없음', 'server.pairing': '서버 연결', 'server.pairCode': '8자리 페어링 코드', 'server.enroll': '등록', 'server.enrolling': '등록 중…', 'server.check': '서버 확인', 'labs.title': '실험실', 'labs.hide': '실험실 숨기기', 'labs.showHidden': '숨겨진 모드 표시',
   save: '저장',
   cancel: '취소',
   delete: '삭제',

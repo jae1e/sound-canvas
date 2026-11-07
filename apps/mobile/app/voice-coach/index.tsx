@@ -4,9 +4,8 @@ import { View } from 'react-native';
 import { getDb } from '../../src/db/client';
 import { loadBlocks } from '../../src/db/repos/coach';
 import { useEffectiveLang } from '../../src/session/language';
-import { ModeSessionBar } from '../../src/session/ModeSessionBar';
-import { speakThroughSession } from '../../src/session/speech';
 import { VoiceCoachScreen, type PracticeBlock } from '../../src/voice-coach';
+import { setUpdateRecording } from '../../src/update/updater';
 import {
   flushPendingNotes,
   loadCoachNotes,
@@ -23,19 +22,22 @@ import {
  * Voice Coach. Feedback is spoken through the running native session (and always shown on screen). Practice blocks, takes,
  * take metrics and take notes are stored in SQLite; WAV files live in the module's `filesDir/vlc-takes/`.
  */
-export default function VoiceCoachRoute() {
+export function VoiceCoachRoute({ defaultMode = 'practice' }: { defaultMode?: 'practice' | 'speech' }) {
   const lang = useEffectiveLang();
   const notes = useCoachNotes((s) => s.notes);
-  const initialBlocks = useMemo(() => loadBlocks(getDb()) as PracticeBlock[], []);
+  const initialBlocks = useMemo(() => {
+    const blocks = loadBlocks(getDb()) as PracticeBlock[];
+    return blocks.length ? blocks.map((b, i) => i === 0 ? { ...b, mode: defaultMode } : b) : [{ id: `default-${defaultMode}`, name: defaultMode === 'speech' ? 'Free speech' : 'Practice', durationS: 60, repeats: 1, restS: 0, target: '', mode: defaultMode }];
+  }, [defaultMode]);
 
   useEffect(() => {
     loadCoachNotes();
     return () => flushPendingNotes();
   }, []);
 
+
   return (
     <View style={{ flex: 1 }}>
-      <ModeSessionBar mode="coach" />
       <VoiceCoachScreen
         lang={lang}
         initialBlocks={initialBlocks}
@@ -45,9 +47,11 @@ export default function VoiceCoachRoute() {
         onTakeRecorded={persistTakeRecorded}
         onTakeAnalyzed={persistTakeAnalyzed}
         onTakeDeleted={persistTakeDeleted}
-        onFeedback={(text, l) => void speakThroughSession(text, l)}
         onControls={setCoachControls}
+        onRecordingChange={setUpdateRecording}
       />
     </View>
   );
 }
+
+export default VoiceCoachRoute;
