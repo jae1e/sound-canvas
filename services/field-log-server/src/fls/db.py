@@ -117,6 +117,13 @@ CREATE TABLE IF NOT EXISTS jobs (
   created_server_ms INTEGER NOT NULL, updated_server_ms INTEGER NOT NULL,
   UNIQUE (device_id, segment_id)
 );
+CREATE TABLE IF NOT EXISTS coach_jobs (
+  job_id TEXT PRIMARY KEY, device_id TEXT NOT NULL, take_id TEXT NOT NULL, lang TEXT NOT NULL,
+  state TEXT NOT NULL, language TEXT, text TEXT, words_json TEXT, duration_ms INTEGER,
+  error TEXT, object_sha256 TEXT NOT NULL, created_ms INTEGER NOT NULL, updated_ms INTEGER NOT NULL,
+  UNIQUE (device_id, take_id)
+);
+CREATE INDEX IF NOT EXISTS coach_jobs_created ON coach_jobs(created_ms);
 """
 
 

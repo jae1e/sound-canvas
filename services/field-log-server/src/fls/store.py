@@ -35,7 +35,7 @@ class ObjectStore:
     def exists(self, sha: str) -> bool:
         return self.path(sha).is_file()
 
-    async def put_stream(self, sha: str, chunks: AsyncIterator[bytes]) -> tuple[bool, int]:
+    async def put_stream(self, sha: str, chunks: AsyncIterator[bytes], max_bytes: int = MAX_OBJECT_BYTES) -> tuple[bool, int]:
         """Stream into a temp file, verify the hash, atomically rename.
 
         Returns (created, size). Raises TooLarge or HashMismatch.
@@ -47,7 +47,7 @@ class ObjectStore:
             with os.fdopen(fd, "wb") as f:
                 async for chunk in chunks:
                     size += len(chunk)
-                    if size > MAX_OBJECT_BYTES:
+                    if size > max_bytes:
                         raise TooLarge()
                     h.update(chunk)
                     f.write(chunk)

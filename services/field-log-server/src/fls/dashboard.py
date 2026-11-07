@@ -142,6 +142,12 @@ def create_dashboard(state: Any) -> FastAPI:
                              "app_package": r["app_package"], "app_version_code": r["app_version_code"], "app_seen_ms": r["app_seen_ms"]}
                             for r in db.query("SELECT * FROM devices WHERE revoked_server_ms IS NULL")]}
 
+    @app.get("/dash/api/coach-jobs")
+    def coach_jobs():
+        return {"jobs": [dict(r) for r in db.query(
+            "SELECT job_id, device_id, take_id, state, duration_ms, language, created_ms "
+            "FROM coach_jobs ORDER BY created_ms DESC") ]}
+
     # ------------------------------------------------------------------ memo list and detail
     @app.get("/dash/api/memos")
     def memos():

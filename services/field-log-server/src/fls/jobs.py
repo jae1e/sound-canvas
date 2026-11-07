@@ -89,6 +89,7 @@ class Worker:
             c.execute("UPDATE jobs SET status='queued', updated_server_ms=? WHERE status='running'", (t,))
             c.execute("UPDATE transcripts SET status='queued', updated_server_ms=? WHERE status='running'", (t,))
             c.execute("UPDATE alt_transcripts SET status='queued', updated_server_ms=? WHERE status='running'", (t,))
+            c.execute("UPDATE coach_jobs SET state='queued', updated_ms=? WHERE state='running'", (t,))
         self._thread = threading.Thread(target=self._run, name="fls-worker", daemon=True)
         self._thread.start()
         self._wake.set()
@@ -113,6 +114,11 @@ class Worker:
                 c.execute("UPDATE transcripts SET status='running', updated_server_ms=? "
                           "WHERE device_id=? AND segment_id=?", (t, job["device_id"], job["segment_id"]))
                 return "final", job
+            coach = c.execute("SELECT * FROM coach_jobs WHERE state='queued' ORDER BY created_ms, rowid LIMIT 1").fetchone()
+            if coach is not None:
+                c.execute("UPDATE coach_jobs SET state='running', updated_ms=? WHERE job_id=? AND state='queued'",
+                          (now_ms(), coach["job_id"]))
+                return "coach", coach
             alt = c.execute("SELECT * FROM alt_transcripts WHERE status='queued' "
                             "ORDER BY created_server_ms, rowid LIMIT 1").fetchone()
             if alt is not None:
@@ -123,7 +129,12 @@ class Worker:
         return None, None
 
     def _run(self) -> None:
+        last_purge = 0.0
         while not self._stop.is_set():
+            if time.monotonic() - last_purge >= 60:
+                from .coach import purge_coach_jobs
+                purge_coach_jobs(self.db, self.store)
+                last_purge = time.monotonic()
             kind, job = self._claim()
             if job is None:
                 self._wake.wait(timeout=5)
@@ -131,7 +142,7 @@ class Worker:
                 continue
             self.on_change()
             try:
-                (self._process if kind == "final" else self._process_alt)(job)
+                (self._process if kind == "final" else self._process_coach if kind == "coach" else self._process_alt)(job)
             finally:
                 self.on_change()
 
@@ -193,6 +204,25 @@ class Worker:
                               "WHERE device_id=? AND segment_id=?", (t, dev, seg))
             log.warning("job failed segment=%s attempt=%d final=%s err=%s", seg, job["attempts"] + 1,
                         final, msg)
+
+    # ------------------------------------------------------------------ comparison jobs
+    def _process_coach(self, job) -> None:
+        from .coach import transcribe_take
+
+        try:
+            result = transcribe_take(self.engine, self.aligner, self.store.path(job["object_sha256"]), job["lang"])
+            self.db.execute(
+                "UPDATE coach_jobs SET state=?, language=?, text=?, words_json=?, duration_ms=?, error=NULL, updated_ms=? "
+                "WHERE job_id=? AND state='running'",
+                ("no_speech" if result.no_speech else "done", result.language, result.text,
+                 canonical(result.words), result.duration_ms, now_ms(), job["job_id"]),
+            )
+            log.info("coach job done job=%s duration_ms=%d", job["job_id"], result.duration_ms)
+        except Exception as e:  # noqa: BLE001 - persist engine and input failures for polling
+            msg = f"{type(e).__name__}: {str(e)[:200]}"
+            self.db.execute("UPDATE coach_jobs SET state='failed', error=?, updated_ms=? WHERE job_id=? AND state='running'",
+                            (msg, now_ms(), job["job_id"]))
+            log.warning("coach job failed job=%s err=%s", job["job_id"], msg)
 
     # ------------------------------------------------------------------ comparison jobs
     def _process_alt(self, row) -> None:
