@@ -172,6 +172,32 @@ export interface AnalyzeOptions {
   beatTimesMs?: number[];
 }
 
+// ---------------------------------------------------------------- reconcile (ARCHITECTURE.md: reconcile on start and resume)
+
+/** Native truth for reconcile on app start and resume. */
+export interface EngineState {
+  monitorRunning: boolean;
+  silenced: boolean;
+  /** The take being recorded now, or null. */
+  take: TakeStarted | null;
+  /**
+   * Stopped takes the app has not acknowledged yet, oldest first. Native writes a `<id>.json` sidecar
+   * (the TakeStopped) next to each WAV on stop, so these survive process death. Cleared by ackTake().
+   */
+  unacknowledged: TakeStopped[];
+}
+
+/** A WAV in the takes folder, for orphan recovery (a take cut off by a crash has no sidecar). */
+export interface TakeFile {
+  id: string;
+  path: string;
+  sizeBytes: number;
+  modifiedMs: number;
+  /** The sidecar if present; null for an orphan. listTakeFiles() repairs orphan WAV headers before returning. */
+  meta: TakeStopped | null;
+  acknowledged: boolean;
+}
+
 // ---------------------------------------------------------------- events map
 
 export type VcAudioModuleEvents = {

@@ -2,6 +2,8 @@ import { NativeModule, requireNativeModule } from 'expo';
 
 import type {
   AnalyzeOptions,
+  EngineState,
+  TakeFile,
   BeatConfig,
   DevicesEvent,
   InputPreference,
@@ -61,6 +63,12 @@ declare class VcAudioModule extends NativeModule<VcAudioModuleEvents> {
   resume(): Promise<void>;
   stop(): Promise<void>;
   seek(positionMs: number): Promise<void>;
+
+  // ---- reconcile
+  getState(): Promise<EngineState>;
+  /** Marks a stopped take as stored by the app; it no longer appears in EngineState.unacknowledged. */
+  ackTake(id: string): Promise<void>;
+  listTakeFiles(): Promise<TakeFile[]>;
 
   // ---- analysis
   analyzeTake(path: string, options?: AnalyzeOptions): Promise<TakeAnalysis>;
