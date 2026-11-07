@@ -104,6 +104,18 @@ Every issue found in testing or review goes here: symptom, root cause, fix with 
 - **Status:** fixed on vc-p1-ui (commits 38da6a1..123dc73) and checked again on the emulator: tab names, device labels, level bar, stop square and timer, result card, take length 0:05, sheets, Settings, swipe delete with undo, and take review with playback. Merged as 36b2bc0. Pitch is not checked: the emulator mic is silent.
 - **Lesson:** compare every UI round on the emulator before it ships. Require prettier-formatted, small components.
 
+## VC-10 — First Speak build on the emulator: wrong report for silent takes, editor lost a plan
+
+- **Symptom (2026-11-07, vc-p1-speak ad38295, emulator):**
+  - The flow works (plan sheet, editor, recording, report), but the screens are much plainer than design screens 4–8.
+  - A silent 24 s free talk with no target said "✓ 시간 안에 들어왔어요", "속도 0 음절/초 · 주의", "억양 — · 적당", and gave the tip "속도가 목표 범위를 벗어났어요".
+  - Android BACK in the plan editor discarded a typed plan without asking.
+  - The recording header was drawn under the status bar.
+- **Root cause:** the report logic has no "no target" or "no speech" state, and a null value still got a status. The editor has no unsaved-changes guard. The recording screen does not use the safe area.
+- **Fix:** a fix list was sent with emulator and design screenshots (request vc-p1-speak-r2): a no-speech state in `buildSpeechReport` with tests, null values never get a status, "목표 시간 없음", an editor BACK guard, the safe area, and the design layout for screens 4–8.
+- **Status:** in progress.
+- **Lesson:** test reports with silence and with no target, not only with good speech.
+
 ## Releases
 
 | Build | Commit | Date | Notes |
