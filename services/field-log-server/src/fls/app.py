@@ -3,11 +3,14 @@
 from __future__ import annotations
 
 import asyncio
+import hashlib
+import io
 import json
 import logging
 import re
 import threading
 import time
+import uuid
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import asynccontextmanager
 from dataclasses import dataclass, field
@@ -15,6 +18,7 @@ from pathlib import Path
 from typing import Any
 
 import numpy as np
+import soundfile as sf
 from fastapi import Depends, FastAPI, HTTPException, Request, Response, WebSocket
 from fastapi.responses import FileResponse, JSONResponse
 
@@ -25,6 +29,7 @@ from .db import Database, now_ms
 from .engines.aligner import Aligner
 from .engines.base import FinalEngine, StreamingEngine
 from . import appbuilds
+from .coach import delete_unreferenced_object
 from . import events as events_mod
 from .events import enqueue_for_object, ingest, requeue_final
 from .jobs import Worker
@@ -34,6 +39,9 @@ from .store import HEX64, HashMismatch, ObjectStore, TooLarge
 log = logging.getLogger("fls.app")
 
 MAX_FRAME_BYTES = 64 * 1024
+COACH_PACKAGE = "com.jae1e.voicelifecompanion"
+COACH_MAX_BYTES = 60 * 1024 * 1024
+COACH_MAX_MS = 30 * 60 * 1000
 
 
 class ChangeNotifier:
@@ -121,6 +129,11 @@ def create_app(data_dir: Path, final_engine: FinalEngine, live_engine: Streaming
             raise HTTPException(401, "invalid or missing token", headers={"WWW-Authenticate": "Bearer"})
         return dev
 
+    def coach_device(dev: str) -> None:
+        row = db.one("SELECT app_package FROM devices WHERE device_id=?", (dev,))
+        if row is None or row["app_package"] != COACH_PACKAGE:
+            raise HTTPException(403, "Voice Coach device required")
+
     # ---------------------------------------------------------------- enrol, health, clock
     @app.post("/v1/enroll")
     async def enroll(request: Request):
@@ -180,6 +193,77 @@ def create_app(data_dir: Path, final_engine: FinalEngine, live_engine: Streaming
             "streaming_engine": le.name if le else None,
             "streaming_available": bool(le and le.available and state.live_error is None),
         }
+
+    @app.post("/v1/coach/transcribe", status_code=202)
+    async def coach_transcribe(request: Request, lang: str = "auto", take_id: str = "", dev: str = Depends(device_id)):
+        coach_device(dev)
+        if lang not in ("ko", "en", "auto") or not take_id or len(take_id) > 200:
+            raise HTTPException(422, "invalid language or take_id")
+        existing = db.one("SELECT job_id, state FROM coach_jobs WHERE device_id=? AND take_id=?", (dev, take_id))
+        if existing:
+            return {"job_id": existing["job_id"], "state": existing["state"]}
+        if request.headers.get("content-type", "").split(";", 1)[0].strip().lower() != "audio/wav":
+            raise HTTPException(415, "audio/wav required")
+        cl = request.headers.get("content-length")
+        if cl and cl.isdigit() and int(cl) > COACH_MAX_BYTES:
+            raise HTTPException(413, "audio exceeds 60 MB")
+        raw = await request.body()
+        if len(raw) > COACH_MAX_BYTES:
+            raise HTTPException(413, "audio exceeds 60 MB")
+        try:
+            info = sf.info(io.BytesIO(raw))
+            if info.format != "WAV" or info.subtype != "PCM_16" or info.channels != 1 or info.samplerate != 16000:
+                raise ValueError
+            duration_ms = int(round(info.frames * 1000 / info.samplerate))
+            if duration_ms > COACH_MAX_MS:
+                raise HTTPException(413, "audio exceeds 30 minutes")
+        except HTTPException:
+            raise
+        except Exception:
+            raise HTTPException(415, "16 kHz mono PCM16 WAV required") from None
+        sha = hashlib.sha256(raw).hexdigest()
+        async def chunks():
+            yield raw
+        try:
+            await state.store.put_stream(sha, chunks(), max_bytes=COACH_MAX_BYTES)
+        except TooLarge:
+            raise HTTPException(413, "audio exceeds 60 MB") from None
+        with db.tx() as c:
+            # A concurrent retry with the same take id returns the original job.
+            old = c.execute("SELECT job_id, state FROM coach_jobs WHERE device_id=? AND take_id=?", (dev, take_id)).fetchone()
+            if old:
+                return {"job_id": old["job_id"], "state": old["state"]}
+            t = now_ms()
+            job_id = uuid.uuid4().hex
+            c.execute("INSERT OR IGNORE INTO objects(sha256,size,mime,created_server_ms) VALUES(?,?,?,?)",
+                      (sha, len(raw), "audio/wav", t))
+            c.execute("INSERT OR IGNORE INTO object_owners(sha256,device_id) VALUES(?,?)", (sha, dev))
+            c.execute("INSERT INTO coach_jobs(job_id,device_id,take_id,lang,state,object_sha256,created_ms,updated_ms) "
+                      "VALUES(?,?,?,?, 'queued',?,?,?)", (job_id, dev, take_id, lang, sha, t, t))
+        state.worker.notify()
+        return {"job_id": job_id, "state": "queued"}
+
+    @app.get("/v1/coach/transcripts/{job_id}")
+    def coach_transcript(job_id: str, dev: str = Depends(device_id)):
+        coach_device(dev)
+        row = db.one("SELECT * FROM coach_jobs WHERE job_id=? AND device_id=?", (job_id, dev))
+        if row is None:
+            raise HTTPException(404, "job not found")
+        return {"job_id": row["job_id"], "take_id": row["take_id"], "state": row["state"],
+                "language": row["language"], "text": row["text"],
+                "words": json.loads(row["words_json"]) if row["words_json"] else [],
+                "duration_ms": row["duration_ms"], "error": row["error"]}
+
+    @app.delete("/v1/coach/transcripts/{job_id}", status_code=204)
+    def coach_delete(job_id: str, dev: str = Depends(device_id)):
+        coach_device(dev)
+        row = db.one("SELECT object_sha256 FROM coach_jobs WHERE job_id=? AND device_id=?", (job_id, dev))
+        if row is None:
+            raise HTTPException(404, "job not found")
+        sha = row["object_sha256"]
+        db.execute("DELETE FROM coach_jobs WHERE job_id=? AND device_id=?", (job_id, dev))
+        delete_unreferenced_object(db, state.store, sha)
+        return Response(status_code=204)
 
     @app.post("/v1/clock")
     async def clock(request: Request, _: str = Depends(device_id)):

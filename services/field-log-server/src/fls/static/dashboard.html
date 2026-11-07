@@ -94,6 +94,7 @@ async function showList() {
     el("td", {}, m.flags.map(f => el("span", { class: "pill" }, f))),
     el("td", { class: "thumbs" }, m.photos.length ? m.photos.slice(0, 3).map(p => el("img", { src: "/dash/api/objects/" + p.sha256, alt: "photo", loading: "lazy", style: "height:48px" })) : (m.photo_count ? m.photo_count + " photo(s)" : "-"))));
   const ab = await api("/dash/api/app-builds");
+  const coach = await api("/dash/api/coach-jobs");
   const when = ms => ms ? new Date(ms).toLocaleString() : "-";
   const builds = el("div", {}, el("h2", {}, "App builds"),
     ab.builds.length ? el("table", {}, el("thead", {}, el("tr", {}, ["package", "version_code", "name", "git", "size", "published", "notes"].map(h => el("th", {}, h)))),
@@ -102,7 +103,11 @@ async function showList() {
   $main.replaceChildren(
     el("h2", {}, `Memos (${data.memos.length}, newest first)`),
     el("table", {}, el("thead", {}, el("tr", {}, ["Memo", "Kind", "Location", "Segments", "Final", "Flags", "Photos"].map(h => el("th", {}, h)))),
-      el("tbody", {}, rows)), builds);
+      el("tbody", {}, rows)), builds,
+    el("div", {}, el("h2", {}, "Coach jobs"), coach.jobs.length
+      ? el("table", {}, el("thead", {}, el("tr", {}, ["State", "Duration", "Language", "Created"].map(h => el("th", {}, h)))),
+        el("tbody", {}, coach.jobs.map(j => el("tr", {}, [j.state, j.duration_ms == null ? "-" : (j.duration_ms / 1000).toFixed(1) + " s", j.language || "-", when(j.created_ms)].map(v => el("td", {}, String(v)))))))
+      : el("p", { class: "muted" }, "No coach jobs.")));
 }
 
 const fmtT = t => { t = Math.max(0, t || 0); return Math.floor(t / 60) + ":" + (t % 60).toFixed(1).padStart(4, "0"); };

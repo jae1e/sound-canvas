@@ -51,9 +51,15 @@ objects/_tmp/                in-flight uploads
 models/<model dir>/          Nemotron sherpa-onnx files
 ```
 
-Tables: `devices`, `pairing_codes`, `objects`, `object_owners`, `events` (append-only, per-device hash chain), projections `memos`, `photos`, `recordings`, `segments`, plus `transcripts` (TranscriptSegment rows) and `jobs` (final-transcription queue: queued, running, done, failed).
+Tables: `devices`, `pairing_codes`, `objects`, `object_owners`, `events` (append-only, per-device hash chain), projections `memos`, `photos`, `recordings`, `segments`, plus `transcripts` (TranscriptSegment rows), `jobs` (FVL final-transcription queue), and `coach_jobs` (Voice Coach take queue and results).
 
 ## Input conditioning, languages, deletion
+
+Voice Coach uploads use the same final engine, VAD, energy gate, alignment and stock-phrase guard as FVL.
+Coach jobs share the existing single worker queue, split VAD speech windows into at-most-30-second chunks,
+and retain audio for 30 days. Qwen3-ASR's server interface currently exposes only `context` and `language`;
+the fixed context remains empty/reserved for vocabulary and carries no language hint. The engine exposes no
+separate verbatim-instruction field, so Coach does not add a filler-preservation hint that could violate that rule.
 
 - **Conditioning** (`conditioning.py`, contract section 7): an 80 Hz high-pass, slow gain normalisation of speech frames to about -23 dBFS (at most +30 dB, at most -12 dB), and a peak limiter at -1 dBFS. Speech frames are found in the 300-3400 Hz band, so rumble is not boosted. It is a streaming class (state kept between chunks). Both engines get conditioned copies; stored objects are never modified.
 - **Languages**: `memo_created.languages` (default `["ko","en"]`) is stored on the memo. A final job with one language forces it; with several it runs auto detection with the context `Languages in priority order: Korean, English.` and re-decodes forced to the first language if the detected languages are not all in the list. The path is stored (`transcripts.detect_path`: `forced:ko`, `auto`, `auto(zh)->forced:ko`). The live `start.language` is used as is.
