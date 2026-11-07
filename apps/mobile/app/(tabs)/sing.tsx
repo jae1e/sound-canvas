@@ -49,6 +49,8 @@ export default function SingTab() {
   const showError = useCallback(() => {
     setToast(t('common.coach.error'));
   }, [t]);
+  const showErrorRef = useRef(showError);
+  showErrorRef.current = showError;
   useEffect(() => {
     if (!toast) return;
     const id = setTimeout(() => setToast(null), 3000);
@@ -104,9 +106,9 @@ export default function SingTab() {
   useFocusEffect(
     useCallback(
       () => () => {
-        if (recordingRef.current) void VcAudio.stopTake().catch(showError);
+        if (recordingRef.current) void VcAudio.stopTake().catch(() => showErrorRef.current());
       },
-      [showError],
+      [],
     ),
   );
   const toggle = async () => {
