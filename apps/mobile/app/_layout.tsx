@@ -67,6 +67,7 @@ export default function RootLayout() {
         <Stack.Screen name="voice-coach/index" options={{ title: t('common.mode.coach') }} />
         <Stack.Screen name="journal/index" options={{ title: t('common.journal') }} />
         <Stack.Screen name="journal/[id]" options={{ title: t('common.journal') }} />
+        <Stack.Screen name="settings/index" options={{ title: t('common.settings') }} />
         <Stack.Screen name="settings/diagnostics" options={{ headerShown: false }} />
       </Stack>
     </>
