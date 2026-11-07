@@ -1,7 +1,8 @@
+import { Ionicons } from '@expo/vector-icons';
 import { File } from 'expo-file-system';
 import { useFocusEffect } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ScrollView, Switch, Text, TextInput, View, type ScrollViewInstance } from 'react-native';
+import { Pressable, ScrollView, Switch, Text, TextInput, View } from 'react-native';
 
 import { getDb } from '../../src/db/client';
 import { takes } from '../../src/db/schema';
@@ -9,7 +10,7 @@ import { Button, Card, Chip } from '../../src/components/ui';
 import { useTranslation } from '../../src/i18n';
 import { LANGUAGE_SETTINGS, type AppSettings } from '../../src/settings/schema';
 import { useSettings } from '../../src/settings/store';
-import { colors, shared } from '../../src/theme';
+import { shared } from '../../src/theme';
 import { UpdateSettingsSection } from '../../src/update/UpdateSection';
 import * as SecureStore from 'expo-secure-store';
 import { DEFAULT_SERVER_URL, enroll, getPairing } from '../../src/update/pairing';
@@ -26,10 +27,7 @@ export default function SettingsScreen() {
   const [showLabs, setShowLabs] = useState(false);
   const [hiddenModes, setHiddenModes] = useState(settings.showHiddenModes);
   const [enrolling, setEnrolling] = useState(false);
-  const [checkingServer, setCheckingServer] = useState(false);
-  const [pairingTop, setPairingTop] = useState(0);
-  const [highlightPairing, setHighlightPairing] = useState(false);
-  const scrollRef = useRef<ScrollViewInstance>(null);
+  const [paired, setPaired] = useState(false);
   const checkingServerRef = useRef(false);
 
   useEffect(() => {
@@ -41,12 +39,12 @@ export default function SettingsScreen() {
   const checkServer = useCallback(async () => {
     if (checkingServerRef.current) return;
     checkingServerRef.current = true;
-    setCheckingServer(true);
     setServerState(t('common.server.checking'));
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 5000);
     try {
       const pairing = await getPairing();
+      setPaired(!!pairing.token);
       if (!pairing.token) {
         setServerState(t('common.server.notPaired'));
         return;
@@ -76,7 +74,6 @@ export default function SettingsScreen() {
     } finally {
       clearTimeout(timeout);
       checkingServerRef.current = false;
-      setCheckingServer(false);
     }
   }, [serverUrl, t]);
 
@@ -109,6 +106,7 @@ export default function SettingsScreen() {
     try {
       await enroll(serverUrl, pairCode.trim());
       setPairCode('');
+      setPaired(true);
       setServerState(t('common.server.enrolled'));
       void checkForUpdate(false);
     } catch (error) {
@@ -125,20 +123,14 @@ export default function SettingsScreen() {
     }
   };
 
-  const focusPairing = () => {
-    setHighlightPairing(true);
-    scrollRef.current?.scrollTo({ y: Math.max(0, pairingTop - 12), animated: true });
-    setTimeout(() => setHighlightPairing(false), 1800);
-  };
-
   const langLabel = (l: AppSettings['language']) =>
     l === 'auto' ? t('settings.language.auto') : l === 'ko' ? '한국어' : 'English';
 
   return (
-    <ScrollView ref={scrollRef} style={shared.screen} contentContainerStyle={shared.content}>
-      <UpdateSettingsSection onPairPress={focusPairing} />
-      <View onLayout={(event) => setPairingTop(event.nativeEvent.layout.y)}>
-        <Card style={highlightPairing ? { borderColor: colors.primary, borderWidth: 2 } : undefined}>
+    <ScrollView style={shared.screen} contentContainerStyle={shared.content}>
+      <UpdateSettingsSection paired={paired} />
+      <View>
+        <Card>
           <Text style={shared.h2}>{t('common.server.pairing')}</Text>
           <TextInput
             style={{ borderWidth: 1, borderColor: '#bbb', padding: 10, marginVertical: 8 }}
@@ -149,7 +141,7 @@ export default function SettingsScreen() {
             onEndEditing={() => void SecureStore.setItemAsync('vc.serverUrl', serverUrl.trim())}
           />
           <TextInput
-            style={{ borderWidth: 1, borderColor: '#bbb', padding: 10, marginVertical: 8, letterSpacing: 4 }}
+            style={{ borderWidth: 1, borderColor: '#bbb', padding: 10, marginVertical: 8 }}
             value={pairCode}
             onChangeText={(value) => setPairCode(value.toUpperCase())}
             maxLength={8}
@@ -162,21 +154,23 @@ export default function SettingsScreen() {
             disabled={pairCode.trim().length !== 8}
             onPress={() => void submitEnrollment()}
           />
-          <Button
-            label={checkingServer ? t('common.server.checking') : t('common.server.check')}
-            busy={checkingServer}
-            disabled={checkingServer}
-            onPress={() => void checkServer()}
-          />
           <Text style={shared.body}>{serverState}</Text>
         </Card>
       </View>
       <Card>
-        <Text style={shared.h2}>{t('common.labs.title')}</Text>
-        <Button
-          label={showLabs ? t('common.labs.hide') : t('common.labs.title')}
+        <Pressable
+          accessibilityRole="button"
           onPress={() => setShowLabs(!showLabs)}
-        />
+          style={({ pressed }) => ({
+            flexDirection: 'row',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            opacity: pressed ? 0.6 : 1,
+          })}
+        >
+          <Text style={shared.h2}>{t('common.labs.title')}</Text>
+          <Ionicons name={showLabs ? 'chevron-down' : 'chevron-forward'} size={20} color="#6C6F78" />
+        </Pressable>
         {showLabs && (
           <View style={[shared.row, { justifyContent: 'space-between' }]}>
             <Text style={shared.body}>{t('common.labs.showHidden')}</Text>

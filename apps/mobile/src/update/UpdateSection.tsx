@@ -12,13 +12,18 @@ export function UpdateBanner({ onPress }: { onPress: () => void }) {
   if (!build?.newer) return null;
 
   return (
-    <Pressable accessibilityRole="button" onPress={onPress} android_ripple={{ color: `${colors.primary}24` }} style={({ pressed }) => pressed ? { opacity: 0.7, transform: [{ scale: 0.97 }] } : null}>
+    <Pressable
+      accessibilityRole="button"
+      onPress={onPress}
+      android_ripple={{ color: `${colors.primary}24` }}
+      style={({ pressed }) => (pressed ? { opacity: 0.7, transform: [{ scale: 0.97 }] } : null)}
+    >
       <Text style={shared.body}>⬆ {t('common.update.available')}</Text>
     </Pressable>
   );
 }
 
-export function UpdateSettingsSection({ onPairPress }: { onPairPress: () => void }) {
+export function UpdateSettingsSection({ paired }: { paired: boolean }) {
   const { t } = useTranslation();
   const updater = useUpdater();
   const build = updater.build;
@@ -46,7 +51,9 @@ export function UpdateSettingsSection({ onPairPress }: { onPairPress: () => void
           {t('common.update.current')}: {updater.versionName} ({updater.versionCode})
         </Text>
         {updater.phase === 'upToDate' ? (
-          <Text style={shared.body}>{`✓ ${t('common.update.latestBuild', { version: updater.build?.version_code ?? updater.versionCode })}`}</Text>
+          <Text
+            style={shared.body}
+          >{`✓ ${t('common.update.latestBuild', { version: updater.build?.version_code ?? updater.versionCode })}`}</Text>
         ) : null}
         {build?.newer ? (
           <View>
@@ -77,9 +84,7 @@ export function UpdateSettingsSection({ onPairPress }: { onPairPress: () => void
                 overflow: 'hidden',
               }}
             >
-              <View
-                style={{ width: `${percent}%`, height: '100%', backgroundColor: colors.primary }}
-              />
+              <View style={{ width: `${percent}%`, height: '100%', backgroundColor: colors.primary }} />
             </View>
             <Text style={shared.body}>
               {formatMb(updater.bytes)} / {formatMb(updater.totalBytes)} MB · {percent}% ·{' '}
@@ -87,35 +92,51 @@ export function UpdateSettingsSection({ onPairPress }: { onPairPress: () => void
             </Text>
           </View>
         ) : null}
-        {updater.phase === 'unpaired' ? <Text style={shared.body}>{t('common.update.pairFirst')}</Text> : null}
+        {!paired ? <Text style={shared.body}>{t('common.update.pairFirst')}</Text> : null}
         {updater.phase === 'error' && error ? (
           <Text style={[shared.body, { color: colors.danger }]}>
             {t('common.error')}: {error}
           </Text>
         ) : null}
+        {updater.phase === 'downloading' ? (
+          <Button label={t('common.update.cancel')} onPress={() => void cancelUpdate()} />
+        ) : null}
+        {['available', 'needsPermission'].includes(updater.phase) ? (
+          <Button
+            label={t('common.update.install')}
+            kind="primary"
+            busy={installBusy}
+            onPress={() => void startUpdate()}
+          />
+        ) : null}
+        {installBusy ? (
+          <View style={[shared.row, { justifyContent: 'center' }]}>
+            <ActivityIndicator color={colors.primary} />
+            <Text style={shared.body}>
+              {updater.phase === 'preparing'
+                ? t('common.update.preparing')
+                : updater.phase === 'installing'
+                  ? t('common.update.installing')
+                  : t('common.update.downloading')}
+            </Text>
+          </View>
+        ) : null}
+        {updater.phase === 'error' && build?.newer ? (
+          <Button label={t('common.update.retry')} onPress={() => void startUpdate()} />
+        ) : null}
+        {paired &&
+        updater.phase !== 'unpaired' &&
+        updater.phase !== 'preparing' &&
+        updater.phase !== 'downloading' &&
+        updater.phase !== 'installing' ? (
+          <Button
+            label={checkBusy ? t('common.update.checking') : t('common.update.check')}
+            busy={checkBusy}
+            disabled={checkBusy}
+            onPress={() => void checkForUpdate(false)}
+          />
+        ) : null}
       </Card>
-
-      {updater.phase === 'unpaired' ? (
-        <Button label={t('common.server.pairNow')} kind="primary" onPress={onPairPress} />
-      ) : null}
-      {updater.phase === 'downloading' ? (
-        <Button label={t('common.update.cancel')} onPress={() => void cancelUpdate()} />
-      ) : null}
-      {['available', 'needsPermission'].includes(updater.phase) ? (
-        <Button label={t('common.update.install')} kind="primary" busy={installBusy} onPress={() => void startUpdate()} />
-      ) : null}
-      {installBusy ? (
-        <View style={[shared.row, { justifyContent: 'center' }]}>
-          <ActivityIndicator color={colors.primary} />
-          <Text style={shared.body}>{updater.phase === 'preparing' ? t('common.update.preparing') : updater.phase === 'installing' ? t('common.update.installing') : t('common.update.downloading')}</Text>
-        </View>
-      ) : null}
-      {updater.phase === 'error' && build?.newer ? (
-        <Button label={t('common.update.retry')} onPress={() => void startUpdate()} />
-      ) : null}
-      {updater.phase !== 'unpaired' && updater.phase !== 'preparing' && updater.phase !== 'downloading' && updater.phase !== 'installing' ? (
-        <Button label={checkBusy ? t('common.update.checking') : t('common.update.check')} busy={checkBusy} disabled={checkBusy} onPress={() => void checkForUpdate(false)} />
-      ) : null}
     </View>
   );
 }
