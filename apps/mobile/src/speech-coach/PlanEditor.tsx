@@ -204,14 +204,25 @@ export function PlanEditor({
                   </Text>
                 </Pressable>
               </View>
-              <TextInput
-                accessibilityLabel={t('speak.keyPoints')}
-                value={section.keyPoints.join('\n')}
-                onChangeText={(text) => updateSection(i, { keyPoints: text.split('\n') })}
-                placeholder={t('speak.keyPoints')}
-                multiline
-                style={{ color: '#1B1D22', marginLeft: 38, minHeight: 44, textAlignVertical: 'top' }}
-              />
+              <View style={{ flexDirection: 'row', marginLeft: 38 }}>
+                <Text style={{ color: '#1B1D22', lineHeight: 22, paddingTop: 8 }}>
+                  {Array(Math.max(1, section.keyPoints.length)).fill('•').join('\n')}
+                </Text>
+                <TextInput
+                  accessibilityLabel={t('speak.keyPoints')}
+                  value={section.keyPoints.join('\n')}
+                  onChangeText={(text) => updateSection(i, { keyPoints: text.split('\n') })}
+                  placeholder={t('speak.keyPoints')}
+                  multiline
+                  style={{
+                    flex: 1,
+                    color: '#1B1D22',
+                    minHeight: 44,
+                    lineHeight: 22,
+                    textAlignVertical: 'top',
+                  }}
+                />
+              </View>
               <Pressable
                 onPress={() => setPlan((p) => ({ ...p, sections: p.sections.filter((_, n) => n !== i) }))}
                 style={({ pressed }) => ({ alignSelf: 'flex-end', padding: 5, opacity: pressed ? 0.6 : 1 })}
