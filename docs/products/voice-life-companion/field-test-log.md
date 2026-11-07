@@ -137,6 +137,7 @@ Every issue found in testing or review goes here: symptom, root cause, fix with 
   - Bottom sheets are edge-to-edge modals with a bottom `SafeAreaView`, and their scroll area gets 8 dp of padding, so the last row is not clipped.
   - The speech report bar, the speaking screen and the take review respect the insets.
   - `expo-navigation-bar` with `enforceContrast: false`: the bar is dark on 노래 and on song take reviews, and light elsewhere.
+- **Follow-up (2026-11-08):** the user, still on 447253, saw 말하기 clear but 기록 covered. 말하기 resets `tabBarStyle` to undefined, so React Navigation's default bar, which adds the inset itself, was used there. The fixed height was removed everywhere, so all tabs use the built-in inset handling (checked on the emulator: 노래, 말하기 and 기록 at the same height).
 - **Status:** checked on the emulator in 3-button mode. On the emulator the dark buttons on light screens were not visible; the library documents an Android 15 emulator bug, so this needs the phone.
 - **Lesson:** keep the emulator in 3-button navigation (`cmd overlay enable-exclusive --category com.android.internal.systemui.navbar.threebutton`), the worst case for insets.
 

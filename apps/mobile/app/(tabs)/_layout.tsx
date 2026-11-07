@@ -2,7 +2,6 @@ import { Tabs, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import * as SecureStore from 'expo-secure-store';
 import { Pressable, View } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTranslation } from '../../src/i18n';
 import { useUpdater } from '../../src/update/updater';
 
@@ -10,8 +9,6 @@ export default function TabLayout() {
   const { t } = useTranslation();
   const router = useRouter();
   const newer = useUpdater((s) => !!s.build?.newer);
-  // Edge-to-edge: the tab bar must sit above the Android navigation bar (3-button mode is ~48dp; VC-12).
-  const insets = useSafeAreaInsets();
   return (
     <Tabs
       screenOptions={({ route }) => {
@@ -50,8 +47,7 @@ export default function TabLayout() {
           tabBarStyle: {
             backgroundColor: dark ? '#0E1117' : '#FFFFFF',
             borderTopColor: dark ? '#1D222C' : '#E8E6E0',
-            height: 58 + insets.bottom,
-            paddingBottom: 6 + insets.bottom,
+            // No fixed height or padding: React Navigation adds the navigation bar inset itself (VC-12).
           },
         };
       }}
