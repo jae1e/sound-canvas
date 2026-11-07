@@ -101,7 +101,7 @@ Every issue found in testing or review goes here: symptom, root cause, fix with 
   - a 4 s take showed 0:00.
 - **Root cause:** the worker built from the written brief without checking the screens, and wrote minified one-line components.
 - **Fix:** a 15-item fix list was sent back with emulator and design screenshots (request vc-p1-ui-fix1).
-- **Status:** in progress.
+- **Status:** fixed on vc-p1-ui (commits 38da6a1..123dc73) and checked again on the emulator: tab names, device labels, level bar, stop square and timer, result card, take length 0:05, sheets, Settings, swipe delete with undo, and take review with playback. Merged as 36b2bc0. Pitch is not checked: the emulator mic is silent.
 - **Lesson:** compare every UI round on the emulator before it ships. Require prettier-formatted, small components.
 
 ## Releases
@@ -111,3 +111,4 @@ Every issue found in testing or review goes here: symptom, root cause, fix with 
 | 446772 (0.2.0) | `dd3ae5a` | 2026-11-07 | P0: Voice Coach name and tabs, hidden Travel/Work, server pairing, in-app update, mic-sharing fixes. 71.5 MB. On the server and the private GitHub draft (`voice-coach-446772-dd3ae5a.apk`). Signed with the same key as earlier builds (M: apksigner certificate SHA-256 `fac61745…`) |
 | 446812 (0.2.0) | `b627ba0` | 2026-11-07 | UI fixes VC-04 and VC-05. 74.0 MB. Server and private GitHub draft (`voice-coach-446812-b627ba0.apk`); 446772 was removed from the draft |
 | 446815 (0.2.0) | `fcecc84` | 2026-11-07 | VC-06 cleartext fix plus the 446812 UI fixes. Server and private GitHub draft (`voice-coach-446815-fcecc84.apk`); 446812 was removed from the draft |
+| 447216 | 36b2bc0 | 2026-11-07 | Sing redesign: live pitch and waveform, input/output sheets, beat, take review, 기록; 말하기 still a placeholder. First device run of the vc-audio engine. |
