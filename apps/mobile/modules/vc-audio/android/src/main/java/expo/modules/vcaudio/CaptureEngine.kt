@@ -24,6 +24,9 @@ import expo.modules.kotlin.exception.CodedException
 import expo.modules.vcaudio.core.FrameAnalyzer
 import expo.modules.vcaudio.core.Resampler
 import expo.modules.vcaudio.core.WavWriter
+import expo.modules.vcaudio.core.TakeJournal
+import org.json.JSONObject
+import org.json.JSONArray
 import java.io.File
 import java.util.UUID
 import java.util.concurrent.CountDownLatch
@@ -46,6 +49,7 @@ class CaptureEngine(private val context: Context, private val routes: DeviceRout
   private var communication = false
   private var callback: AudioManager.AudioRecordingCallback? = null
   private var take: Take? = null
+  private val journal by lazy { TakeJournal(File(context.filesDir, "takes")) }
   private var generation = 0
   private val frameLock = Any()
   private var framePending = false
@@ -82,9 +86,31 @@ class CaptureEngine(private val context: Context, private val routes: DeviceRout
     val asr = File(file.parentFile, "${file.nameWithoutExtension}.asr.wav")
     if (file.exists() && !file.delete()) throw CodedException("ERR_IO", "Could not delete take", null)
     if (asr.exists() && !asr.delete()) throw CodedException("ERR_IO", "Could not delete speech copy", null)
+    journal.remove(file.nameWithoutExtension)
     Unit
   }
-  private class Take(val id: String, val path: File, val asrPath: File?, val writer: WavWriter, val asr: WavWriter?, val resampler: Resampler?, var start: Double, var input: AudioDeviceInfo, val scheduled: Double?) {
+  private fun jsonValue(value: Any?): Any? = when (value) {
+    JSONObject.NULL -> null
+    is JSONObject -> value.keys().asSequence().associateWith { jsonValue(value.get(it)) }
+    is JSONArray -> (0 until value.length()).map { jsonValue(value.get(it)) }
+    else -> value
+  }
+  private fun entries() = journal.list(take?.id).map { entry ->
+    val meta = entry.json?.let { jsonValue(JSONObject(it)) }
+    mapOf<String, Any?>("id" to entry.id, "path" to entry.wav.absolutePath, "sizeBytes" to entry.wav.length().toDouble(),
+      "modifiedMs" to entry.wav.lastModified().toDouble(), "meta" to meta, "acknowledged" to entry.acknowledged)
+  }
+  fun listTakeFiles(): List<Map<String, Any?>> = synchronized(lock) { entries() }
+  fun acknowledge(id: String) = synchronized(lock) { journal.acknowledge(id) }
+  fun snapshot(): Map<String, Any?> = synchronized(lock) {
+    val current = take?.takeIf { it.hasStarted }?.let { t ->
+      mapOf<String, Any?>("id" to t.id, "path" to t.path.absolutePath, "sampleRate" to 48000,
+        "source" to source, "input" to routes.info(t.input), "output" to t.output, "startMs" to t.start)
+    }
+    mapOf("monitorRunning" to running, "silenced" to silenced, "take" to current,
+      "unacknowledged" to entries().filter { it["meta"] != null && it["acknowledged"] == false }.map { it["meta"] })
+  }
+  private class Take(val id: String, val path: File, val asrPath: File?, val writer: WavWriter, val asr: WavWriter?, val resampler: Resampler?, var start: Double, var input: AudioDeviceInfo, val scheduled: Double?, val output: Map<String, Any?>?) {
     val started = CountDownLatch(1)
     var hasStarted = false
     val changes = mutableListOf<Map<String, Any?>>()
@@ -203,7 +229,7 @@ class CaptureEngine(private val context: Context, private val routes: DeviceRout
       val t = try {
         writer = WavWriter(path, 48000)
         asrWriter = asr?.let { WavWriter(it, 16000) }
-        Take(id, path, asr, writer, asrWriter, asr?.let { Resampler() }, 0.0, input, schedule())
+        Take(id, path, asr, writer, asrWriter, asr?.let { Resampler() }, 0.0, input, schedule(), routes.activeOutput()?.let(routes::info))
       } catch (e: Exception) {
         try { writer?.close() } catch (_: Exception) { }
         try { asrWriter?.close() } catch (_: Exception) { }
@@ -232,6 +258,7 @@ class CaptureEngine(private val context: Context, private val routes: DeviceRout
     val finalReason = if (closeFailed) "error" else reason
     val timeline = beatTimes(t.start, t.start + t.writer.durationS * 1000)
     val result = mapOf<String, Any?>("id" to t.id, "path" to t.path.absolutePath, "asrPath" to t.asrPath?.absolutePath, "durationMs" to t.writer.durationS * 1000, "sizeBytes" to t.path.length().toDouble(), "reason" to finalReason, "beatTimesMs" to timeline.first, "inputChanges" to t.changes.toList(), "outputLatencyMs" to timeline.second)
+    journal.write(t.id, JSONObject(result).toString())
     emit("onTakeStopped", result); emit("onDevices", routes.snapshot(activeInput)); result
   }
   fun stop(reason: String = "stopped") {
