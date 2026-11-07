@@ -80,6 +80,8 @@ export function ActivePractice({
   const pace = lang === 'en' ? rollingEnglishWpm(syllables) : syllables;
   const band = baseline ?? paceBand(lang);
   const paceStatus = classifyPace(pace, band);
+  // Fewer than 3 syllable nuclei in the 10 s window: no speech yet, so no pace verdict.
+  const hasSpeech = nuclei.filter((tMs) => tMs >= now - 10_000).length >= 3;
   return (
     <View style={{ flex: 1, paddingHorizontal: 16 }}>
       <View style={{ alignItems: 'center', paddingTop: 20 }}>
@@ -209,10 +211,14 @@ export function ActivePractice({
         <View style={{ backgroundColor: '#FFF', borderRadius: 20, padding: 16, marginTop: 12 }}>
           <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
             <Text style={{ fontWeight: '800', color: '#1B1D22' }}>{t('speak.pace')}</Text>
-            <Text style={{ color: paceStatus === 'good' ? '#059669' : '#D97706' }}>
-              {t(`speak.${paceStatus}`)} · {pace.toFixed(1)}{' '}
-              {t(lang === 'ko' ? 'speak.syllablesPerSecond' : 'speak.wordsPerMinute')}
-            </Text>
+            {hasSpeech ? (
+              <Text style={{ color: paceStatus === 'good' ? '#059669' : '#D97706' }}>
+                {t(`speak.${paceStatus}`)} · {pace.toFixed(1)}{' '}
+                {t(lang === 'ko' ? 'speak.syllablesPerSecond' : 'speak.wordsPerMinute')}
+              </Text>
+            ) : (
+              <Text style={{ color: '#9A9DA6' }}>{t('speak.paceWaiting')}</Text>
+            )}
           </View>
           <View style={{ height: 8, borderRadius: 4, backgroundColor: '#F3D778', marginTop: 14 }}>
             <View
@@ -224,16 +230,18 @@ export function ActivePractice({
                 backgroundColor: '#6DD2AE',
               }}
             />
-            <View
-              style={{
-                position: 'absolute',
-                left: `${Math.min(98, Math.max(0, (pace / (band.fastAbove * 1.5)) * 100))}%`,
-                top: -4,
-                width: 3,
-                height: 16,
-                backgroundColor: '#1B1D22',
-              }}
-            />
+            {hasSpeech && (
+              <View
+                style={{
+                  position: 'absolute',
+                  left: `${Math.min(98, Math.max(0, (pace / (band.fastAbove * 1.5)) * 100))}%`,
+                  top: -4,
+                  width: 3,
+                  height: 16,
+                  backgroundColor: '#1B1D22',
+                }}
+              />
+            )}
           </View>
           <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 6 }}>
             {(['slow', 'good', 'fast'] as const).map((key) => (

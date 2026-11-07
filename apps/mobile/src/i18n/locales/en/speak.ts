@@ -106,6 +106,7 @@ export default {
   preparingCancel: 'Cancel preparation',
   returnFirst: 'Return to Speak to start recording',
   reportUnavailable: 'The report is not ready yet',
+  paceWaiting: 'Shows once you speak',
   noTarget: 'No target time',
   tickRate: 'Ticks per minute',
 };

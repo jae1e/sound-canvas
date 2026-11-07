@@ -180,7 +180,7 @@ export default function SpeechReportScreen() {
                   fontWeight: '700',
                 }}
               >
-                {report.targetMs ? '✓ ' : ''}
+                {report.targetMs ? (report.timeVerdict === 'ok' ? '✓ ' : '! ') : ''}
                 {t(
                   !report.targetMs
                     ? 'speak.noTarget'

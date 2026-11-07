@@ -106,6 +106,7 @@ export default {
   preparingCancel: '준비 취소',
   returnFirst: '말하기 화면으로 돌아와 녹음을 시작해 주세요',
   reportUnavailable: '아직 결과를 준비 중이에요',
+  paceWaiting: '말을 시작하면 보여요',
   noTarget: '목표 시간 없음',
   tickRate: '분당 박자',
 };
