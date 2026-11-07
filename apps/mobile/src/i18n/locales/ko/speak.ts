@@ -1,4 +1,7 @@
 export default {
+  paceSame: '비슷해요',
+  paceFaster: '빨라졌어요',
+  paceCalmer: '차분해졌어요',
   readHint: '대본을 붙여 넣고 낭독 연습',
   interviewHint: '질문 하나에 1–2분 답하기',
   quickPractice: '빠른 연습',

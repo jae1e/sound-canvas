@@ -205,7 +205,7 @@ export default function SpeechReportScreen() {
                   value === null
                     ? ''
                     : key === 'pace' && tile.deltaVsPrevious !== null
-                      ? t('speak.previousPace', { value: (value - tile.deltaVsPrevious).toFixed(1) })
+                      ? `${t('speak.previousPace', { value: (value - tile.deltaVsPrevious).toFixed(1) })} → ${t(tile.deltaVsPrevious < 0 ? 'speak.paceCalmer' : tile.deltaVsPrevious > 0 ? 'speak.paceFaster' : 'speak.paceSame')}`
                       : key === 'fillers'
                         ? Object.entries(fillerCounts)
                             .map(([name, count]) => `'${name}' ${count}`)

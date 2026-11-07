@@ -1,4 +1,7 @@
 export default {
+  paceSame: 'about the same',
+  paceFaster: 'faster',
+  paceCalmer: 'calmer',
   readHint: 'Paste a script and practise reading aloud',
   interviewHint: 'Answer one question in 1–2 minutes',
   quickPractice: 'Quick practice',

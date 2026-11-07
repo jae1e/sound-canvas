@@ -109,10 +109,28 @@ export function ActivePractice({
                   flex: section.budgetMs || 1,
                   backgroundColor: '#C8C4FA',
                   borderRadius: 5,
-                  overflow: 'hidden',
                 }}
               >
-                <View style={{ width: `${fraction * 100}%`, height: 8, backgroundColor: '#4F46E5' }} />
+                <View
+                  style={{
+                    width: `${fraction * 100}%`,
+                    height: 8,
+                    backgroundColor: '#4F46E5',
+                    borderRadius: 5,
+                  }}
+                />
+                {index === sectionIndex && (
+                  <View
+                    style={{
+                      position: 'absolute',
+                      left: `${fraction * 100}%`,
+                      top: -4,
+                      width: 3,
+                      height: 16,
+                      backgroundColor: '#1B1D22',
+                    }}
+                  />
+                )}
               </View>
             );
           })}
