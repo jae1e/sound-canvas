@@ -1,3 +1,4 @@
+import { IMPROMPTU_TOPICS, INTERVIEW_QUESTIONS, pickRandom } from '@vlc/voice-analysis';
 import { desc, eq } from 'drizzle-orm';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -6,7 +7,7 @@ import VcAudio from '../../modules/vc-audio/src/VcAudioModule';
 import type { DevicesEvent, FrameEvent, TakeStopped } from '../../modules/vc-audio/src/VcAudio.types';
 import { getDb } from '../../src/db/client';
 import { takes } from '../../src/db/schema';
-import { listSpeechPlans, updateSpeechTake, type StoredSpeechPlan } from '../../src/db/repos/speech';
+import { listSpeechPlans, saveSpeechPlan, updateSpeechTake, type StoredSpeechPlan } from '../../src/db/repos/speech';
 import { useTranslation } from '../../src/i18n';
 import { AudioBar } from '../../src/recorder/AudioBar';
 import { InputSheet, OutputSheet } from '../../src/recorder/DeviceSheets';
@@ -17,6 +18,8 @@ import { Toast } from '../../src/recorder/Toast';
 import { useMonitor } from '../../src/recorder/useMonitor';
 import { persistAnalysis, persistStoppedTake } from '../../src/recorder/takePersistence';
 import { reconcileTakes, saveStartedTake } from '../../src/recorder/reconcile';
+import { useSettings } from '../../src/settings/store';
+import { PlanEditor, newPlan } from '../../src/speech-coach/PlanEditor';
 import { VoiceStrip } from '../../src/speech-coach/VoiceStrip';
 
 type SheetName = 'input' | 'output' | 'timer' | 'pacer' | 'plans' | null;
@@ -29,6 +32,8 @@ export default function SpeakTab() {
   const [frame, setFrame] = useState<FrameEvent | null>(null);
   const [devices, setDevices] = useState<DevicesEvent | null>(null);
   const [sheet, setSheet] = useState<SheetName>(null);
+  const language = useSettings((s) => s.language);
+  const [editor, setEditor] = useState<StoredSpeechPlan | null>(null);
   const [plans, setPlans] = useState<StoredSpeechPlan[]>([]);
   const [plan, setPlan] = useState<StoredSpeechPlan | null>(null);
   const [target, setTarget] = useState(0);
@@ -71,6 +76,12 @@ export default function SpeakTab() {
     try { if (rate) { await VcAudio.setBeat({ bpm: rate, beatsPerBar: 4, pattern: 'click', volume: 0.3, pacer: true }); await VcAudio.startBeat(); } else await VcAudio.stopBeat(); setPacer(rate); setSheet(null); }
     catch { showError(); }
   };
+  const selectPrompt = (kind: 'impromptu' | 'interview') => {
+    const prompt = pickRandom((kind === 'impromptu' ? IMPROMPTU_TOPICS : INTERVIEW_QUESTIONS).filter((p) => p.lang === language));
+    if (!prompt) { showError(); return; }
+    const created = { ...newPlan(), kind, title: prompt.title, promptId: prompt.id, targetMs: 60000, lang: language };
+    saveSpeechPlan(getDb(), created); setPlan(created); setTarget(60000); setPlans(listSpeechPlans(getDb())); setSheet(null);
+  };
   const choice = (label: string, action: () => void, selected = false) => <Pressable key={label} onPress={action} style={({ pressed }) => ({ padding: 16, borderRadius: 14, marginBottom: 8, backgroundColor: selected ? '#EEF0FF' : '#F6F5F1', opacity: pressed ? 0.6 : 1 })}><Text style={{ color: ink, fontWeight: '700' }}>{label}</Text></Pressable>;
   return <View style={{ flex: 1, backgroundColor: '#F6F5F1' }}>
     <AudioBar theme="light" devices={devices} level={frame?.rmsDb ?? -100} onInput={() => devices?.locked ? setToast(t('common.coach.locked')) : setSheet('input')} onOutput={() => devices?.locked ? setToast(t('common.coach.locked')) : setSheet('output')} />
@@ -97,8 +108,13 @@ export default function SpeakTab() {
     <Sheet visible={sheet === 'pacer'} onClose={() => setSheet(null)} theme="light" title={t('speak.pacer')}>{[0, 60, 80, 100, 120].map((n) => choice(n ? `${n} BPM` : t('speak.off'), () => void changePacer(n), pacer === n))}</Sheet>
     <Sheet visible={sheet === 'plans'} onClose={() => setSheet(null)} theme="light" title={t('speak.choosePlan')}>
       {choice(t('speak.free'), () => { setPlan(null); setTarget(0); setSheet(null); }, !plan)}
-      {plans.map((p) => choice(`${p.title} · ${t('speak.practiceCount', { count: p.practiceCount })}`, () => { setPlan(p); setTarget(p.targetMs); setSheet(null); }, plan?.id === p.id))}
+      {plans.map((p) => <View key={p.id} style={{ flexDirection: 'row', gap: 6 }}><View style={{ flex: 1 }}>{choice(`${p.title} · ${t('speak.practiceCount', { count: p.practiceCount })}`, () => { setPlan(p); setTarget(p.targetMs); setSheet(null); }, plan?.id === p.id)}</View>{choice('✎', () => { setSheet(null); setEditor(p); })}</View>)}
+      {choice(t('speak.newPlan'), () => { setSheet(null); setEditor(newPlan()); })}
+      {choice(t('speak.impromptu'), () => selectPrompt('impromptu'))}
+      {choice(t('speak.interview'), () => selectPrompt('interview'))}
+      {choice(t('speak.scriptMode'), () => { setSheet(null); setEditor(newPlan('script')); })}
     </Sheet>
+    {editor && <PlanEditor key={editor.id} initial={editor} onClose={() => setEditor(null)} onSave={(p) => { saveSpeechPlan(getDb(), p); setPlans(listSpeechPlans(getDb())); setPlan(p); setTarget(p.targetMs); setEditor(null); setToast(t('speak.saved')); }} />}
     <Toast message={toast} />
   </View>;
 }
