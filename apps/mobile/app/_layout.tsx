@@ -82,6 +82,7 @@ export default function RootLayout() {
           contentStyle: { backgroundColor: colors.bg },
         }}
       >
+        <Stack.Screen name="speech-report/[id]" options={{ headerShown: false }} />
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
         {showHiddenModes ? (
           <Stack.Screen name="work/index" options={{ title: t('common.mode.work') }} />

@@ -1,6 +1,6 @@
 import { IMPROMPTU_TOPICS, INTERVIEW_QUESTIONS, pickRandom } from '@vlc/voice-analysis';
 import { desc, eq } from 'drizzle-orm';
-import { useFocusEffect, useNavigation, useRouter } from 'expo-router';
+import { useFocusEffect, useLocalSearchParams, useNavigation, useRouter } from 'expo-router';
 import { activateKeepAwakeAsync, deactivateKeepAwake } from 'expo-keep-awake';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { PermissionsAndroid, Platform, Pressable, ScrollView, Text, View } from 'react-native';
@@ -32,6 +32,7 @@ export default function SpeakTab() {
   const { t } = useTranslation();
   const router = useRouter();
   const navigation = useNavigation();
+  const repeat = useLocalSearchParams<{ planId?: string; targetMs?: string; repeat?: string }>();
   const { frames, state } = useMonitor();
   const [frame, setFrame] = useState<FrameEvent | null>(null);
   const [devices, setDevices] = useState<DevicesEvent | null>(null);
@@ -49,6 +50,11 @@ export default function SpeakTab() {
   const takeId = useRef<string | null>(null);
   const [preparing, setPreparing] = useState<number | null>(null);
   const recentPrompts = useRef<string[]>([]);
+  useEffect(() => {
+    if (!repeat.repeat) return;
+    const selected = listSpeechPlans(getDb()).find((p) => p.id === repeat.planId) ?? null;
+    setPlan(selected); setTarget(Number(repeat.targetMs) || selected?.targetMs || 0);
+  }, [repeat.repeat, repeat.planId, repeat.targetMs]);
   const [recording, setRecording] = useState(false);
   const recordingRef = useRef(false);
   const [busy, setBusy] = useState(false);
@@ -70,9 +76,9 @@ export default function SpeakTab() {
   }, [plan, recording]);
   const finish = useCallback(async (take: TakeStopped) => {
     recordingRef.current = false; setRecording(false);
-    try { persistStoppedTake(getDb(), take); await reconcileTakes(); const analysis = await VcAudio.analyzeTake(take.path); persistAnalysis(getDb(), take.id, analysis); const row = getDb().select().from(takes).where(eq(takes.id, take.id)).get(); if (row) rebuildSpeechReport(row); void processSpeechQueue(); }
+    try { persistStoppedTake(getDb(), take); await reconcileTakes(); const analysis = await VcAudio.analyzeTake(take.path); persistAnalysis(getDb(), take.id, analysis); const row = getDb().select().from(takes).where(eq(takes.id, take.id)).get(); if (row) rebuildSpeechReport(row); void processSpeechQueue().catch(showError); if (take.reason === 'user') router.push({ pathname: '/speech-report/[id]', params: { id: take.id } }); }
     catch { showError(); }
-  }, [showError]);
+  }, [router, showError]);
   useEffect(() => { const sub = VcAudio.addListener('onTakeStopped', (take) => { if (recordingRef.current) void finish(take); }); return () => sub.remove(); }, [finish]);
   const startOrStop = useCallback(async () => {
     if (busy) return;

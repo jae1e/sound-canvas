@@ -14,6 +14,7 @@ export default {
   missed: 'Missed', transcript: 'Transcript', transcribing: 'Transcribing…', offline: 'Transcription resumes when the server connects',
   noSpeech: 'No speech detected', failed: 'Transcription failed', listen: 'Listen', again: 'Practise again',
   baseline: 'Learn my baseline', baselineHint: 'Available after three takes', hidePace: 'Hide live pace', defaults: 'Voice defaults',
+  caution: 'Needs work',
   paceValue: 'Pace {{value}}', fillersValue: '{{count}} fillers', deleteSection: 'Remove section',
   planSubtitle: 'Plan, time and key points', scriptHint: 'Paste the words you want to read', promptHint: '20 seconds to prepare · 1 minute to answer',
   serverFirst: 'Pair with your server first', error: 'Something went wrong. Please try again.', preparingCancel: 'Cancel preparation',

@@ -14,6 +14,7 @@ export default {
   missed: '빠진 포인트', transcript: '전사', transcribing: '전사 중…', offline: '서버 연결 시 전사돼요',
   noSpeech: '말소리를 찾지 못했어요', failed: '전사에 실패했어요', listen: '듣기', again: '다시 연습',
   baseline: '내 기준 배우기', baselineHint: '3번 연습 후 적용돼요', hidePace: '실시간 속도 숨기기', defaults: '음성 기본값',
+  caution: '주의',
   paceValue: '속도 {{value}}', fillersValue: '군말 {{count}}회', deleteSection: '섹션 삭제',
   planSubtitle: '제목, 목표 시간, 섹션과 핵심', scriptHint: '읽을 대본을 붙여넣으세요', promptHint: '20초 준비 후 1분 말하기',
   serverFirst: '먼저 서버를 연결해 주세요', error: '문제가 생겼어요. 다시 시도해 주세요.', preparingCancel: '준비 취소',
