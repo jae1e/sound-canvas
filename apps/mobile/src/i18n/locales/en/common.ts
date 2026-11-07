@@ -1,4 +1,7 @@
 export default {
+  'coach.secondaryMic': 'Phone microphone (secondary)',
+  'coach.builtinSubtitle': 'Built in',
+  'coach.otherInput': 'Other input',
   'coach.play': 'Play',
   'coach.pause': 'Pause',
   'coach.silentTake': 'Almost no sound',

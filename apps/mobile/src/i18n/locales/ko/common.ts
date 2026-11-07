@@ -1,4 +1,7 @@
 export default {
+  'coach.secondaryMic': '휴대폰 마이크 (보조)',
+  'coach.builtinSubtitle': '내장',
+  'coach.otherInput': '기타 입력',
   'coach.play': '재생',
   'coach.pause': '일시정지',
   'coach.silentTake': '소리가 거의 없어요',

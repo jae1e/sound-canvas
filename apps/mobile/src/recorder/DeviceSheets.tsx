@@ -112,6 +112,7 @@ function iconFor(device: AudioDevice): keyof typeof Ionicons.glyphMap {
 export function InputSheet({ visible, onClose, theme, devices, onError, rmsDb = -100 }: Props) {
   const { t } = useTranslation();
   const inputs = uniqueDevices(devices?.inputs ?? []);
+  const primaryBuiltin = inputs.find((device) => device.type === 'builtin');
   return (
     <Sheet visible={visible} onClose={onClose} theme={theme} title={t('common.coach.input')}>
       <Text style={{ color: '#8A93A5', fontSize: 12, marginBottom: 10 }}>
@@ -121,23 +122,36 @@ export function InputSheet({ visible, onClose, theme, devices, onError, rmsDb = 
         <DeviceRow
           key={device.key}
           theme={theme}
-          name={deviceLabel(device, 'input', t)}
+          name={deviceLabel(
+            device,
+            'input',
+            t,
+            device.type === 'builtin' && device.key !== primaryBuiltin?.key,
+          )}
           icon={iconFor(device)}
           subtitle={
             device.type === 'builtin'
-              ? t('common.coach.inputBuiltin')
+              ? t(
+                  device.key === primaryBuiltin?.key
+                    ? 'common.coach.inputBuiltin'
+                    : 'common.coach.builtinSubtitle',
+                )
               : device.callQuality
                 ? t('common.coach.inputBluetooth')
                 : device.type === 'usb'
                   ? 'USB'
-                  : device.productName
+                  : device.type === 'other'
+                    ? t('common.coach.otherInput')
+                    : device.productName
           }
           warning={device.callQuality}
           selected={devices?.activeInput?.key === device.key}
           level={devices?.activeInput?.key === device.key ? rmsLevel(rmsDb) : undefined}
           onPress={() => {
             void VcAudio.setInputPreference(
-              device.type === 'builtin' ? { mode: 'builtin' } : { mode: 'device', key: device.key },
+              device.type === 'builtin' && device.key === primaryBuiltin?.key
+                ? { mode: 'builtin' }
+                : { mode: 'device', key: device.key },
             ).catch(onError);
           }}
         />
