@@ -101,7 +101,7 @@ def cmd_publish_apk(args) -> None:
                                 args.version_name, args.git_sha, args.notes, args.force)
     except ValueError as e:
         raise SystemExit(f"publish-apk: {e}") from None
-    print(f"published version_code={out['version_code']} {out['version_name']} sha256={out['sha256']} "
+    print(f"published package={out['package']} version_code={out['version_code']} {out['version_name']} sha256={out['sha256']} "
           f"bytes={out['bytes']}")
 
 

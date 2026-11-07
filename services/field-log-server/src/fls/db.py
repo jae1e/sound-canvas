@@ -14,13 +14,16 @@ CREATE TABLE IF NOT EXISTS devices (
   device_id TEXT PRIMARY KEY,
   token_hash TEXT NOT NULL UNIQUE,
   model TEXT, manufacturer TEXT, os_version TEXT, app_version TEXT, install_id TEXT,
+  app_package TEXT NOT NULL DEFAULT 'com.jae1e.fieldvoicelog',
   created_server_ms INTEGER NOT NULL,
   revoked_server_ms INTEGER
 );
 CREATE TABLE IF NOT EXISTS app_builds (
-  version_code INTEGER PRIMARY KEY,
+  package TEXT NOT NULL DEFAULT 'com.jae1e.fieldvoicelog',
+  version_code INTEGER NOT NULL,
   version_name TEXT NOT NULL, git_sha TEXT NOT NULL DEFAULT '', sha256 TEXT NOT NULL,
-  bytes INTEGER NOT NULL, built_ms INTEGER NOT NULL, notes TEXT NOT NULL DEFAULT ''
+  bytes INTEGER NOT NULL, built_ms INTEGER NOT NULL, notes TEXT NOT NULL DEFAULT '',
+  PRIMARY KEY (package, version_code)
 );
 CREATE TABLE IF NOT EXISTS pairing_codes (
   code_hash TEXT PRIMARY KEY,
@@ -138,7 +141,8 @@ class Database:
             "events": [("redacted", "INTEGER NOT NULL DEFAULT 0")],
             "memos": [("languages", "TEXT"), ("deleted_server_ms", "INTEGER"), ("title", "TEXT")],
             "transcripts": [("detect_path", "TEXT"), ("no_speech_reason", "TEXT"), ("speech_ms", "INTEGER"), ("filtered_text", "TEXT")],
-            "devices": [("app_version_code", "INTEGER"), ("app_seen_ms", "INTEGER")],
+            "devices": [("app_version_code", "INTEGER"), ("app_seen_ms", "INTEGER"),
+                        ("app_package", "TEXT NOT NULL DEFAULT 'com.jae1e.fieldvoicelog'")],
             "jobs": [("force", "INTEGER NOT NULL DEFAULT 0")],
             "alt_transcripts": [("words", "TEXT"), ("words_kind", "TEXT")],
             "reference_transcripts": [("words", "TEXT")],
@@ -148,6 +152,20 @@ class Database:
             for name, decl in cols:
                 if name not in have:
                     self._conn.execute(f"ALTER TABLE {table} ADD COLUMN {name} {decl}")
+        build_cols = {r["name"] for r in self._conn.execute("PRAGMA table_info(app_builds)")}
+        pk = [r["name"] for r in sorted(self._conn.execute("PRAGMA table_info(app_builds)"), key=lambda r: r["pk"])
+              if r["pk"]]
+        if "package" not in build_cols or pk != ["package", "version_code"]:
+            self._conn.execute("ALTER TABLE app_builds RENAME TO app_builds_old")
+            self._conn.execute("CREATE TABLE app_builds (package TEXT NOT NULL DEFAULT 'com.jae1e.fieldvoicelog', "
+                               "version_code INTEGER NOT NULL, version_name TEXT NOT NULL, git_sha TEXT NOT NULL DEFAULT '', "
+                               "sha256 TEXT NOT NULL, bytes INTEGER NOT NULL, built_ms INTEGER NOT NULL, "
+                               "notes TEXT NOT NULL DEFAULT '', PRIMARY KEY(package, version_code))")
+            old_cols = {r["name"] for r in self._conn.execute("PRAGMA table_info(app_builds_old)")}
+            package_expr = "package" if "package" in old_cols else "'com.jae1e.fieldvoicelog'"
+            self._conn.execute("INSERT INTO app_builds(package, version_code, version_name, git_sha, sha256, bytes, built_ms, notes) "
+                               f"SELECT {package_expr}, version_code, version_name, git_sha, sha256, bytes, built_ms, notes FROM app_builds_old")
+            self._conn.execute("DROP TABLE app_builds_old")
 
     @contextmanager
     def tx(self) -> Iterator[sqlite3.Connection]:

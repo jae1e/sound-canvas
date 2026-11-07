@@ -137,9 +137,9 @@ def create_dashboard(state: Any) -> FastAPI:
 
     @app.get("/dash/api/app-builds")
     def app_builds():
-        return {"builds": [dict(r) for r in db.query("SELECT * FROM app_builds ORDER BY version_code DESC")],
+        return {"builds": [dict(r) for r in db.query("SELECT * FROM app_builds ORDER BY package, version_code DESC")],
                 "devices": [{"device_id": r["device_id"], "model": r["model"],
-                             "app_version_code": r["app_version_code"], "app_seen_ms": r["app_seen_ms"]}
+                             "app_package": r["app_package"], "app_version_code": r["app_version_code"], "app_seen_ms": r["app_seen_ms"]}
                             for r in db.query("SELECT * FROM devices WHERE revoked_server_ms IS NULL")]}
 
     # ------------------------------------------------------------------ memo list and detail

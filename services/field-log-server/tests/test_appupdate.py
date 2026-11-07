@@ -1,4 +1,5 @@
 import zipfile
+import struct
 
 import pytest
 
@@ -6,9 +7,22 @@ from fls import appbuilds
 from fls.db import Database
 
 
-def make_apk(path, extra=b""):
+def binary_manifest(package="com.jae1e.fieldvoicelog"):
+    strings = ["manifest", "package", package]
+    raw = b""; offsets = []
+    for s in strings:
+        b = s.encode(); offsets.append(len(raw)); raw += bytes([len(s), len(b)]) + b + b"\0"
+    header = struct.pack("<HHIIIIII", 1, 28, 28 + 12 + len(raw), 3, 0, 0x100, 28 + 12, 0)
+    pool = header + struct.pack("<III", *offsets) + raw
+    element = struct.pack("<HHI", 0x102, 16, 56) + struct.pack("<II", 1, 0) + struct.pack("<IIHHHHHH", 0xffffffff, 0, 20, 20, 1, 0, 0, 0)
+    attr = struct.pack("<IIIHBBI", 0xffffffff, 1, 2, 8, 0, 3, 2)
+    body = pool + element + attr
+    return struct.pack("<HHI", 3, 8, 8 + len(body)) + body
+
+
+def make_apk(path, extra=b"", package="com.jae1e.fieldvoicelog"):
     with zipfile.ZipFile(path, "w") as z:
-        z.writestr("AndroidManifest.xml", b"manifest")
+        z.writestr("AndroidManifest.xml", binary_manifest(package))
         z.writestr("classes.dex", b"x" * 5000 + extra)
     return path
 
