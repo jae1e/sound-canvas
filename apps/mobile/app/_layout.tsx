@@ -1,6 +1,7 @@
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
+import { NavigationBar } from 'expo-navigation-bar';
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, AppState, Text, View } from 'react-native';
 
@@ -23,6 +24,11 @@ export default function RootLayout() {
   const [recoveryError, setRecoveryError] = useState(false);
   const loaded = useSettings((s) => s.loaded);
   const showHiddenModes = useSettings((s) => s.settings.showHiddenModes);
+
+  useEffect(() => {
+    // Light screens are the default: dark navigation buttons. The Sing stage switches to dark on focus (VC-12).
+    NavigationBar.setStyle('light');
+  }, []);
 
   useEffect(() => {
     if (!success) return;

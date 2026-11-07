@@ -125,6 +125,21 @@ Every issue found in testing or review goes here: symptom, root cause, fix with 
 - **Status:** fixed in code; not yet tested on the phone.
 - **Lesson:** every waiting state needs an exit on resume (ARCHITECTURE.md: reconcile on start and resume). Never start activities from a background completion.
 
+## VC-12 — Bottom tabs hidden behind the Android navigation buttons
+
+- **Symptom (2026-11-07 23:41, phone in 3-button navigation, 447253):** the 노래 · 말하기 · 기록 tab bar was drawn under the back, home and recent buttons. The navigation bar showed as a light grey band on the dark 노래 screen.
+- **Root cause:**
+  - The app is edge-to-edge. The tab bar had a fixed height (64, paddingBottom 8) that ignored the bottom inset.
+  - The system drew its contrast scrim, which is light grey, behind the buttons.
+  - The emulator used gesture navigation, whose thin inset hid the problem.
+- **Fix:**
+  - The tab bar height and padding include `insets.bottom`.
+  - Bottom sheets are edge-to-edge modals with a bottom `SafeAreaView`, and their scroll area gets 8 dp of padding, so the last row is not clipped.
+  - The speech report bar, the speaking screen and the take review respect the insets.
+  - `expo-navigation-bar` with `enforceContrast: false`: the bar is dark on 노래 and on song take reviews, and light elsewhere.
+- **Status:** checked on the emulator in 3-button mode. On the emulator the dark buttons on light screens were not visible; the library documents an Android 15 emulator bug, so this needs the phone.
+- **Lesson:** keep the emulator in 3-button navigation (`cmd overlay enable-exclusive --category com.android.internal.systemui.navbar.threebutton`), the worst case for insets.
+
 ## Releases
 
 | Build | Commit | Date | Notes |

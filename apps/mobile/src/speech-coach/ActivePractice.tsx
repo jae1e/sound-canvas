@@ -15,6 +15,7 @@ import { RecordButton } from '../recorder/RecordButton';
 import { formatDuration } from '../recorder/SingControls';
 import type { RingBuffer } from '../recorder/ringBuffer';
 import { VoiceStrip } from './VoiceStrip';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 export function ActivePractice({
   plan,
@@ -45,6 +46,7 @@ export function ActivePractice({
   prompt?: string;
   language: 'ko' | 'en';
 }) {
+  const insets = useSafeAreaInsets();
   const { t } = useTranslation();
   const [now, setNow] = useState(() => VcAudio.nowMs());
   const [scrolling, setScrolling] = useState(true);
@@ -254,7 +256,7 @@ export function ActivePractice({
       )}
       <VoiceStrip frames={frames} />
       <View style={{ flex: 1 }} />
-      <View style={{ alignItems: 'center', paddingBottom: 16 }}>
+      <View style={{ alignItems: 'center', paddingBottom: 16 + insets.bottom }}>
         <RecordButton theme="light" recording disabled={busy} label={t('speak.stop')} onPress={onStop} />
         <Text style={{ color: '#6C6F78', marginTop: 5 }}>{t('speak.stop')}</Text>
       </View>

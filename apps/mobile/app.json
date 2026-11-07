@@ -31,9 +31,7 @@
         "expo-build-properties",
         {
           "android": {
-            "buildArchs": [
-              "arm64-v8a"
-            ],
+            "buildArchs": ["arm64-v8a"],
             "minSdkVersion": 31,
             "usesCleartextTraffic": true
           }
@@ -48,7 +46,13 @@
           "isAndroidBackgroundLocationEnabled": false
         }
       ],
-      "expo-localization"
+      "expo-localization",
+      [
+        "expo-navigation-bar",
+        {
+          "enforceContrast": false
+        }
+      ]
     ]
   }
 }

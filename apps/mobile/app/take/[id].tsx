@@ -3,7 +3,8 @@ import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { eq } from 'drizzle-orm';
 import * as Sharing from 'expo-sharing';
 import { useEffect, useState } from 'react';
-import { Alert, Modal, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
+import { Alert, Modal, Pressable, ScrollView, StatusBar, Text, TextInput, View } from 'react-native';
+import { NavigationBar } from 'expo-navigation-bar';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import VcAudio from '../../modules/vc-audio/src/VcAudioModule';
 import type { AudioDevice, PlaybackEvent, TakeAnalysis } from '../../modules/vc-audio/src/VcAudio.types';
@@ -78,6 +79,17 @@ export default function TakeReview() {
   const [title, setTitle] = useState('');
   const fileUri = row?.fileUri;
   const beatJson = row?.beatJson;
+  const darkTake = row?.kind !== 'speech';
+  useEffect(() => {
+    // Song takes use the dark stage: light status bar content and a dark navigation bar (VC-12).
+    if (!darkTake) return;
+    StatusBar.setBarStyle('light-content');
+    NavigationBar.setStyle('dark');
+    return () => {
+      StatusBar.setBarStyle('dark-content');
+      NavigationBar.setStyle('light');
+    };
+  }, [darkTake]);
   useEffect(() => {
     if (!fileUri) return;
     let live = true;

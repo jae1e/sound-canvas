@@ -3,6 +3,7 @@ import { useFocusEffect, useRouter } from 'expo-router';
 import { activateKeepAwakeAsync, deactivateKeepAwake } from 'expo-keep-awake';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Linking, PermissionsAndroid, Platform, Pressable, StatusBar, Text, View } from 'react-native';
+import { NavigationBar } from 'expo-navigation-bar';
 import VcAudio from '../../modules/vc-audio/src/VcAudioModule';
 import type {
   DevicesEvent,
@@ -114,7 +115,11 @@ export default function SingTab() {
   useFocusEffect(
     useCallback(() => {
       StatusBar.setBarStyle('light-content');
-      return () => StatusBar.setBarStyle('dark-content');
+      NavigationBar.setStyle('dark');
+      return () => {
+        StatusBar.setBarStyle('dark-content');
+        NavigationBar.setStyle('light');
+      };
     }, []),
   );
   const toggle = async () => {

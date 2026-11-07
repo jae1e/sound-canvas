@@ -1,6 +1,7 @@
 import { useRef, type ReactNode } from 'react';
 import { useTranslation } from '../i18n';
 import { Modal, PanResponder, Pressable, ScrollView, Text, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 export function Sheet({
   visible,
   onClose,
@@ -29,14 +30,23 @@ export function Sheet({
   ).current;
   const dark = theme === 'dark';
   return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+    // Edge-to-edge modal; the SafeAreaView measures the modal window's own navigation bar inset (VC-12).
+    <Modal
+      visible={visible}
+      transparent
+      animationType="slide"
+      statusBarTranslucent
+      navigationBarTranslucent
+      onRequestClose={onClose}
+    >
       <View style={{ flex: 1, justifyContent: 'flex-end' }}>
         <Pressable
           accessibilityLabel={t('common.close')}
           onPress={onClose}
           style={{ flex: 1, backgroundColor: '#0009' }}
         />
-        <View
+        <SafeAreaView
+          edges={['bottom']}
           style={{
             maxHeight: '80%',
             backgroundColor: dark ? '#171C25' : '#FFF',
@@ -64,8 +74,8 @@ export function Sheet({
             </Text>
             {headerRight}
           </View>
-          <ScrollView>{children}</ScrollView>
-        </View>
+          <ScrollView contentContainerStyle={{ paddingBottom: 8 }}>{children}</ScrollView>
+        </SafeAreaView>
       </View>
     </Modal>
   );

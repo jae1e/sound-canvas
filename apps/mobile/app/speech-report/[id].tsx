@@ -12,6 +12,7 @@ import * as Sharing from 'expo-sharing';
 import { useCallback, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, Text, View } from 'react-native';
 import Svg, { Line, Path, Rect } from 'react-native-svg';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import VcAudio from '../../modules/vc-audio/src/VcAudioModule';
 import type { PlaybackEvent } from '../../modules/vc-audio/src/VcAudio.types';
 import { getDb } from '../../src/db/client';
@@ -38,6 +39,7 @@ const box = {
   padding: 16,
 } as const;
 export default function SpeechReportScreen() {
+  const insets = useSafeAreaInsets();
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const { t } = useTranslation();
@@ -133,7 +135,7 @@ export default function SpeechReportScreen() {
     </Pressable>
   );
   return (
-    <View style={{ flex: 1, backgroundColor: '#F6F5F1', paddingTop: 30 }}>
+    <View style={{ flex: 1, backgroundColor: '#F6F5F1', paddingTop: insets.top + 6 }}>
       <View
         style={{
           flexDirection: 'row',
@@ -390,7 +392,15 @@ export default function SpeechReportScreen() {
         {showError}
       </ScrollView>
       {busy && <ActivityIndicator accessibilityLabel={t('speak.listen')} color="#4F46E5" />}
-      <View style={{ flexDirection: 'row', gap: 8, padding: 16, backgroundColor: '#F6F5F1' }}>
+      <View
+        style={{
+          flexDirection: 'row',
+          gap: 8,
+          padding: 16,
+          paddingBottom: 16 + insets.bottom,
+          backgroundColor: '#F6F5F1',
+        }}
+      >
         {button(
           playing ? `Ⅱ ${t('speak.listen')}` : `▶ ${t('speak.listen')}`,
           () =>
