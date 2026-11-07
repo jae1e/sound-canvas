@@ -243,3 +243,11 @@ Test builds are sideloaded, so the app updates itself from the user's own server
 - **Download.** The app downloads to its private cache, verifies the SHA-256, and only then hands the file to the system package installer. The user confirms the install; Android also asks once to allow "install unknown apps" for Field Voice Log.
 - **Clean-up.** The app deletes downloaded APKs after a successful update (on the next start, when its own `versionCode` is at least the file's) and on cancel. Old APKs never pile up in Downloads.
 - **Data.** An update replaces the app and keeps its data (same package and signing key).
+
+**Several apps (v0.3, 2026-11-07).** The same server also serves the Voice Coach app; see [../voice-life-companion/coach-server-api.md](../voice-life-companion/coach-server-api.md).
+- `POST /v1/enroll` accepts an optional `device.app_package`, defaulting to `com.jae1e.fieldvoicelog`. The device row stores it.
+- `GET /v1/app/latest` serves builds of the caller's device `app_package` only.
+- `GET /v1/app/apk/{sha256}` serves only a build of that package.
+- `fls publish-apk` reads the package from the APK's manifest and stores it in `app_builds.package`. Retention ("newest 3") and the increasing-`version_code` rule apply per package.
+- Field Voice Log behaviour is unchanged.
+

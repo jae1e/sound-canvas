@@ -1,6 +1,6 @@
 # Voice Coach Renovation Plan
 
-**Status:** proposal for the user's review, 2026-11-07. Nothing is implemented yet.
+**Status:** approved by the user on 2026-11-07, with the answers in section 9. P0 started on 2026-11-07.
 
 **User decision (2026-11-07).** The app focuses on Voice Coach, which becomes the main function. Travel Guide and Work Partner are hidden. This supersedes the 2026-11-03 decision to ship all three modes together (README D01, v1-spec). The code for the hidden modes is kept.
 
@@ -139,9 +139,9 @@ Built from the singing-app study **[R]**. The core is a **guided-to-unguided lad
    3. reference once, then silent;
    4. blind, with the score shown after.
 5. **Song practice (v1):**
-   - sing over a beat or click, or a backing track from the user's own file, with the live pitch graph and a recording;
-   - optional **guide extraction**: the pitch line is extracted from a guide recording the user makes or imports, and overlaid as the target ("match the guide").
-   - Only the user's own files are used. No song catalogue.
+   - sing over a beat or click with the live pitch graph and a recording;
+   - later (P4): sing along with a streaming app, the backing builder, and **guide extraction** from a guide recording the user makes ("match the guide");
+   - no file import and no song catalogue (Q6).
 6. **Scoring:**
    - time within ±25 / ±50 cents, mean absolute cents, stability (SD cents), and onset timing against the beat;
    - every score is explained in words, because scores without explanation are a top complaint **[R]**;
@@ -280,7 +280,7 @@ Each phase ends with a release build installed through the updater, a device tes
 | **P1 Studio** | `vc-audio` engine: explicit input/output pickers, locked per take; live pitch and volume graphs; metronome and drum beats; latency calibration; takes with review graphs and playback | Record over a beat with earbuds output and the phone mic; the graphs and the beat grid line up in review |
 | **P2 Song coach** | Range test; warm-ups; generated exercises with the ladder; scoring with explanations; progress and streak | A 10-minute routine runs end to end, with scores that make sense |
 | **P3 Speech coach** | Practice modes; server transcript with word timing; pace, pause, filler, repetition and pitch-variation metrics; planning, rehearsal and section report; read-aloud alignment | A planned 3-minute talk gives a section report with pace per section |
-| **P4 Polish** | Guide extraction and "match the guide"; take comparison; optional AI outline and feedback (per Q4); export; progress dashboard | — |
+| **P4 Polish** | Sing along with a streaming app; backing builder (chords and style); guide extraction from the user's own recording; take comparison; optional local LLM outline and feedback; export; progress dashboard | — |
 
 ## 8. Delegation
 
@@ -309,16 +309,13 @@ Implementation is delegated through Whistler; see `/home/jaeil/.local/state/whis
   - no commits (I commit);
   - report changes and tests.
 
-## 9. Decisions needed from the user
+## 9. User decisions (2026-11-07)
 
-- **Q1 Name.** Rename the visible app to "Voice Coach / 보이스 코치" and keep the package id, so the update keeps your data? Recommended: yes.
-- **Q2 Default input.** Phone mic by default, with earbud mics allowed but warned about? Recommended: yes.
-- **Q3 Server.** Use the PC server for the accurate speech transcript, and add Voice Coach routes to the existing field-log server? Recommended: yes for now, and split it into a shared home server later if both apps grow.
-- **Q4 AI text** (outline help and feedback wording). Options:
-  - (a) none in v1, with rule-based feedback only;
-  - (b) a local LLM on the RTX 4090;
-  - (c) a cloud LLM (Claude Haiku) with your API key, opt-in.
-
-  Recommended: (a) for P0–P3 and (b) in P4.
-- **Q5 Workers.** Confirm the Codex models and efforts in section 8, and the limit of 3 workers at once.
-- **Q6 Backing tracks.** Allow importing your own audio files (backing track or guide) in P2/P4? Recommended: yes, on the phone only.
+- **Q1 Name.** The visible app becomes "Voice Coach / 보이스 코치"; the package id is kept. Agreed.
+- **Q2 Default input.** Phone mic by default; earbud mics are allowed but warned about. Agreed.
+- **Q3 Server.** Voice Coach routes are added to the existing field-log server on the user's PC (transcripts and updates). Agreed.
+- **Q4 AI text.** No LLM text in P0–P3; rule-based feedback only. A local LLM on the RTX 4090 is considered in P4. Agreed.
+- **Q5 Workers.** Codex workers through Whistler: `gpt-6.1-terra` at high effort for native audio, and `gpt-6-luna` at medium for app, server and analysis. At most 3 at once. Agreed.
+- **Q6 Backing tracks.** **Not agreed: no file import.** The user finds importing MP3s impractical. Two later features replace it (P4):
+  - **Sing along with a streaming app.** Music plays in another app (Spotify, YouTube Music) while Voice Coach records the voice from the mic and analyses pitch. Android lets two apps play and record at the same time, and with earbuds as the output the song does not reach the mic. Capturing the streaming app's audio itself is not planned: most streaming apps block playback capture **[I]**.
+  - **Backing builder.** The user enters a key, a tempo, a time signature and a chord chart (for example `| C | G | Am | F |`) and picks a style. The app synthesizes drums, bass and simple piano or guitar chords. The guide extraction in section 4 then works on the user's own guide recording only.
