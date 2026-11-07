@@ -113,7 +113,7 @@ Every issue found in testing or review goes here: symptom, root cause, fix with 
   - The recording header was drawn under the status bar.
 - **Root cause:** the report logic has no "no target" or "no speech" state, and a null value still got a status. The editor has no unsaved-changes guard. The recording screen does not use the safe area.
 - **Fix:** a fix list was sent with emulator and design screenshots (request vc-p1-speak-r2): a no-speech state in `buildSpeechReport` with tests, null values never get a status, "목표 시간 없음", an editor BACK guard, the safe area, and the design layout for screens 4–8.
-- **Status:** in progress.
+- **Status:** fixed (be5d958..43660a6, plus 'no live pace verdict before speech' and an amber '!' for a missed target). Checked on the emulator: plan sheet, a planned take with the cue card and section bar, and a silent report ("말소리가 거의 없었어요", tiles "측정 안 됨", tip "마이크 가까이에서 다시 말해 보세요"). Merged as ed6c963. Not yet tested with real speech or a finished transcript.
 - **Lesson:** test reports with silence and with no target, not only with good speech.
 
 ## Releases
@@ -124,3 +124,4 @@ Every issue found in testing or review goes here: symptom, root cause, fix with 
 | 446812 (0.2.0) | `b627ba0` | 2026-11-07 | UI fixes VC-04 and VC-05. 74.0 MB. Server and private GitHub draft (`voice-coach-446812-b627ba0.apk`); 446772 was removed from the draft |
 | 446815 (0.2.0) | `fcecc84` | 2026-11-07 | VC-06 cleartext fix plus the 446812 UI fixes. Server and private GitHub draft (`voice-coach-446815-fcecc84.apk`); 446812 was removed from the draft |
 | 447216 | 36b2bc0 | 2026-11-07 | Sing redesign: live pitch and waveform, input/output sheets, beat, take review, 기록; 말하기 still a placeholder. First device run of the vc-audio engine. |
+| 447253 | ed6c963 | 2026-11-07 | 말하기 coach: plans and editor, quick practices, live clock, cue card and pace, report, server transcription queue. Sing as in 447216. |
