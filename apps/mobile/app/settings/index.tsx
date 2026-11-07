@@ -201,7 +201,8 @@ export default function SettingsScreen() {
 
       <Card>
         <Text style={shared.h2}>{t('common.coach.voiceDefaults')}</Text>
-        <Text style={shared.muted}>{t('common.coach.coming')}</Text>
+        <View style={[shared.row, { justifyContent: 'space-between' }]}><View style={{ flex: 1 }}><Text style={shared.body}>{t('speak.baseline')}</Text><Text style={shared.muted}>{t('speak.baselineHint')}</Text></View><Switch accessibilityLabel={t('speak.baseline')} value={settings.learnSpeechBaseline} onValueChange={(value) => update({ learnSpeechBaseline: value })} /></View>
+        <View style={[shared.row, { justifyContent: 'space-between' }]}><Text style={shared.body}>{t('speak.hidePace')}</Text><Switch accessibilityLabel={t('speak.hidePace')} value={settings.hideSpeechPace} onValueChange={(value) => update({ hideSpeechPace: value })} /></View>
       </Card>
       <Card>
         <Text style={shared.h2}>{t('common.coach.storage')}</Text>

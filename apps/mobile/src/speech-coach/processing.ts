@@ -5,6 +5,8 @@ import type { SpeechPlan, SpeechReport, SpeechTakeAnalysis, SpeechTranscript } f
 import VcAudio from '../../modules/vc-audio/src/VcAudioModule';
 import { getDb } from '../db/client';
 import { takes } from '../db/schema';
+import { loadSettings } from '../db/repos/settings';
+import { speechBaseline } from './baseline';
 import { listPendingTranscripts, updateSpeechTake } from '../db/repos/speech';
 import { persistAnalysis } from '../recorder/takePersistence';
 import { getPairing } from '../update/pairing';
@@ -24,9 +26,11 @@ export function rebuildSpeechReport(row: Row): void {
   const saved = snapshot(row);
   const result = parse<TranscriptResult | null>(row.transcriptJson, null);
   const transcript: SpeechTranscript | null = result?.state === 'done' ? { text: result.text ?? '', words: result.words, language: result.language ?? undefined } : null;
+  const language = saved.speechPlan?.lang === 'en' ? 'en' : saved.speechPlan?.lang === 'ko' ? 'ko' : (transcript?.language ?? 'ko');
+  const baseline = loadSettings(db).learnSpeechBaseline ? speechBaseline(db.select().from(takes).all(), language, row.createdAt) : null;
   const report = assembleSpeechReport({ plan: saved.speechPlan, targetMs: saved.targetMs ?? saved.speechPlan?.targetMs ?? 0,
     analysis: parse<SpeechTakeAnalysis>(row.analysisJson, { durationMs: 0, syllableTimesMs: [], pauses: [], pitchSpreadSemitones: null, rmsDb: [] }),
-    transcript, boundaries: parse<number[]>(row.boundariesJson, []), previous: parse<SpeechReport | null>(previous?.reportJson ?? null, null) });
+    transcript, boundaries: parse<number[]>(row.boundariesJson, []), previous: parse<SpeechReport | null>(previous?.reportJson ?? null, null), settings: baseline ? { paceBands: { [language]: baseline } } : undefined });
   updateSpeechTake(db, row.id, { reportJson: JSON.stringify(report) });
 }
 

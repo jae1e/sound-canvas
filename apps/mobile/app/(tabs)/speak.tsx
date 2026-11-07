@@ -20,6 +20,7 @@ import { useMonitor } from '../../src/recorder/useMonitor';
 import { persistAnalysis, persistStoppedTake } from '../../src/recorder/takePersistence';
 import { reconcileTakes, saveStartedTake } from '../../src/recorder/reconcile';
 import { useSettings } from '../../src/settings/store';
+import { speechBaseline } from '../../src/speech-coach/baseline';
 import { ActivePractice } from '../../src/speech-coach/ActivePractice';
 import { PlanEditor, newPlan } from '../../src/speech-coach/PlanEditor';
 import { processSpeechQueue, rebuildSpeechReport } from '../../src/speech-coach/processing';
@@ -38,6 +39,7 @@ export default function SpeakTab() {
   const [devices, setDevices] = useState<DevicesEvent | null>(null);
   const [sheet, setSheet] = useState<SheetName>(null);
   const language = useSettings((s) => s.language);
+  const speechSettings = useSettings((s) => s.settings);
   const [editor, setEditor] = useState<StoredSpeechPlan | null>(null);
   const [plans, setPlans] = useState<StoredSpeechPlan[]>([]);
   const [plan, setPlan] = useState<StoredSpeechPlan | null>(null);
@@ -130,7 +132,7 @@ export default function SpeakTab() {
     saveSpeechPlan(getDb(), created); setPlan(created); setTarget(60000); setPlans(listSpeechPlans(getDb())); setSheet(null);
   };
   const choice = (label: string, action: () => void, selected = false) => <Pressable key={label} onPress={action} style={({ pressed }) => ({ padding: 16, borderRadius: 14, marginBottom: 8, backgroundColor: selected ? '#EEF0FF' : '#F6F5F1', opacity: pressed ? 0.6 : 1 })}><Text style={{ color: ink, fontWeight: '700' }}>{label}</Text></Pressable>;
-  if (recording) return <View style={{ flex: 1, backgroundColor: '#F6F5F1', paddingTop: 36 }}><View style={{ flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: 18 }}><Text style={{ color: '#6C6F78' }}>{plan?.title ?? t('speak.free')} · {t('speak.nth', { count: (plan?.practiceCount ?? 0) + 1 })}</Text><Text style={{ color: '#FF3B30', fontWeight: '800' }}>● {t('speak.recording')}</Text></View><ActivePractice plan={plan} target={target} startMs={startMs} sectionIndex={sectionIndex} sectionStart={boundaries.at(-1) ?? 0} frames={frames} busy={busy} onNext={nextSection} onStop={() => void startOrStop()} hidePace={false} /><Toast message={toast} /></View>;
+  if (recording) return <View style={{ flex: 1, backgroundColor: '#F6F5F1', paddingTop: 36 }}><View style={{ flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: 18 }}><Text style={{ color: '#6C6F78' }}>{plan?.title ?? t('speak.free')} · {t('speak.nth', { count: (plan?.practiceCount ?? 0) + 1 })}</Text><Text style={{ color: '#FF3B30', fontWeight: '800' }}>● {t('speak.recording')}</Text></View><ActivePractice plan={plan} target={target} startMs={startMs} sectionIndex={sectionIndex} sectionStart={boundaries.at(-1) ?? 0} frames={frames} busy={busy} onNext={nextSection} onStop={() => void startOrStop()} hidePace={speechSettings.hideSpeechPace} baseline={speechSettings.learnSpeechBaseline ? speechBaseline(getDb().select().from(takes).all(), plan?.lang === 'en' ? 'en' : 'ko') : null} /><Toast message={toast} /></View>;
   const promptText = [...IMPROMPTU_TOPICS, ...INTERVIEW_QUESTIONS].find((p) => p.id === plan?.promptId)?.text;
   return <View style={{ flex: 1, backgroundColor: '#F6F5F1' }}>
     <AudioBar theme="light" devices={devices} level={frame?.rmsDb ?? -100} onInput={() => devices?.locked ? setToast(t('common.coach.locked')) : setSheet('input')} onOutput={() => devices?.locked ? setToast(t('common.coach.locked')) : setSheet('output')} />

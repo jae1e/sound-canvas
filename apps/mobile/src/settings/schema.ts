@@ -31,6 +31,8 @@ export const settingsSchema = z.object({
   /** Routine voice pacing: `full` (name + count), `short`, or `count` only. */
   pacingLevel: z.enum(PACING_LEVELS).default('full'),
   showHiddenModes: z.boolean().default(false),
+  learnSpeechBaseline: z.boolean().default(false),
+  hideSpeechPace: z.boolean().default(false),
 });
 
 export type AppSettings = z.infer<typeof settingsSchema>;

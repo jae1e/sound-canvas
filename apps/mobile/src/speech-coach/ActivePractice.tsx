@@ -1,4 +1,4 @@
-import { classifyPace, paceBand, rollingEnglishWpm, rollingPace, type SpeechPlan } from '@vlc/voice-analysis';
+import { classifyPace, paceBand, rollingEnglishWpm, rollingPace, type PaceBand, type SpeechPlan } from '@vlc/voice-analysis';
 import { useEffect, useRef, useState, type ComponentRef, type RefObject } from 'react';
 import { Pressable, ScrollView, Text, View } from 'react-native';
 import VcAudio from '../../modules/vc-audio/src/VcAudioModule';
@@ -9,9 +9,9 @@ import { formatDuration } from '../recorder/SingControls';
 import type { RingBuffer } from '../recorder/ringBuffer';
 import { VoiceStrip } from './VoiceStrip';
 
-export function ActivePractice({ plan, target, startMs, sectionIndex, sectionStart, frames, busy, onNext, onStop, hidePace }: {
+export function ActivePractice({ plan, target, startMs, sectionIndex, sectionStart, frames, busy, onNext, onStop, hidePace, baseline }: {
   plan: SpeechPlan | null; target: number; startMs: number; sectionIndex: number; sectionStart: number;
-  frames: RefObject<RingBuffer<FrameEvent>>; busy: boolean; onNext: () => void; onStop: () => void; hidePace: boolean;
+  frames: RefObject<RingBuffer<FrameEvent>>; busy: boolean; onNext: () => void; onStop: () => void; hidePace: boolean; baseline: PaceBand | null;
 }) {
   const { t } = useTranslation();
   const [now, setNow] = useState(() => VcAudio.nowMs());
@@ -36,7 +36,7 @@ export function ActivePractice({ plan, target, startMs, sectionIndex, sectionSta
   const lang = plan?.lang === 'en' ? 'en' : 'ko';
   const syllables = rollingPace(nuclei, now);
   const pace = lang === 'en' ? rollingEnglishWpm(syllables) : syllables;
-  const band = paceBand(lang);
+  const band = baseline ?? paceBand(lang);
   const paceStatus = classifyPace(pace, band);
   const progress = plan?.sections.length ? Math.min(1, sectionIndex / plan.sections.length + (current?.budgetMs ? Math.min(1, Math.max(0, elapsed - sectionStart) / current.budgetMs) / plan.sections.length : 0)) : 0;
   return <View style={{ flex: 1, paddingHorizontal: 16 }}>
