@@ -1,0 +1,14 @@
+plugins {
+  id 'com.android.library'
+  id 'expo-module-gradle-plugin'
+}
+group = 'expo.modules.vcaudio'
+version = '0.1.0'
+android {
+  namespace 'expo.modules.vcaudio'
+  testOptions { unitTests.returnDefaultValues = true }
+}
+dependencies {
+  implementation 'androidx.lifecycle:lifecycle-process:2.6.2'
+  testImplementation 'junit:junit:4.13.2'
+}
