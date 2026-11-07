@@ -1,13 +1,14 @@
 import { IMPROMPTU_TOPICS, INTERVIEW_QUESTIONS, pickRandom } from '@vlc/voice-analysis';
 import { desc, eq } from 'drizzle-orm';
-import { useFocusEffect, useRouter } from 'expo-router';
+import { useFocusEffect, useNavigation, useRouter } from 'expo-router';
+import { activateKeepAwakeAsync, deactivateKeepAwake } from 'expo-keep-awake';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { PermissionsAndroid, Platform, Pressable, ScrollView, Text, View } from 'react-native';
 import VcAudio from '../../modules/vc-audio/src/VcAudioModule';
 import type { DevicesEvent, FrameEvent, TakeStopped } from '../../modules/vc-audio/src/VcAudio.types';
 import { getDb } from '../../src/db/client';
 import { takes } from '../../src/db/schema';
-import { listSpeechPlans, saveSpeechPlan, updateSpeechTake, type StoredSpeechPlan } from '../../src/db/repos/speech';
+import { incrementSpeechPractice, listSpeechPlans, saveSpeechPlan, updateSpeechTake, type StoredSpeechPlan } from '../../src/db/repos/speech';
 import { useTranslation } from '../../src/i18n';
 import { AudioBar } from '../../src/recorder/AudioBar';
 import { InputSheet, OutputSheet } from '../../src/recorder/DeviceSheets';
@@ -19,6 +20,7 @@ import { useMonitor } from '../../src/recorder/useMonitor';
 import { persistAnalysis, persistStoppedTake } from '../../src/recorder/takePersistence';
 import { reconcileTakes, saveStartedTake } from '../../src/recorder/reconcile';
 import { useSettings } from '../../src/settings/store';
+import { ActivePractice } from '../../src/speech-coach/ActivePractice';
 import { PlanEditor, newPlan } from '../../src/speech-coach/PlanEditor';
 import { VoiceStrip } from '../../src/speech-coach/VoiceStrip';
 
@@ -28,6 +30,7 @@ const ink = '#1B1D22';
 export default function SpeakTab() {
   const { t } = useTranslation();
   const router = useRouter();
+  const navigation = useNavigation();
   const { frames, state } = useMonitor();
   const [frame, setFrame] = useState<FrameEvent | null>(null);
   const [devices, setDevices] = useState<DevicesEvent | null>(null);
@@ -39,6 +42,12 @@ export default function SpeakTab() {
   const [target, setTarget] = useState(0);
   const [pacer, setPacer] = useState(0);
   const [lastId, setLastId] = useState<string | null>(null);
+  const [startMs, setStartMs] = useState(0);
+  const [sectionIndex, setSectionIndex] = useState(0);
+  const [boundaries, setBoundaries] = useState<number[]>([]);
+  const takeId = useRef<string | null>(null);
+  const [preparing, setPreparing] = useState<number | null>(null);
+  const recentPrompts = useRef<string[]>([]);
   const [recording, setRecording] = useState(false);
   const recordingRef = useRef(false);
   const [busy, setBusy] = useState(false);
@@ -47,7 +56,13 @@ export default function SpeakTab() {
   useEffect(() => { if (!toast) return; const id = setTimeout(() => setToast(null), 3000); return () => clearTimeout(id); }, [toast]);
   useEffect(() => { const id = setInterval(() => setFrame(frames.current.values().at(-1) ?? null), 100); return () => clearInterval(id); }, [frames]);
   useEffect(() => { const sub = VcAudio.addListener('onDevices', setDevices); void VcAudio.getDevices().then(setDevices).catch(showError); return () => sub.remove(); }, [showError]);
-  useFocusEffect(useCallback(() => { setPlans(listSpeechPlans(getDb())); return () => { if (recordingRef.current) void VcAudio.stopTake().catch(showError); void VcAudio.stopBeat().catch(showError); }; }, [showError]));
+  useFocusEffect(useCallback(() => { setPlans(listSpeechPlans(getDb())); return () => { setPreparing(null); if (recordingRef.current) void VcAudio.stopTake().catch(showError); void VcAudio.stopBeat().catch(showError); setPacer(0); }; }, [showError]));
+  useEffect(() => {
+    navigation.setOptions({ headerShown: !recording, tabBarStyle: recording ? { display: 'none' } : undefined });
+    if (recording) void activateKeepAwakeAsync('speech-take').catch(showError);
+    else deactivateKeepAwake('speech-take');
+    return () => { deactivateKeepAwake('speech-take'); navigation.setOptions({ headerShown: true, tabBarStyle: undefined }); };
+  }, [recording, navigation, showError]);
   useEffect(() => {
     const rows = getDb().select().from(takes).where(eq(takes.kind, 'speech')).orderBy(desc(takes.createdAt)).all();
     setLastId(rows.find((row) => row.planId === (plan?.id ?? null) && row.reportJson)?.id ?? null);
@@ -58,7 +73,7 @@ export default function SpeakTab() {
     catch { showError(); }
   }, [showError]);
   useEffect(() => { const sub = VcAudio.addListener('onTakeStopped', (take) => { if (recordingRef.current) void finish(take); }); return () => sub.remove(); }, [finish]);
-  const toggle = async () => {
+  const startOrStop = useCallback(async () => {
     if (busy) return;
     setBusy(true);
     try {
@@ -66,23 +81,50 @@ export default function SpeakTab() {
       else {
         if (Platform.OS === 'android' && await PermissionsAndroid.request(PermissionsAndroid.PERMISSIONS.RECORD_AUDIO) !== PermissionsAndroid.RESULTS.GRANTED) { setToast(t('common.coach.permission')); return; }
         const started = await VcAudio.startTake({ kind: 'speech' });
-        recordingRef.current = true; setRecording(true);
-        try { saveStartedTake(started, 'speech'); updateSpeechTake(getDb(), started.id, { planId: plan?.id ?? null }); }
+        recordingRef.current = true; setRecording(true); setStartMs(started.startMs); takeId.current = started.id; setSectionIndex(0); setBoundaries([]);
+        try {
+          const db = getDb();
+          db.transaction(() => {
+            saveStartedTake(started, 'speech');
+            updateSpeechTake(db, started.id, { planId: plan?.id ?? null, boundariesJson: '[]' });
+            db.update(takes).set({ title: plan ? `${plan.title} · ${t('speak.nth', { count: plan.practiceCount + 1 })}` : t('speak.free'), beatJson: JSON.stringify({ speechPlan: plan ? { ...plan, targetMs: target } : null, targetMs: target }) }).where(eq(takes.id, started.id)).run();
+            if (plan) incrementSpeechPractice(db, plan.id);
+          });
+        }
         catch (error) { await VcAudio.stopTake(); throw error; }
       }
     } catch { showError(); } finally { setBusy(false); }
+  }, [busy, plan, showError, t, target]);
+  useEffect(() => {
+    if (preparing === null) return;
+    if (preparing <= 0) { setPreparing(null); void startOrStop(); return; }
+    const timer = setTimeout(() => setPreparing(preparing - 1), 1000);
+    return () => clearTimeout(timer);
+  }, [preparing, startOrStop]);
+  const toggle = () => {
+    if (!recordingRef.current && (plan?.kind === 'impromptu' || plan?.kind === 'interview')) setPreparing(20);
+    else void startOrStop();
+  };
+  const nextSection = () => {
+    if (!plan || sectionIndex >= plan.sections.length - 1 || !takeId.current) { setToast(t('speak.nextSection')); return; }
+    const next = [...boundaries, Math.max(0, VcAudio.nowMs() - startMs)];
+    updateSpeechTake(getDb(), takeId.current, { boundariesJson: JSON.stringify(next) });
+    setBoundaries(next); setSectionIndex(sectionIndex + 1);
   };
   const changePacer = async (rate: number) => {
     try { if (rate) { await VcAudio.setBeat({ bpm: rate, beatsPerBar: 4, pattern: 'click', volume: 0.3, pacer: true }); await VcAudio.startBeat(); } else await VcAudio.stopBeat(); setPacer(rate); setSheet(null); }
     catch { showError(); }
   };
   const selectPrompt = (kind: 'impromptu' | 'interview') => {
-    const prompt = pickRandom((kind === 'impromptu' ? IMPROMPTU_TOPICS : INTERVIEW_QUESTIONS).filter((p) => p.lang === language));
+    const prompt = pickRandom((kind === 'impromptu' ? IMPROMPTU_TOPICS : INTERVIEW_QUESTIONS).filter((p) => p.lang === language), recentPrompts.current);
+    if (prompt) recentPrompts.current = [...recentPrompts.current, prompt.id].slice(-10);
     if (!prompt) { showError(); return; }
     const created = { ...newPlan(), kind, title: prompt.title, promptId: prompt.id, targetMs: 60000, lang: language };
     saveSpeechPlan(getDb(), created); setPlan(created); setTarget(60000); setPlans(listSpeechPlans(getDb())); setSheet(null);
   };
   const choice = (label: string, action: () => void, selected = false) => <Pressable key={label} onPress={action} style={({ pressed }) => ({ padding: 16, borderRadius: 14, marginBottom: 8, backgroundColor: selected ? '#EEF0FF' : '#F6F5F1', opacity: pressed ? 0.6 : 1 })}><Text style={{ color: ink, fontWeight: '700' }}>{label}</Text></Pressable>;
+  if (recording) return <View style={{ flex: 1, backgroundColor: '#F6F5F1', paddingTop: 36 }}><View style={{ flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: 18 }}><Text style={{ color: '#6C6F78' }}>{plan?.title ?? t('speak.free')} · {t('speak.nth', { count: (plan?.practiceCount ?? 0) + 1 })}</Text><Text style={{ color: '#FF3B30', fontWeight: '800' }}>● {t('speak.recording')}</Text></View><ActivePractice plan={plan} target={target} startMs={startMs} sectionIndex={sectionIndex} sectionStart={boundaries.at(-1) ?? 0} frames={frames} busy={busy} onNext={nextSection} onStop={() => void startOrStop()} hidePace={false} /><Toast message={toast} /></View>;
+  const promptText = [...IMPROMPTU_TOPICS, ...INTERVIEW_QUESTIONS].find((p) => p.id === plan?.promptId)?.text;
   return <View style={{ flex: 1, backgroundColor: '#F6F5F1' }}>
     <AudioBar theme="light" devices={devices} level={frame?.rmsDb ?? -100} onInput={() => devices?.locked ? setToast(t('common.coach.locked')) : setSheet('input')} onOutput={() => devices?.locked ? setToast(t('common.coach.locked')) : setSheet('output')} />
     {state.silenced && <Text style={{ textAlign: 'center', color: '#B45309' }}>{t('common.coach.silenced')}</Text>}
@@ -92,14 +134,17 @@ export default function SpeakTab() {
         <Text style={{ color: '#4F46E5', fontSize: 12, fontWeight: '800' }}>{t('speak.plan')}</Text>
         <Text style={{ color: ink, fontSize: 21, fontWeight: '800', marginTop: 5 }}>{plan?.title ?? t('speak.free')}</Text>
         <Text style={{ color: '#6C6F78', marginTop: 4 }}>{plan ? `${t('speak.target')} ${target ? formatDuration(target) : t('speak.none')}` : t('speak.addPlan')}</Text>
+        {!!promptText && <Text style={{ color: ink, fontSize: 17, marginTop: 12 }}>{promptText}</Text>}
         {plan?.sections.map((section, i) => <View key={section.id} style={{ borderTopWidth: 1, borderTopColor: '#ECE9E2', marginTop: 10, paddingTop: 10 }}><Text style={{ color: ink, fontWeight: '700' }}>{i + 1}. {section.name} {section.budgetMs ? ` · ${formatDuration(section.budgetMs)}` : ''}</Text><Text numberOfLines={2} style={{ color: '#6C6F78', fontSize: 12, marginTop: 4 }}>{section.keyPoints.join(' · ')}</Text></View>)}
       </Pressable>
+      {!!promptText && <Pressable onPress={() => selectPrompt(plan!.kind as 'impromptu' | 'interview')} style={({ pressed }) => [card, { opacity: pressed ? 0.7 : 1 }]}><Text style={{ color: '#4F46E5', fontWeight: '700' }}>{t('speak.redraw')}</Text></Pressable>}
       <Pressable onPress={() => lastId ? router.push({ pathname: '/speech-report/[id]' as never, params: { id: lastId } } as never) : setToast(t('speak.noPrevious'))} style={({ pressed }) => [card, { opacity: pressed ? 0.7 : 1 }]}><Text style={{ fontWeight: '800', color: ink }}>{t('speak.previous')} {lastId ? '›' : ''}</Text><Text style={{ color: '#6C6F78', marginTop: 4 }}>{lastId ? t('speak.report') : t('speak.noPrevious')}</Text></Pressable>
       <View style={{ flex: 1, justifyContent: 'flex-end' }}><VoiceStrip frames={frames} /></View>
     </ScrollView>
+    {preparing !== null && <Pressable onPress={() => setPreparing(null)} style={{ alignItems: 'center', padding: 10 }}><Text style={{ color: '#4F46E5', fontSize: 22, fontWeight: '800' }}>{t('speak.preparing', { time: formatDuration(preparing * 1000) })} · {t('speak.preparingCancel')}</Text></Pressable>}
     <View style={{ padding: 16, flexDirection: 'row', justifyContent: 'space-around', alignItems: 'center' }}>
       {choice(`◷ ${target ? formatDuration(target) : t('speak.none')}`, () => setSheet('timer'))}
-      <RecordButton theme="light" recording={recording} disabled={busy} label={t(recording ? 'speak.stop' : 'speak.record')} onPress={() => void toggle()} />
+      <RecordButton theme="light" recording={recording} disabled={busy || preparing !== null} label={t(recording ? 'speak.stop' : 'speak.record')} onPress={() => void toggle()} />
       {choice(`♩ ${pacer || t('speak.off')}`, () => setSheet('pacer'))}
     </View>
     <InputSheet visible={sheet === 'input'} onClose={() => setSheet(null)} theme="light" devices={devices} rmsDb={frame?.rmsDb} onError={showError} />
