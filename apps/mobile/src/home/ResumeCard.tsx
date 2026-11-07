@@ -19,7 +19,7 @@ export function ResumeCard({ onPress }: { onPress: () => void }) {
     .filter(Boolean)
     .join(' · ');
   return (
-    <Pressable onPress={onPress} accessibilityRole="button" style={({ pressed }) => [styles.card, pressed && { opacity: 0.85 }]}>
+    <Pressable onPress={onPress} accessibilityRole="button" android_ripple={{ color: '#ffffff40' }} style={({ pressed }) => [styles.card, pressed && { opacity: 0.7, transform: [{ scale: 0.97 }] }]}>
       <Text style={styles.title}>{t('home.resume.title')}</Text>
       <Text style={styles.line}>{stepLine}</Text>
       <Text style={styles.line}>{state}</Text>

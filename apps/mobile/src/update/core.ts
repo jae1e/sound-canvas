@@ -28,9 +28,11 @@ export type Build = {
 
 export type Phase =
   | 'idle'
+  | 'unpaired'
   | 'checking'
   | 'upToDate'
   | 'available'
+  | 'preparing'
   | 'needsPermission'
   | 'downloading'
   | 'installing'
@@ -58,6 +60,8 @@ export const initialState: State = {
 
 export type Event =
   | { t: 'check' }
+  | { t: 'notPaired' }
+  | { t: 'prepareInstall' }
   | { t: 'checked'; build: Build | null }
   | { t: 'checkFailed'; silent: boolean; message: string }
   | { t: 'start'; recording: boolean; canInstall: boolean }
@@ -67,7 +71,7 @@ export type Event =
   | { t: 'fail'; message: string }
   | { t: 'cancel' };
 
-const busyPhases: Phase[] = ['checking', 'downloading', 'installing'];
+const busyPhases: Phase[] = ['checking', 'preparing', 'downloading', 'installing'];
 
 export function reduceUpdate(state: State, event: Event): State {
   switch (event.t) {
@@ -75,6 +79,12 @@ export function reduceUpdate(state: State, event: Event): State {
       return busyPhases.includes(state.phase)
         ? state
         : { ...state, phase: 'checking', error: null };
+    case 'notPaired':
+      return { ...state, phase: 'unpaired', error: null };
+    case 'prepareInstall':
+      return ['available', 'error', 'needsPermission'].includes(state.phase)
+        ? { ...state, phase: 'preparing', error: null }
+        : state;
     case 'checked':
       if (state.phase !== 'checking') return state;
       return event.build?.newer
@@ -88,7 +98,7 @@ export function reduceUpdate(state: State, event: Event): State {
     case 'start': {
       if (
         !state.build?.newer ||
-        !(['available', 'error', 'needsPermission'] as Phase[]).includes(state.phase)
+        !(['available', 'error', 'needsPermission', 'preparing'] as Phase[]).includes(state.phase)
       ) {
         return state;
       }

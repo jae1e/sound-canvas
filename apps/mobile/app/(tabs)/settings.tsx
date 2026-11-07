@@ -1,7 +1,7 @@
 import Constants from 'expo-constants';
 import { useFocusEffect, useRouter } from 'expo-router';
-import { useCallback, useEffect, useState } from 'react';
-import { Alert, ScrollView, Switch, Text, TextInput, View } from 'react-native';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { Alert, ScrollView, Switch, Text, TextInput, View, type ScrollViewInstance } from 'react-native';
 
 import VlcSessionService from '../../modules/vlc-session-service';
 import { useAudioRoute } from '../../src/audio/useAudioRoute';
@@ -13,10 +13,11 @@ import { ModelSection } from '../../src/settings/components/ModelSection';
 import { Stepper } from '../../src/settings/components/Stepper';
 import { VoicePreview } from '../../src/settings/components/VoicePreview';
 import { useSettings } from '../../src/settings/store';
-import { shared } from '../../src/theme';
+import { colors, shared } from '../../src/theme';
 import { UpdateSettingsSection } from '../../src/update/UpdateSection';
 import * as SecureStore from 'expo-secure-store';
 import { DEFAULT_SERVER_URL, enroll, getPairing } from '../../src/update/pairing';
+import { checkForUpdate } from '../../src/update/updater';
 
 const VOICE_NAMES = ['F1', 'F2', 'F3', 'F4', 'F5', 'M1', 'M2', 'M3', 'M4', 'M5'];
 
@@ -34,6 +35,11 @@ export default function SettingsScreen() {
   const [showLabs, setShowLabs] = useState(false);
   const [hiddenModes, setHiddenModes] = useState(settings.showHiddenModes);
   const [enrolling, setEnrolling] = useState(false);
+  const [checkingServer, setCheckingServer] = useState(false);
+  const [pairingTop, setPairingTop] = useState(0);
+  const [highlightPairing, setHighlightPairing] = useState(false);
+  const scrollRef = useRef<ScrollViewInstance>(null);
+  const checkingServerRef = useRef(false);
 
   useEffect(() => {
     void SecureStore.getItemAsync('vc.serverUrl').then((value) => {
@@ -42,12 +48,20 @@ export default function SettingsScreen() {
   }, []);
 
   const checkServer = useCallback(async () => {
+    if (checkingServerRef.current) return;
+    checkingServerRef.current = true;
+    setCheckingServer(true);
+    setServerState(t('common.server.checking'));
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 5000);
     try {
       const pairing = await getPairing();
+      if (!pairing.token) {
+        setServerState(t('common.server.notPaired'));
+        return;
+      }
       const headers: Record<string, string> = {};
-      if (pairing.token) headers.Authorization = `Bearer ${pairing.token}`;
+      headers.Authorization = `Bearer ${pairing.token}`;
       const response = await fetch(`${serverUrl.replace(/\/+$/, '')}/v1/health`, {
         headers,
         signal: controller.signal,
@@ -57,12 +71,19 @@ export default function SettingsScreen() {
       } else if (response.ok) {
         setServerState(t('common.server.connected'));
       } else {
-        setServerState(t('common.server.unreachable'));
+        setServerState(t('common.server.httpError', { code: response.status }));
       }
-    } catch {
-      setServerState(t('common.server.unreachable'));
+    } catch (error) {
+      const failure = error as { name?: string; message?: string };
+      setServerState(failure.name === 'AbortError'
+        ? t('common.server.timeout')
+        : failure.name === 'TypeError' || failure.message === 'Network request failed'
+          ? t('common.server.networkError')
+          : t('common.server.errorDetail', { message: failure.message ?? t('common.server.unreachable') }));
     } finally {
       clearTimeout(timeout);
+      checkingServerRef.current = false;
+      setCheckingServer(false);
     }
   }, [serverUrl, t]);
 
@@ -74,15 +95,28 @@ export default function SettingsScreen() {
 
   const submitEnrollment = async () => {
     setEnrolling(true);
+    setServerState(t('common.server.enrolling'));
     try {
       await enroll(serverUrl, pairCode.trim());
       setPairCode('');
-      await checkServer();
+      setServerState(t('common.server.enrolled'));
+      void checkForUpdate(false);
     } catch (error) {
-      setServerState((error as Error).message);
+      const failure = error as { name?: string; message?: string };
+      setServerState(failure.name === 'AbortError'
+        ? t('common.server.timeout')
+        : failure.name === 'TypeError' || failure.message === 'Network request failed'
+          ? t('common.server.networkError')
+          : t('common.server.errorDetail', { message: failure.message ?? t('common.error') }));
     } finally {
       setEnrolling(false);
     }
+  };
+
+  const focusPairing = () => {
+    setHighlightPairing(true);
+    scrollRef.current?.scrollTo({ y: Math.max(0, pairingTop - 12), animated: true });
+    setTimeout(() => setHighlightPairing(false), 1800);
   };
 
   const applyRoute = (mode: AppSettings['outputRoute']) => {
@@ -110,9 +144,10 @@ export default function SettingsScreen() {
   const version = Constants.expoConfig?.version ?? '';
 
   return (
-    <ScrollView style={shared.screen} contentContainerStyle={shared.content}>
-      <UpdateSettingsSection />
-      <Card>
+    <ScrollView ref={scrollRef} style={shared.screen} contentContainerStyle={shared.content}>
+      <UpdateSettingsSection onPairPress={focusPairing} />
+      <View onLayout={(event) => setPairingTop(event.nativeEvent.layout.y)}>
+      <Card style={highlightPairing ? { borderColor: colors.primary, borderWidth: 2 } : undefined}>
         <Text style={shared.h2}>{t('common.server.pairing')}</Text>
         <TextInput
           style={{ borderWidth: 1, borderColor: '#bbb', padding: 10, marginVertical: 8 }}
@@ -132,12 +167,14 @@ export default function SettingsScreen() {
         />
         <Button
           label={enrolling ? t('common.server.enrolling') : t('common.server.enroll')}
-          disabled={enrolling || pairCode.trim().length !== 8}
+          busy={enrolling}
+          disabled={pairCode.trim().length !== 8}
           onPress={() => void submitEnrollment()}
         />
-        <Button label={t('common.server.check')} onPress={() => void checkServer()} />
+        <Button label={checkingServer ? t('common.server.checking') : t('common.server.check')} busy={checkingServer} disabled={checkingServer} onPress={() => void checkServer()} />
         <Text style={shared.body}>{serverState}</Text>
       </Card>
+      </View>
       <Card>
         <Text style={shared.h2}>{t('common.labs.title')}</Text>
         <Button label={showLabs ? t('common.labs.hide') : t('common.labs.title')} onPress={() => setShowLabs(!showLabs)} />

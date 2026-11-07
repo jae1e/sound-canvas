@@ -1,4 +1,4 @@
-import { Pressable, Text, View } from 'react-native';
+import { ActivityIndicator, Pressable, Text, View } from 'react-native';
 
 import { Button, Card } from '../components/ui';
 import { useTranslation } from '../i18n';
@@ -12,22 +12,31 @@ export function UpdateBanner({ onPress }: { onPress: () => void }) {
   if (!build?.newer) return null;
 
   return (
-    <Pressable accessibilityRole="button" onPress={onPress}>
+    <Pressable accessibilityRole="button" onPress={onPress} android_ripple={{ color: `${colors.primary}24` }} style={({ pressed }) => pressed ? { opacity: 0.7, transform: [{ scale: 0.97 }] } : null}>
       <Text style={shared.body}>⬆ {t('common.update.available')}</Text>
     </Pressable>
   );
 }
 
-export function UpdateSettingsSection() {
+export function UpdateSettingsSection({ onPairPress }: { onPairPress: () => void }) {
   const { t } = useTranslation();
   const updater = useUpdater();
   const build = updater.build;
-  const busy = ['checking', 'downloading', 'installing'].includes(updater.phase);
   const percent = downloadPercent(updater.bytes, updater.totalBytes);
   const error =
     updater.error === 'RECORDING'
       ? t('common.update.stopRecording')
-      : updater.error;
+      : updater.error === 'TIMEOUT'
+        ? t('common.update.timeout')
+        : updater.error === 'NETWORK'
+          ? t('common.update.networkError')
+          : updater.error === 'NO_BUILD'
+            ? t('common.update.noBuild')
+            : updater.error?.startsWith('HTTP ')
+              ? t('common.update.httpError', { code: updater.error.slice(5) })
+              : updater.error;
+  const checkBusy = updater.phase === 'checking';
+  const installBusy = ['preparing', 'downloading', 'installing'].includes(updater.phase);
 
   return (
     <View>
@@ -37,7 +46,7 @@ export function UpdateSettingsSection() {
           {t('common.update.current')}: {updater.versionName} ({updater.versionCode})
         </Text>
         {updater.phase === 'upToDate' ? (
-          <Text style={shared.body}>{`✓ ${t('common.update.latest')}`}</Text>
+          <Text style={shared.body}>{`✓ ${t('common.update.latestBuild', { version: updater.build?.version_code ?? updater.versionCode })}`}</Text>
         ) : null}
         {build?.newer ? (
           <View>
@@ -78,9 +87,7 @@ export function UpdateSettingsSection() {
             </Text>
           </View>
         ) : null}
-        {updater.phase === 'installing' ? (
-          <Text style={shared.body}>{t('common.update.installing')}</Text>
-        ) : null}
+        {updater.phase === 'unpaired' ? <Text style={shared.body}>{t('common.update.pairFirst')}</Text> : null}
         {updater.phase === 'error' && error ? (
           <Text style={[shared.body, { color: colors.danger }]}>
             {t('common.error')}: {error}
@@ -88,22 +95,27 @@ export function UpdateSettingsSection() {
         ) : null}
       </Card>
 
+      {updater.phase === 'unpaired' ? (
+        <Button label={t('common.server.pairNow')} kind="primary" onPress={onPairPress} />
+      ) : null}
       {updater.phase === 'downloading' ? (
         <Button label={t('common.update.cancel')} onPress={() => void cancelUpdate()} />
       ) : null}
       {['available', 'needsPermission'].includes(updater.phase) ? (
-        <Button label={t('common.update.install')} kind="primary" onPress={() => void startUpdate()} />
+        <Button label={t('common.update.install')} kind="primary" busy={installBusy} onPress={() => void startUpdate()} />
+      ) : null}
+      {installBusy ? (
+        <View style={[shared.row, { justifyContent: 'center' }]}>
+          <ActivityIndicator color={colors.primary} />
+          <Text style={shared.body}>{updater.phase === 'preparing' ? t('common.update.preparing') : updater.phase === 'installing' ? t('common.update.installing') : t('common.update.downloading')}</Text>
+        </View>
       ) : null}
       {updater.phase === 'error' && build?.newer ? (
         <Button label={t('common.update.retry')} onPress={() => void startUpdate()} />
       ) : null}
-      <Button
-        label={
-          updater.phase === 'checking' ? t('common.update.checking') : t('common.update.check')
-        }
-        disabled={busy}
-        onPress={() => void checkForUpdate(false)}
-      />
+      {updater.phase !== 'unpaired' && updater.phase !== 'preparing' && updater.phase !== 'downloading' && updater.phase !== 'installing' ? (
+        <Button label={checkBusy ? t('common.update.checking') : t('common.update.check')} busy={checkBusy} disabled={checkBusy} onPress={() => void checkForUpdate(false)} />
+      ) : null}
     </View>
   );
 }

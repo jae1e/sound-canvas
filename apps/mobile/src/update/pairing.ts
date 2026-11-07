@@ -28,11 +28,19 @@ export async function enroll(url: string, code: string): Promise<{ device_id: st
     app_version: Constants.expoConfig?.version ?? '0.2.0',
     install_id: installId,
   };
-  const response = await fetch(`${serverUrl.replace(/\/+$/, '')}/v1/enroll`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(shapePairingRequest(code, device)),
-  });
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 8000);
+  let response: Response;
+  try {
+    response = await fetch(`${serverUrl.replace(/\/+$/, '')}/v1/enroll`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(shapePairingRequest(code, device)),
+      signal: controller.signal,
+    });
+  } finally {
+    clearTimeout(timeout);
+  }
   if (!response.ok) throw new Error(`HTTP ${response.status}`);
 
   const result = (await response.json()) as { device_id: string; token: string };

@@ -1,4 +1,4 @@
-import { Pressable, StyleSheet, Text, View, type StyleProp, type ViewStyle } from 'react-native';
+import { ActivityIndicator, Pressable, StyleSheet, Text, View, type StyleProp, type ViewStyle } from 'react-native';
 
 import { colors, shared, space } from '../theme';
 
@@ -16,6 +16,7 @@ export function Button({
   disabled,
   big,
   active,
+  busy,
   testID,
 }: {
   label: string;
@@ -24,26 +25,33 @@ export function Button({
   disabled?: boolean;
   big?: boolean;
   active?: boolean;
+  busy?: boolean;
   testID?: string;
 }) {
   const filled = kind === 'primary' || kind === 'danger' || active;
   const tint = kind === 'danger' ? colors.danger : colors.primary;
+  const pressedFill = kind === 'danger' ? '#8f1e18' : '#214b8d';
   return (
     <Pressable
       onPress={onPress}
-      disabled={disabled}
+      disabled={disabled || busy}
       testID={testID}
       accessibilityRole="button"
       accessibilityLabel={label}
+      accessibilityState={{ disabled: !!disabled || !!busy, busy: !!busy }}
+      android_ripple={{ color: filled ? '#ffffff40' : `${tint}24` }}
       style={({ pressed }) => [
         styles.button,
         big && styles.big,
         { borderColor: tint, backgroundColor: filled ? tint : colors.card },
-        disabled && { opacity: 0.4 },
-        pressed && { opacity: 0.75 },
+        disabled || busy ? styles.disabled : null,
+        pressed && !disabled && !busy ? { backgroundColor: filled ? pressedFill : '#e8eef8', transform: [{ scale: 0.97 }] } : null,
       ]}
     >
-      <Text style={[styles.buttonText, big && styles.bigText, { color: filled ? colors.onPrimary : tint }]}>{label}</Text>
+      <View style={styles.buttonContent}>
+        {busy ? <ActivityIndicator size="small" color={filled ? colors.onPrimary : tint} /> : null}
+        <Text style={[styles.buttonText, big && styles.bigText, { color: filled ? colors.onPrimary : tint }]}>{label}</Text>
+      </View>
     </Pressable>
   );
 }
@@ -54,7 +62,8 @@ export function Chip({ label, selected, onPress }: { label: string; selected?: b
       onPress={onPress}
       accessibilityRole="button"
       accessibilityState={{ selected: !!selected }}
-      style={[styles.chip, selected && { backgroundColor: colors.primary, borderColor: colors.primary }]}
+      android_ripple={{ color: selected ? '#ffffff40' : `${colors.primary}24` }}
+      style={({ pressed }) => [styles.chip, selected && { backgroundColor: colors.primary, borderColor: colors.primary }, pressed && { backgroundColor: selected ? '#214b8d' : '#e8eef8', transform: [{ scale: 0.97 }] }]}
     >
       <Text style={{ color: selected ? colors.onPrimary : colors.text, fontSize: 15 }}>{label}</Text>
     </Pressable>
@@ -72,6 +81,8 @@ export function Banner({ text, kind = 'ok' }: { text: string; kind?: 'ok' | 'war
 const styles = StyleSheet.create({
   button: { borderWidth: 1.5, borderRadius: 10, paddingVertical: space.md, paddingHorizontal: space.lg, alignItems: 'center', justifyContent: 'center' },
   buttonText: { fontSize: 16, fontWeight: '600' },
+  buttonContent: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: space.sm },
+  disabled: { opacity: 0.4 },
   big: { paddingVertical: 20, minWidth: 140, flexGrow: 1 },
   bigText: { fontSize: 20 },
   chip: { borderWidth: 1, borderColor: colors.border, borderRadius: 20, paddingVertical: 8, paddingHorizontal: 14, backgroundColor: colors.card },
