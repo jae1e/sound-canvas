@@ -111,6 +111,12 @@ export default function SingTab() {
       [],
     ),
   );
+  useFocusEffect(
+    useCallback(() => {
+      StatusBar.setBarStyle('light-content');
+      return () => StatusBar.setBarStyle('dark-content');
+    }, []),
+  );
   const toggle = async () => {
     if (busy) return;
     setBusy(true);
