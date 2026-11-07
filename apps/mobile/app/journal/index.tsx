@@ -128,7 +128,7 @@ export default function JournalList() {
       ListHeaderComponent={header}
       ListEmptyComponent={<Text style={[shared.muted, { textAlign: 'center', marginTop: space.xl }]}>{filtered ? t('journal.noResults') : t('journal.empty')}</Text>}
       renderItem={({ item }) => (
-        <Pressable onPress={() => router.push(`/journal/${item.id}`)} accessibilityRole="button">
+        <Pressable onPress={() => router.push(`/journal/${item.id}`)} accessibilityRole="button" android_ripple={{ color: `${colors.primary}20` }} style={({ pressed }) => pressed ? { opacity: 0.7, transform: [{ scale: 0.99 }] } : null}>
           <Card>
             <Text style={shared.body} numberOfLines={2}>{item.text}</Text>
             <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: space.sm, alignItems: 'center' }}>

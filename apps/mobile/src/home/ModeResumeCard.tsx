@@ -11,7 +11,7 @@ export function ModeResumeCard({ onPress }: { onPress: (mode: 'travel' | 'coach'
   if (!s.mode || s.status !== 'running') return null;
   const name = t(`common.mode.${s.mode}`);
   return (
-    <Pressable onPress={() => onPress(s.mode!)} accessibilityRole="button" testID="resume-mode" style={({ pressed }) => [styles.card, pressed && { opacity: 0.85 }]}>
+    <Pressable onPress={() => onPress(s.mode!)} accessibilityRole="button" testID="resume-mode" android_ripple={{ color: '#ffffff40' }} style={({ pressed }) => [styles.card, pressed && { opacity: 0.7, transform: [{ scale: 0.97 }] }]}>
       <Text style={styles.title}>{t('home.resumeMode.title', { mode: name })}</Text>
       <Text style={styles.line}>{s.holds.length > 0 ? t('session.micPaused') : t('session.listening')}</Text>
     </Pressable>

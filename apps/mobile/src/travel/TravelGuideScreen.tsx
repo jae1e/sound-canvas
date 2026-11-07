@@ -207,7 +207,7 @@ export function TravelGuideScreen({ onSpeak, lang = 'ko', client, controller, fe
 
 function Chip({ label, active, onPress }: { label: string; active: boolean; onPress: () => void }) {
   return (
-    <Pressable onPress={onPress} style={[styles.chip, active && styles.chipActive]}>
+    <Pressable onPress={onPress} android_ripple={{ color: '#2a5db024' }} style={({ pressed }) => [styles.chip, active && styles.chipActive, pressed && { backgroundColor: active ? '#214b8d' : '#e8eef8', transform: [{ scale: 0.97 }] }]}>
       <Text style={active ? styles.chipTextActive : undefined}>{label}</Text>
     </Pressable>
   );
@@ -231,7 +231,7 @@ function PlaceRow({
   onSave?: () => void;
 }) {
   return (
-    <Pressable onPress={onPress} style={[styles.place, selected && styles.placeSelected]} accessibilityLabel={`place-${index}`}>
+    <Pressable onPress={onPress} style={({ pressed }) => [styles.place, selected && styles.placeSelected, pressed && { opacity: 0.7, transform: [{ scale: 0.99 }] }]} android_ripple={{ color: '#2a5db020' }} accessibilityRole="button" accessibilityLabel={`place-${index}`}>
       <Text style={styles.placeName}>
         {index + 1}. {place.name}
       </Text>
@@ -239,7 +239,7 @@ function PlaceRow({
         {formatDistance(place.distanceM, lang)} · {place.category} · {place.address}
       </Text>
       {onSave ? (
-        <Pressable onPress={onSave} disabled={saved} accessibilityRole="button" accessibilityLabel={`save-place-${index}`} style={styles.saveBtn}>
+        <Pressable onPress={onSave} disabled={saved} accessibilityRole="button" accessibilityLabel={`save-place-${index}`} android_ripple={{ color: '#2a5db024' }} style={({ pressed }) => [styles.saveBtn, saved && { opacity: 0.4 }, pressed && !saved && { opacity: 0.7, transform: [{ scale: 0.97 }] }]}>
           <Text style={styles.saveText}>{saved ? t('placeSaved', lang) : t('savePlace', lang)}</Text>
         </Pressable>
       ) : null}

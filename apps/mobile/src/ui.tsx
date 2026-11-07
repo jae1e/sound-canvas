@@ -21,7 +21,10 @@ export function Btn({ label, onPress, disabled, active, testID }: { label: strin
       disabled={disabled}
       testID={testID}
       accessibilityLabel={testID}
-      style={[styles.btn, active && styles.btnActive, disabled && styles.btnDisabled]}
+      accessibilityRole="button"
+      accessibilityState={{ disabled: !!disabled }}
+      android_ripple={{ color: active ? '#ffffff40' : '#2a5db024' }}
+      style={({ pressed }) => [styles.btn, active && styles.btnActive, disabled && styles.btnDisabled, pressed && !disabled && { backgroundColor: active ? '#214b8d' : '#e8eef8', transform: [{ scale: 0.97 }] }]}
     >
       <Text style={[styles.btnText, active && { color: '#fff' }]}>{label}</Text>
     </Pressable>

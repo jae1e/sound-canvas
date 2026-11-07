@@ -26,7 +26,9 @@ export function ModeCard({
       testID={testID}
       accessibilityRole="button"
       accessibilityLabel={`${title}${activeLabel ? `, ${activeLabel}` : ''}. ${description}`}
-      style={({ pressed }) => [styles.card, activeLabel ? styles.cardActive : null, pressed && { opacity: 0.8 }]}
+      accessibilityState={{ disabled: false }}
+      android_ripple={{ color: `${colors.primary}20` }}
+      style={({ pressed }) => [styles.card, activeLabel ? styles.cardActive : null, pressed && { opacity: 0.7, transform: [{ scale: 0.97 }] }]}
     >
       <View style={shared.row}>
         {icon ? <Ionicons name={icon} size={28} color={colors.primary} /> : null}

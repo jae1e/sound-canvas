@@ -11,7 +11,7 @@ export function Card({ title, children }: { title?: string; children: React.Reac
 
 export function Button({ label, onPress, disabled, active, danger }: { label: string; onPress: () => void; disabled?: boolean; active?: boolean; danger?: boolean }) {
   return (
-    <Pressable onPress={onPress} disabled={disabled} accessibilityRole="button" accessibilityLabel={label} style={[s.btn, active && s.btnActive, danger && s.btnDanger, disabled && s.btnDisabled]}>
+    <Pressable onPress={onPress} disabled={disabled} accessibilityRole="button" accessibilityLabel={label} accessibilityState={{ disabled: !!disabled }} android_ripple={{ color: active || danger ? '#ffffff40' : '#14202a24' }} style={({ pressed }) => [s.btn, active && s.btnActive, danger && s.btnDanger, disabled && s.btnDisabled, pressed && !disabled && { backgroundColor: active ? '#1558bd' : danger ? '#9e2f24' : '#d5e1eb', transform: [{ scale: 0.97 }] }]}>
       <Text style={[s.btnText, (active || danger) && { color: '#fff' }]}>{label}</Text>
     </Pressable>
   );
