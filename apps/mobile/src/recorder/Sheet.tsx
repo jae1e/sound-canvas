@@ -7,12 +7,14 @@ export function Sheet({
   theme,
   title,
   children,
+  headerRight,
 }: {
   visible: boolean;
   onClose: () => void;
   theme: 'dark' | 'light';
   title: string;
   children: ReactNode;
+  headerRight?: ReactNode;
 }) {
   const { t } = useTranslation();
   const close = useRef(onClose);
@@ -49,11 +51,19 @@ export function Sheet({
               style={{ width: 40, height: 4, borderRadius: 2, backgroundColor: dark ? '#3A4457' : '#D9D6CE' }}
             />
           </View>
-          <Text
-            style={{ color: dark ? '#E8EBF1' : '#1B1D22', fontSize: 18, fontWeight: '800', marginBottom: 12 }}
+          <View
+            style={{
+              flexDirection: 'row',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              marginBottom: 12,
+            }}
           >
-            {title}
-          </Text>
+            <Text style={{ color: dark ? '#E8EBF1' : '#1B1D22', fontSize: 18, fontWeight: '800' }}>
+              {title}
+            </Text>
+            {headerRight}
+          </View>
           <ScrollView>{children}</ScrollView>
         </View>
       </View>

@@ -1,3 +1,4 @@
+import * as SecureStore from 'expo-secure-store';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { activateKeepAwakeAsync, deactivateKeepAwake } from 'expo-keep-awake';
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -16,7 +17,7 @@ import { InputSheet, OutputSheet } from '../../src/recorder/DeviceSheets';
 import { PitchRoll, Waveform } from '../../src/recorder/LiveGraphs';
 import { NoteReadout } from '../../src/recorder/NoteReadout';
 import { RecordButton } from '../../src/recorder/RecordButton';
-import { BeatSheet, type BeatSettings } from '../../src/recorder/BeatSheet';
+import { BeatSheet, DEFAULT_BEAT, type BeatSettings } from '../../src/recorder/BeatSheet';
 import { Toast } from '../../src/recorder/Toast';
 import { nextTip, rangeLabel, stabilityLabel } from '../../src/recorder/derive';
 import { persistAnalysis, persistStoppedTake } from '../../src/recorder/takePersistence';
@@ -37,13 +38,7 @@ export default function SingTab() {
   const [busy, setBusy] = useState(false);
   const [seconds, setSeconds] = useState(0);
   const [result, setResult] = useState<{ id: string; analysis: TakeAnalysis } | null>(null);
-  const [beat, setBeat] = useState<BeatSettings>({
-    bpm: 92,
-    beatsPerBar: 4,
-    pattern: 'click',
-    countIn: true,
-    enabled: false,
-  });
+  const [beat, setBeat] = useState<BeatSettings>(DEFAULT_BEAT);
   const showError = useCallback(() => {
     setToast(t('common.coach.error'));
   }, [t]);
@@ -135,21 +130,45 @@ export default function SingTab() {
       setBusy(false);
     }
   };
-  const changeBeat = async (next: BeatSettings) => {
-    try {
-      await VcAudio.setBeat({
-        bpm: next.bpm,
-        beatsPerBar: next.beatsPerBar,
-        pattern: next.pattern,
-        volume: 0.7,
-      });
-      if (next.enabled) await VcAudio.startBeat();
-      else await VcAudio.stopBeat();
-      setBeat(next);
-    } catch {
-      showError();
-    }
-  };
+  const changeBeat = useCallback(
+    async (next: BeatSettings, persist = true) => {
+      try {
+        await VcAudio.setBeat({
+          bpm: next.bpm,
+          beatsPerBar: next.beatsPerBar,
+          pattern: next.pattern,
+          volume: 0.7,
+        });
+        if (next.enabled) await VcAudio.startBeat();
+        else await VcAudio.stopBeat();
+        setBeat(next);
+        if (persist) await SecureStore.setItemAsync('vc.beatSettings', JSON.stringify(next));
+      } catch {
+        showError();
+      }
+    },
+    [showError],
+  );
+  useEffect(() => {
+    void SecureStore.getItemAsync('vc.beatSettings')
+      .then((raw) => {
+        if (!raw) return;
+        const saved = JSON.parse(raw) as Partial<BeatSettings>;
+        const patterns = ['click', 'eight', 'sixteen', 'ballad', 'shuffle', 'bossa', 'hiphop'];
+        if (
+          typeof saved.bpm !== 'number' ||
+          saved.bpm < 30 ||
+          saved.bpm > 240 ||
+          ![2, 3, 4, 6].includes(saved.beatsPerBar ?? 0) ||
+          !patterns.includes(saved.pattern ?? '') ||
+          typeof saved.countIn !== 'boolean' ||
+          typeof saved.enabled !== 'boolean'
+        )
+          return;
+        void changeBeat(saved as BeatSettings, false);
+      })
+      .catch(showError);
+  }, [changeBeat, showError]);
   return (
     <View style={{ flex: 1, backgroundColor: '#0E1117' }}>
       <AudioBar
@@ -215,7 +234,6 @@ export default function SingTab() {
         <Pressable
           onPress={() => {
             setSheet('beat');
-            if (!beat.enabled) void changeBeat({ ...beat, enabled: true });
           }}
           style={{ padding: 14, backgroundColor: '#171C25', borderRadius: 16 }}
         >
