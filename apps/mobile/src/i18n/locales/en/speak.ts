@@ -1,4 +1,8 @@
 export default {
+  savePractice: 'Save and practise',
+  discard: 'Leave',
+  keepEditing: 'Keep editing',
+  discardTitle: 'Leave without saving?',
   paceGraph: 'Pace over time',
   previousPace: 'Previous {{value}}',
   pitchRange: 'Pitch range {{value}} semitones',
@@ -34,7 +38,7 @@ export default {
   sectionTime: 'Time in seconds (optional)',
   addSection: '+ Add section',
   autoSplit: 'Split time automatically',
-  script: 'Paste script',
+  script: 'Script (optional)',
   language: 'Language',
   auto: 'Auto',
   korean: '한국어',

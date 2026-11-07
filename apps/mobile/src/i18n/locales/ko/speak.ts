@@ -1,4 +1,8 @@
 export default {
+  savePractice: '저장하고 연습하기',
+  discard: '나가기',
+  keepEditing: '계속 편집',
+  discardTitle: '저장하지 않고 나갈까요?',
   paceGraph: '시간별 속도',
   previousPace: '지난번 {{value}}',
   pitchRange: '높낮이 폭 {{value}} 반음',
@@ -34,7 +38,7 @@ export default {
   sectionTime: '시간 (초, 선택)',
   addSection: '+ 섹션 추가',
   autoSplit: '시간 자동 배분',
-  script: '대본 붙여넣기',
+  script: '대본 (선택)',
   language: '언어',
   auto: '자동',
   korean: '한국어',
