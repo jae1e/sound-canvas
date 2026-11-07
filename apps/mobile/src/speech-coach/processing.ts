@@ -74,7 +74,10 @@ export function rebuildSpeechReport(row: Row): void {
     transcript,
     boundaries: parse<number[]>(row.boundariesJson, []),
     previous: parse<SpeechReport | null>(previous?.reportJson ?? null, null),
-    settings: baseline ? { paceBands: { [language]: baseline } } : undefined,
+    settings: {
+      ...(baseline ? { paceBands: { [language]: baseline } } : {}),
+      noSpeech: row.transcriptState === 'no_speech',
+    },
   });
   updateSpeechTake(db, row.id, { reportJson: JSON.stringify(report) });
 }

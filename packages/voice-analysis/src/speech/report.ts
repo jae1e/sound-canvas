@@ -23,6 +23,7 @@ import { alignScript } from './alignment';
 /** Localizable one-action templates; params are populated by buildSpeechReport. */
 export const NEXT_ACTION_TEMPLATES = {
   ko: {
+    'no-speech': '마이크 가까이에서 다시 말해 보세요',
     'section-over': '{section} 섹션이 계획보다 {overMs}ms 길었어요. 핵심을 줄여보세요.',
     pace: '말하기 속도가 목표 범위를 벗어났어요. 한 구절씩 천천히 연습해 보세요.',
     fillers: '군말이 {count}회 있었어요. 군말 대신 짧게 멈춰 보세요.',
@@ -32,6 +33,7 @@ export const NEXT_ACTION_TEMPLATES = {
     'keep-going': '좋은 흐름이에요. 같은 방식으로 한 번 더 연습해 보세요.',
   },
   en: {
+    'no-speech': 'Try speaking again closer to the microphone.',
     'section-over': 'The {section} section ran {overMs}ms over its budget. Try shortening its key points.',
     pace: 'Your speaking pace was outside the target band. Practise one phrase at a time.',
     fillers: 'You used {count} fillers. Try a short pause instead.',
@@ -56,6 +58,11 @@ export function buildSpeechReport(
     lang = resolveSpeechLanguage(plan?.lang ?? 'auto', transcript),
     words = transcript?.words ?? [],
     rates = transcript ? transcriptRates(words, lang, analysis.durationMs) : null;
+  const noSpeech =
+    settings.noSpeech === true ||
+    (analysis.syllableTimesMs.length === 0 &&
+      !analysis.midi?.some((value) => value !== null) &&
+      !transcript?.text.trim());
   const estimatedPace =
     analysis.durationMs > 0 ? analysis.syllableTimesMs.length / (analysis.durationMs / 1000) : null;
   const pace = transcript
@@ -80,25 +87,30 @@ export function buildSpeechReport(
   ): SpeechMetricTile => ({
     value,
     unit,
-    status: good === false ? 'caution' : 'good',
+    status: value === null ? 'neutral' : good === false ? 'caution' : 'good',
     deltaVsPrevious: value === null || old == null ? null : value - old,
   });
   const tiles = {
     pace: tile(
-      pace,
+      noSpeech ? null : pace,
       rates?.unit ?? (lang === 'ko' ? 'syl/s' : 'wpm'),
       paceStatus === 'good',
       previousReport?.tiles.pace.value,
     ),
     fillers: tile(
-      fillers,
+      noSpeech ? null : fillers,
       'count',
       fillers !== null && fillers <= Math.max(2, Math.ceil((words.length || 1) * 0.03)),
       previousReport?.tiles.fillers.value,
     ),
-    pauses: tile(pauses.length, 'pauses', pauses.length === 0, previousReport?.tiles.pauses.value),
+    pauses: tile(
+      noSpeech ? null : pauses.length,
+      'pauses',
+      pauses.length === 0,
+      previousReport?.tiles.pauses.value,
+    ),
     intonation: tile(
-      analysis.pitchSpreadSemitones,
+      noSpeech ? null : analysis.pitchSpreadSemitones,
       'semitones',
       intonation === 'good' || intonation === 'unknown',
       previousReport?.tiles.intonation.value,
@@ -112,7 +124,8 @@ export function buildSpeechReport(
       targetMs <= 0 ? 'ok' : durationMs < targetMs * 0.9 ? 'under' : durationMs > targetMs ? 'over' : 'ok';
   let action: { code: string; params: Record<string, string | number> } = { code: 'keep-going', params: {} };
   const over = sections.find((s) => s.budgetMs !== null && s.actualMs > s.budgetMs);
-  if (over)
+  if (noSpeech) action = { code: 'no-speech', params: {} };
+  else if (over)
     action = { code: 'section-over', params: { section: over.name, overMs: over.actualMs - over.budgetMs! } };
   else if (paceStatus && paceStatus !== 'good')
     action = { code: 'pace', params: { pace: pace!, unit: tiles.pace.unit } };

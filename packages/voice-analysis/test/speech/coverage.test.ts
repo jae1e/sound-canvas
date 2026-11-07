@@ -467,7 +467,7 @@ describe('speech report thresholds and action priority', () => {
   });
 
   it('shows transcript-derived metrics after an audio-only report', () => {
-    const analysis = makeAnalysis({ durationMs: 10_000 });
+    const analysis = makeAnalysis({ durationMs: 10_000, syllableTimesMs: [100, 500] });
     const pending = buildSpeechReport(makePlan({ lang: 'en' }), analysis, null, [], null);
     const arrived = buildSpeechReport(
       makePlan({ lang: 'en' }),

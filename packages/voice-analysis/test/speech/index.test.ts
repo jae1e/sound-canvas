@@ -181,11 +181,24 @@ describe('sections, alignment, prompts and report', () => {
     expect(ready.tiles.pace.deltaVsPrevious).not.toBeNull();
     expect(ready.transcriptMarks.some((m) => m.type === 'filler')).toBe(true);
   });
+  it('honors a no-speech transcript and never grades null values', () => {
+    const report = buildSpeechReport(plan, analysis, null, [], null, { noSpeech: true });
+    expect(report.nextAction.code).toBe('no-speech');
+    expect(
+      Object.values(report.tiles).every((tile) => tile.value === null && tile.status === 'neutral'),
+    ).toBe(true);
+    const pending = buildSpeechReport(plan, { ...analysis, pitchSpreadSemitones: null }, null, [], null);
+    expect(pending.tiles.intonation.status).toBe('neutral');
+    expect(pending.tiles.fillers.status).toBe('neutral');
+  });
   it('supports no plan and empty audio take', () => {
     const empty = { ...analysis, durationMs: 0, syllableTimesMs: [], pauses: [], pitchSpreadSemitones: null };
     const r = buildSpeechReport(null, empty, null, [], null);
     expect(r.sections).toEqual([]);
     expect(r.timeVerdict).toBe('ok');
-    expect(r.nextAction.code).toBe('keep-going');
+    expect(r.nextAction.code).toBe('no-speech');
+    expect(Object.values(r.tiles).every((tile) => tile.value === null && tile.status === 'neutral')).toBe(
+      true,
+    );
   });
 });
