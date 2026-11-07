@@ -64,6 +64,14 @@ Every issue found in testing or review goes here: symptom, root cause, fix with 
 - **Status.** Fixed in build 446812. The user still has to pair (code given on 2026-11-07) and install this build from the GitHub draft, because 446772 was never paired.
 - **Lesson.** No user action may end silently (FVL FT-27 again). Every action ends in success, an error, or a "do X first" message. This belongs in ARCHITECTURE.md as a rule.
 
+## VC-06 — Pairing failed: "CLEARTEXT communication … not permitted"
+
+- **Symptom (U), 2026-11-07, build 446772.** 등록 (Enrol) and 서버 확인 (check server) showed `fetch failed: java.net.UnknownServiceException: CLEARTEXT communication to 100.84.83.35 not permitted by network security policy`.
+- **Root cause (M).** Android blocks plain `http://` by default. Field Voice Log sets `usesCleartextTraffic: true` through `expo-build-properties`; the Voice Coach `app.json` did not. The port missed a build setting, not code.
+- **Fix.** `usesCleartextTraffic: true` in `apps/mobile/app.json`, as in Field Voice Log. The traffic stays inside the Tailscale tailnet (WireGuard-encrypted), and the API binds only to the tailnet IP.
+- **Status.** Fixed in the next build.
+- **Lesson.** When porting a client of the home server, port the network settings too. The error text did show up on screen, which confirms the VC-05 rule pays off.
+
 ## Releases
 
 | Build | Commit | Date | Notes |
