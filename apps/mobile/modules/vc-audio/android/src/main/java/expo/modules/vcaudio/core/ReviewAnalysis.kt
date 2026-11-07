@@ -31,7 +31,10 @@ object ReviewAnalysis {
       sqrt(residuals.sumOf { (it - mean) * (it - mean) } / residuals.size)
     }
     val speech = SpeechAnalysis.analyze(frames.map { SpeechAnalysis.Point(it.t * 1000, it.rmsDb, it.f0 != null && it.voicing >= 0.5) }, duration)
-    val offsets = if (beats.isEmpty()) emptyList() else speech.syllables.map { onset -> onset - beats.minBy { abs(onset - it) } }
+    val onsets = frames.indices.filter { i ->
+      notes[i] != null && (i == 0 || notes[i - 1] == null)
+    }.map { frames[it].t * 1000.0 }
+    val offsets = if (beats.isEmpty()) emptyList() else onsets.map { onset -> onset - beats.minBy { abs(onset - it) } }
     val count = min(maxPoints, frames.size)
     val indices = if (count == 0) emptyList() else (0 until count).map { (it.toLong() * frames.size / count).toInt() }
     val peaks = (0 until waveformBuckets).map { bucket ->
@@ -43,7 +46,7 @@ object ReviewAnalysis {
     }
     return mapOf(
       "durationMs" to duration, "tMs" to indices.map { frames[it].t * 1000 },
-      "midi" to indices.map { notes[it] }, "rmsDb" to indices.map { frames[it].rmsDb }, "peaks" to peaks,
+      "midi" to indices.map { notes[it] }, "rmsDb" to indices.map { frames[it].rmsDb.coerceIn(-100.0, 0.0) }, "peaks" to peaks,
       "rangeLowMidi" to sorted.firstOrNull(), "rangeHighMidi" to sorted.lastOrNull(),
       "stabilityCents" to stability, "beatOffsetMs" to offsets.takeIf { it.isNotEmpty() }?.average(),
       "syllableTimesMs" to speech.syllables, "pauses" to speech.pauses.map { mapOf("startMs" to it.startMs, "endMs" to it.endMs) },

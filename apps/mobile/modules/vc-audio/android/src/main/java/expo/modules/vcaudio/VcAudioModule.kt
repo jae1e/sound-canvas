@@ -9,6 +9,8 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.ProcessLifecycleOwner
 import expo.modules.vcaudio.core.AutoStopPolicy
+import expo.modules.vcaudio.core.ReviewAnalysis
+import expo.modules.vcaudio.core.WavReader
 import java.io.File
 import android.os.SystemClock
 import expo.modules.kotlin.exception.CodedException
@@ -35,7 +37,6 @@ class VcAudioModule : Module() {
     }
   }
   private val main = Handler(Looper.getMainLooper())
-  private fun unavailable(): Any = throw CodedException("ERR_UNAVAILABLE", "Audio engine is not initialized", null)
 
   override fun definition() = ModuleDefinition {
     Name("VcAudio")
@@ -77,6 +78,18 @@ class VcAudioModule : Module() {
     AsyncFunction("resume") { output.resume() }
     AsyncFunction("stop") { output.stopPlayback() }
     AsyncFunction("seek") { position: Double -> output.seek(position) }
-    AsyncFunction("analyzeTake") { _: String, _: Map<String, Any?>? -> unavailable() }
+    AsyncFunction("analyzeTake") { path: String, options: Map<String, Any?>? ->
+      val maxPoints = (options?.get("maxPoints") as? Number)?.toInt() ?: 3000
+      val buckets = (options?.get("waveformBuckets") as? Number)?.toInt() ?: 400
+      if (maxPoints !in 1..100000 || buckets !in 1..100000) throw CodedException("ERR_ARGUMENT", "Invalid analysis size", null)
+      val beats = (options?.get("beatTimesMs") as? List<*>)?.map {
+        val value = (it as? Number)?.toDouble() ?: throw CodedException("ERR_ARGUMENT", "Invalid beat time", null)
+        if (!value.isFinite()) throw CodedException("ERR_ARGUMENT", "Invalid beat time", null)
+        value
+      } ?: emptyList()
+      val wav = try { WavReader.read(File(path)) } catch (_: Exception) { null }
+        ?: throw CodedException("ERR_AUDIO", "Take is missing or is not a mono PCM16 WAV", null)
+      ReviewAnalysis.analyze(wav, maxPoints, buckets, beats)
+    }
   }
 }
