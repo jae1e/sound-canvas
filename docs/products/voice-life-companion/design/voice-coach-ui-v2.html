@@ -1,0 +1,643 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Voice Coach UI v2: screen designs</title>
+<meta name="wh:question" content="What should the redesigned Voice Coach look like, screen by screen?">
+<meta name="wh:summary" content="Sing is a dark stage for live pitch and waveform. Speak is a light desk for time, plan and pace. They share the audio bar, sheets and record button, but each layout serves its own purpose.">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;800&display=swap">
+<style>
+  .row { display:flex; flex-wrap:wrap; gap:28px; align-items:flex-start; margin:18px 0 8px; }
+  .shot { width:360px; }
+  .cap { font-size:13px; color:var(--wh-muted); margin-top:8px; line-height:1.45; }
+  .cap b { color:var(--wh-fg); }
+  .phone { width:360px; height:760px; border-radius:34px; overflow:hidden; position:relative;
+    box-shadow:0 0 0 9px #111, 0 14px 40px rgba(0,0,0,.35); font-family:'Noto Sans KR',Roboto,system-ui,sans-serif;
+    display:flex; flex-direction:column; }
+  .phone * { box-sizing:border-box; }
+  .sb { height:28px; padding:6px 22px 0; font-size:12px; display:flex; justify-content:space-between; opacity:.85; flex:none; }
+  .hdr { height:52px; padding:0 18px 0 20px; display:flex; align-items:center; justify-content:space-between; flex:none; }
+  .hdr h3 { margin:0; font-size:21px; font-weight:800; letter-spacing:-.3px; }
+  .gear { width:40px; height:40px; border-radius:20px; display:grid; place-items:center; position:relative; }
+  .gear .dot { position:absolute; top:8px; right:8px; width:8px; height:8px; border-radius:4px; background:#FF5A5F; }
+  .tabs { height:64px; display:flex; justify-content:space-around; align-items:center; flex:none; border-top:1px solid; }
+  .tab { display:flex; flex-direction:column; align-items:center; gap:3px; font-size:11.5px; font-weight:500; width:90px; }
+  .tab svg { width:24px; height:24px; }
+  .navbar { height:22px; flex:none; display:flex; justify-content:center; align-items:center; }
+  .navbar i { width:110px; height:4px; border-radius:2px; opacity:.5; }
+  /* ---------- SING (dark stage) ---------- */
+  .dark { background:#0E1117; color:#E8EBF1; }
+  .dark .tabs { background:#0E1117; border-color:#1D222C; }
+  .dark .tab { color:#6B7486; } .dark .tab.on { color:#5EEAD4; }
+  .dark .navbar i { background:#E8EBF1; }
+  .io { display:flex; gap:8px; padding:0 16px 6px; flex:none; }
+  .io .pill:first-child { flex:1.25; }
+  .pill { padding:0 10px 0 12px; gap:6px; }
+  .pill { flex:1; height:40px; min-width:0; border-radius:20px; display:flex; align-items:center; gap:8px; padding:0 12px; font-size:13.5px; font-weight:500; white-space:nowrap; overflow:hidden; }
+  .pill svg { flex:none; width:18px; height:18px; }
+  .pill .lbl { overflow:hidden; text-overflow:ellipsis; flex:1; }
+  .pill .chev { opacity:.6; width:14px; height:14px; }
+  .dark .pill { background:#171C25; border:1px solid #262D3A; color:#D6DBE4; }
+  .lvl { display:flex; gap:2px; align-items:flex-end; height:14px; flex:none; }
+  .lvl i { width:3px; border-radius:1px; background:#34D399; }
+  .lock { width:13px; height:13px; opacity:.8; }
+  .note { text-align:center; padding:6px 0 0; flex:none; }
+  .note .n { font-size:58px; font-weight:800; letter-spacing:-1px; line-height:1; font-variant-numeric:tabular-nums; }
+  .note .n sub { font-size:26px; font-weight:700; vertical-align:baseline; position:relative; top:0; margin-left:1px; }
+  .note .c { font-size:17px; font-weight:700; margin-top:4px; }
+  .note .hz { font-size:12px; color:#6B7486; margin-top:2px; }
+  .roll { flex:1; position:relative; margin:6px 0 0; }
+  .roll svg { position:absolute; inset:0; width:100%; height:100%; }
+  .wave { height:78px; flex:none; position:relative; margin:0 0 4px; }
+  .wave svg { width:100%; height:100%; }
+  .db { position:absolute; right:14px; top:-2px; font-size:11px; color:#6B7486; font-variant-numeric:tabular-nums; }
+  .beatdots { display:flex; justify-content:center; gap:10px; height:18px; align-items:center; flex:none; }
+  .beatdots i { width:9px; height:9px; border-radius:5px; background:#2A3140; }
+  .beatdots i.on { background:#5EEAD4; box-shadow:0 0 10px #5EEAD4; }
+  .beatdots i.one.on { background:#FBBF24; box-shadow:0 0 10px #FBBF24; }
+  .dock { height:120px; flex:none; display:flex; align-items:center; justify-content:space-between; padding:0 26px; }
+  .side { width:76px; height:56px; border-radius:16px; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:2px; font-size:12px; font-weight:600; }
+  .side svg { width:22px; height:22px; }
+  .dark .side { background:#171C25; border:1px solid #262D3A; color:#C8CEDA; }
+  .rec { width:80px; height:80px; border-radius:40px; border:4px solid #F4F5F7; display:grid; place-items:center; }
+  .rec i { width:58px; height:58px; border-radius:29px; background:#FF3B30; display:block; }
+  .rec.stop i { width:30px; height:30px; border-radius:7px; }
+  .rectime { position:absolute; left:0; right:0; bottom:194px; text-align:center; font-size:15px; font-weight:700; color:#FF6B6B; font-variant-numeric:tabular-nums; }
+  .rectime::before { content:''; display:inline-block; width:8px; height:8px; border-radius:4px; background:#FF3B30; margin-right:7px; vertical-align:2px; }
+  .result { margin:0 14px 6px; border-radius:18px; background:#1A202B; border:1px solid #2A3242; padding:14px 14px 12px; flex:none; }
+  .result .t { display:flex; justify-content:space-between; font-size:14px; font-weight:700; }
+  .result .t span { color:#6B7486; font-weight:500; }
+  .chips { display:flex; gap:6px; flex-wrap:wrap; margin:9px 0 8px; }
+  .chip { font-size:12px; font-weight:600; padding:4px 9px; border-radius:10px; }
+  .dark .chip { background:#232A37; color:#CDD3DE; }
+  .chip.good { background:rgba(52,211,153,.14); color:#6EE7B7; }
+  .chip.warn { background:rgba(251,191,36,.14); color:#FCD34D; }
+  .tip { font-size:13px; line-height:1.5; color:#B9C0CD; }
+  .tip b { color:#E8EBF1; }
+  .ract { display:flex; gap:8px; margin-top:10px; }
+  .btn { height:40px; border-radius:12px; display:flex; align-items:center; justify-content:center; gap:6px; font-size:13.5px; font-weight:700; flex:1; }
+  .dark .btn { background:#232A37; color:#E8EBF1; }
+  .dark .btn.p { background:#5EEAD4; color:#062A26; }
+  /* ---------- SPEAK (light desk) ---------- */
+  .light { background:#F6F5F1; color:#1B1D22; }
+  .light .tabs { background:#FFFFFF; border-color:#E8E6E0; }
+  .light .tab { color:#9A9DA6; } .light .tab.on { color:#4F46E5; }
+  .light .navbar { background:#fff; } .light .navbar i { background:#1B1D22; }
+  .light .pill { background:#FFFFFF; border:1px solid #E6E3DC; color:#33363D; }
+  .card { background:#FFFFFF; border-radius:20px; border:1px solid #ECE9E2; box-shadow:0 1px 2px rgba(0,0,0,.03); }
+  .plan { margin:6px 16px 0; padding:16px 16px 14px; flex:none; }
+  .plan .k { font-size:12px; font-weight:700; color:#4F46E5; letter-spacing:.2px; display:flex; justify-content:space-between; }
+  .plan .k span { color:#8A8D96; font-weight:500; }
+  .plan h4 { margin:6px 0 2px; font-size:21px; font-weight:800; letter-spacing:-.3px; }
+  .plan .m { font-size:13px; color:#6C6F78; }
+  .segs { display:flex; gap:3px; margin:14px 0 6px; }
+  .segs i { height:8px; border-radius:4px; background:#C7C4F8; display:block; }
+  .segs i.done { background:#4F46E5; }
+  .segs i.cur { background:linear-gradient(90deg,#4F46E5 45%,#C7C4F8 45%); }
+  .segl { display:flex; gap:3px; font-size:11.5px; color:#6C6F78; }
+  .segl span { overflow:hidden; white-space:nowrap; text-overflow:ellipsis; }
+  .prow { display:flex; align-items:center; gap:10px; padding:8px 0 0; margin-top:8px; border-top:1px solid #F0EEE8; }
+  .prow .num { width:22px; height:22px; border-radius:11px; background:#EEF0FF; color:#4F46E5; font-size:11.5px; font-weight:800; display:grid; place-items:center; flex:none; }
+  .prow div { flex:1; min-width:0; } .prow b { display:block; font-size:14px; } .prow span { font-size:12px; color:#6C6F78; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; display:block; }
+  .prow em { font-style:normal; font-size:12.5px; font-weight:700; color:#4F46E5; font-variant-numeric:tabular-nums; }
+  .ghost { margin:14px 16px 0; padding:22px 18px; flex:none; text-align:left; border:1.5px dashed #D9D5CB; background:transparent; box-shadow:none; }
+  .ghost h4 { margin:0 0 4px; font-size:18px; font-weight:800; }
+  .ghost p { margin:0; font-size:13px; color:#6C6F78; line-height:1.5; }
+  .ghost .go { margin-top:12px; font-size:13.5px; font-weight:700; color:#4F46E5; }
+  .last { margin:10px 16px 0; padding:12px 14px; display:flex; align-items:center; justify-content:space-between; font-size:13px; flex:none; }
+  .last b { font-size:13.5px; }
+  .last .s { color:#6C6F78; margin-top:2px; }
+  .strip { height:64px; margin:auto 16px 0; flex:none; position:relative; }
+  .strip svg { width:100%; height:100%; }
+  .striplbl { position:absolute; left:2px; top:-16px; font-size:11px; color:#9A9DA6; }
+  .light .dock { height:132px; }
+  .light .side { background:#FFFFFF; border:1px solid #E6E3DC; color:#33363D; }
+  .startlbl { text-align:center; font-size:12.5px; font-weight:700; color:#6C6F78; margin-top:6px; }
+  .timer { text-align:center; padding:8px 0 4px; flex:none; }
+  .timer .big { font-size:66px; font-weight:800; letter-spacing:-2px; font-variant-numeric:tabular-nums; line-height:1; }
+  .timer .of { font-size:17px; color:#8A8D96; font-weight:600; margin-left:4px; letter-spacing:0; }
+  .timer .live { font-size:12px; font-weight:700; color:#E5484D; margin-top:6px; }
+  .tbar { margin:10px 20px 0; position:relative; flex:none; }
+  .tbar .segs { margin:0; }
+  .tbar .head { position:absolute; top:-5px; width:3px; height:18px; border-radius:2px; background:#1B1D22; }
+  .cue { margin:16px 16px 0; padding:18px 18px 16px; flex:1; display:flex; flex-direction:column; }
+  .cue .k { font-size:13px; font-weight:700; color:#4F46E5; display:flex; justify-content:space-between; }
+  .cue .k span { color:#1B1D22; font-variant-numeric:tabular-nums; }
+  .cue h4 { margin:6px 0 10px; font-size:26px; font-weight:800; letter-spacing:-.4px; }
+  .cue ul { margin:0; padding-left:20px; font-size:19px; line-height:1.6; font-weight:500; color:#2B2E35; }
+  .cue .hint { margin-top:auto; font-size:12px; color:#9A9DA6; text-align:center; }
+  .pace { margin:12px 16px 0; padding:12px 14px; flex:none; }
+  .pace .top { display:flex; justify-content:space-between; font-size:13px; font-weight:700; }
+  .pace .top span { color:#16A34A; }
+  .zones { display:flex; height:10px; border-radius:5px; overflow:hidden; margin-top:9px; position:relative; }
+  .zones i { display:block; height:100%; }
+  .zones .needle { position:absolute; top:-4px; width:4px; height:18px; border-radius:2px; background:#1B1D22; }
+  .zl { display:flex; justify-content:space-between; font-size:11px; color:#9A9DA6; margin-top:4px; }
+  .stopwrap { height:120px; display:flex; flex-direction:column; align-items:center; justify-content:center; flex:none; }
+  .light .rec { border-color:#1B1D22; }
+  /* report */
+  .scroll { flex:1; overflow:hidden; padding:0 16px; }
+  .hero { padding:4px 4px 12px; }
+  .hero .big { font-size:44px; font-weight:800; letter-spacing:-1px; font-variant-numeric:tabular-nums; }
+  .hero .ok { font-size:14px; font-weight:700; color:#16A34A; }
+  .grid { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
+  .tile { padding:12px 12px 10px; }
+  .tile .l { font-size:12px; color:#6C6F78; font-weight:600; display:flex; justify-content:space-between; }
+  .tile .v { font-size:20px; font-weight:800; margin-top:4px; letter-spacing:-.3px; }
+  .tile .v small { font-size:12px; font-weight:600; color:#6C6F78; }
+  .tile .d { font-size:11.5px; color:#8A8D96; margin-top:2px; }
+  .st { font-size:11px; font-weight:700; padding:2px 7px; border-radius:8px; }
+  .st.g { background:#DCFCE7; color:#15803D; } .st.w { background:#FEF3C7; color:#B45309; }
+  .next { margin-top:10px; padding:13px 14px; border-radius:16px; background:#EEF0FF; color:#2E2A8A; font-size:13.5px; line-height:1.5; }
+  .next b { display:block; font-size:12px; color:#4F46E5; margin-bottom:2px; }
+  .sect { margin-top:10px; padding:12px 14px; }
+  .sect h5, .tr h5 { margin:0 0 8px; font-size:13px; font-weight:800; }
+  .srow { display:grid; grid-template-columns:52px 1fr 64px; gap:8px; align-items:center; font-size:12.5px; margin:7px 0; }
+  .sbar { height:10px; position:relative; }
+  .sbar .plan { position:absolute; inset:0; margin:0; padding:0; border:1.5px dashed #B9B6F3; border-radius:5px; background:transparent; }
+  .sbar .plan { z-index:2; }
+  .sbar .act { z-index:1; position:absolute; left:0; top:0; bottom:0; border-radius:5px; background:#4F46E5; }
+  .sbar .act.over { background:#F59E0B; }
+  .stime { text-align:right; font-variant-numeric:tabular-nums; color:#33363D; }
+  .smiss { grid-column:2 / 4; font-size:11.5px; color:#B45309; margin-top:-4px; }
+  .tr { margin-top:10px; padding:12px 14px; font-size:14px; line-height:1.75; color:#2B2E35; }
+  .fill { background:#FEF3C7; color:#92400E; border-radius:5px; padding:0 4px; font-weight:600; }
+  .pz { font-size:11px; color:#6C6F78; background:#F0EEE8; border-radius:6px; padding:1px 6px; white-space:nowrap; }
+  .sticky { height:72px; flex:none; display:flex; gap:10px; padding:12px 16px; background:#F6F5F1; border-top:1px solid #E8E6E0; }
+  .light .btn { background:#FFFFFF; border:1px solid #E6E3DC; color:#1B1D22; }
+  .light .btn.p { background:#4F46E5; border-color:#4F46E5; color:#fff; }
+  /* sheets */
+  .scrim { position:absolute; inset:0; background:rgba(5,7,12,.55); }
+  .sheet { position:absolute; left:0; right:0; bottom:0; border-radius:24px 24px 0 0; padding:10px 18px 18px; }
+  .grab { width:40px; height:4px; border-radius:2px; margin:0 auto 12px; }
+  .sheet h4 { margin:0 0 4px; font-size:18px; font-weight:800; }
+  .sheet .sub { font-size:12.5px; margin-bottom:10px; }
+  .opt { display:flex; align-items:center; gap:12px; padding:12px 12px; border-radius:14px; margin-bottom:6px; }
+  .opt .ic { width:36px; height:36px; border-radius:18px; display:grid; place-items:center; flex:none; }
+  .opt .tx { flex:1; min-width:0; }
+  .opt .tx b { font-size:14.5px; display:block; }
+  .opt .tx span { font-size:12px; }
+  .radio { width:20px; height:20px; border-radius:10px; border:2px solid; flex:none; display:grid; place-items:center; }
+  .radio.on::after { content:''; width:10px; height:10px; border-radius:5px; display:block; }
+  .dsheet { background:#141922; color:#E8EBF1; } .dsheet .grab { background:#3A4252; } .dsheet .sub { color:#8A93A5; }
+  .dsheet .opt { background:#1B212C; } .dsheet .opt.sel { background:#16302E; outline:1.5px solid #2E8F83; }
+  .dsheet .opt .ic { background:#252C39; } .dsheet .opt .tx span { color:#8A93A5; }
+  .dsheet .radio { border-color:#4A5366; } .dsheet .radio.on { border-color:#5EEAD4; } .dsheet .radio.on::after { background:#5EEAD4; }
+  .warnline { color:#FCD34D !important; }
+  .slider { height:6px; border-radius:3px; background:#2A3140; position:relative; margin:14px 4px 4px; }
+  .slider b { position:absolute; left:0; top:0; bottom:0; border-radius:3px; background:#5EEAD4; }
+  .slider i { position:absolute; top:-7px; width:20px; height:20px; border-radius:10px; background:#F4F5F7; }
+  .bpm { display:flex; align-items:center; justify-content:center; gap:22px; margin:6px 0 2px; }
+  .bpm .v { font-size:56px; font-weight:800; font-variant-numeric:tabular-nums; letter-spacing:-1px; line-height:1; }
+  .bpm .v small { display:block; font-size:12px; color:#8A93A5; font-weight:600; text-align:center; letter-spacing:0; margin-top:2px; }
+  .round { width:48px; height:48px; border-radius:24px; background:#232A37; display:grid; place-items:center; font-size:24px; font-weight:700; }
+  .seg { display:flex; background:#1B212C; border-radius:12px; padding:3px; gap:3px; margin-top:12px; }
+  .seg span { flex:1; text-align:center; font-size:13px; font-weight:700; padding:8px 0; border-radius:9px; color:#8A93A5; }
+  .seg span.on { background:#2B3343; color:#E8EBF1; }
+  .pat { display:grid; grid-template-columns:repeat(4,1fr); gap:6px; margin-top:12px; }
+  .pat span { height:52px; border-radius:12px; background:#1B212C; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:4px; font-size:11.5px; font-weight:700; color:#B9C0CD; }
+  .pat span.on { background:#16302E; outline:1.5px solid #2E8F83; color:#5EEAD4; }
+  .pat svg { width:34px; height:10px; }
+  .swrow { display:flex; justify-content:space-between; align-items:center; font-size:14px; font-weight:600; margin-top:14px; }
+  .sw { width:44px; height:26px; border-radius:13px; background:#2E8F83; position:relative; }
+  .sw::after { content:''; position:absolute; right:3px; top:3px; width:20px; height:20px; border-radius:10px; background:#fff; }
+  .sw.off { background:#3A4252; } .sw.off::after { right:auto; left:3px; }
+  .lsheet { background:#FFFFFF; color:#1B1D22; } .lsheet .grab { background:#D9D6CE; } .lsheet .sub { color:#6C6F78; }
+  .lsheet .opt { background:#F6F5F1; } .lsheet .opt.sel { background:#EEF0FF; outline:1.5px solid #8B85F0; }
+  .lsheet .opt .ic { background:#FFFFFF; } .lsheet .opt .tx span { color:#6C6F78; }
+  .lsheet .radio { border-color:#C9C6BE; } .lsheet .radio.on { border-color:#4F46E5; } .lsheet .radio.on::after { background:#4F46E5; }
+  .divl { font-size:11.5px; font-weight:700; color:#9A9DA6; margin:12px 4px 6px; letter-spacing:.3px; }
+  /* editor */
+  .field { background:#fff; border:1px solid #E6E3DC; border-radius:14px; padding:12px 14px; font-size:16px; font-weight:700; }
+  .lseg { display:flex; gap:6px; margin-top:8px; }
+  .lseg span { flex:1; text-align:center; font-size:13px; font-weight:700; padding:9px 0; border-radius:11px; background:#fff; border:1px solid #E6E3DC; color:#55585F; }
+  .lseg span.on { background:#4F46E5; border-color:#4F46E5; color:#fff; }
+  .sec { margin-top:10px; padding:12px 14px; }
+  .sec .h { display:flex; align-items:center; gap:10px; }
+  .sec .num { width:24px; height:24px; border-radius:12px; background:#EEF0FF; color:#4F46E5; font-size:12px; font-weight:800; display:grid; place-items:center; flex:none; }
+  .sec .nm { flex:1; font-size:15px; font-weight:800; }
+  .sec .tm { font-size:12.5px; font-weight:700; color:#4F46E5; background:#EEF0FF; border-radius:9px; padding:3px 9px; font-variant-numeric:tabular-nums; }
+  .sec .pts { margin:8px 0 0 34px; font-size:13.5px; color:#44474E; line-height:1.6; }
+  .add { margin-top:10px; padding:12px; text-align:center; border:1.5px dashed #D9D5CB; border-radius:14px; font-size:13.5px; font-weight:700; color:#4F46E5; }
+  .lab { font-size:12px; font-weight:700; color:#6C6F78; margin:14px 2px 6px; display:flex; justify-content:space-between; }
+  .lab span { color:#4F46E5; }
+  /* takes */
+  .fseg { display:flex; gap:6px; padding:0 16px 8px; flex:none; }
+  .fseg span { font-size:13px; font-weight:700; padding:7px 14px; border-radius:16px; background:#fff; border:1px solid #E6E3DC; color:#55585F; }
+  .fseg span.on { background:#1B1D22; border-color:#1B1D22; color:#fff; }
+  .take { margin:0 16px 8px; padding:12px 14px; display:flex; gap:12px; align-items:center; }
+  .take .ti { width:42px; height:42px; border-radius:13px; display:grid; place-items:center; flex:none; }
+  .take .ti.s { background:#0E1117; } .take .ti.p { background:#EEF0FF; }
+  .take .tt { flex:1; min-width:0; }
+  .take .tt b { font-size:14.5px; display:block; }
+  .take .tt span { font-size:12px; color:#6C6F78; }
+  .take .dur { font-size:12.5px; color:#6C6F78; font-variant-numeric:tabular-nums; }
+  .daylbl { font-size:12px; font-weight:700; color:#9A9DA6; margin:8px 20px 6px; }
+  /* tokens table */
+  .sw2 { display:inline-block; width:14px; height:14px; border-radius:4px; vertical-align:-2px; margin-right:6px; border:1px solid rgba(0,0,0,.15); }
+</style>
+</head>
+<body>
+
+<section id="summary">
+  <h1>Voice Coach UI v2</h1>
+  <p class="wh-lede">The two coaches have different jobs, so they get different layouts. <b>Sing</b> is a dark stage: the live pitch and waveform fill the screen, like a tuner and a voice recorder in one. <b>Speak</b> is a light desk: the time, the plan and the current section lead, and the voice graph is a small strip. Both use the same parts: the audio bar, the sheets, the record button and the take review.</p>
+  <ul>
+    <li>Three tabs: 노래 (Sing), 말하기 (Speak), 기록 (Takes). Settings is the gear icon at the top right.</li>
+    <li>One primary action on each screen. Everything else is a chip that opens a sheet.</li>
+    <li>Input and output are always visible at the top of both recorders.</li>
+  </ul>
+  <p>The written design and its reasons are in <wh-ref ref="docs/products/voice-life-companion/voice-coach-ux-v2.md">voice-coach-ux-v2.md</wh-ref>. These pages show the screens. Colours, sizes and type are in <a href="#tokens">the design tokens</a>.</p>
+</section>
+
+<section id="sing">
+  <h2>Sing: a dark stage for the voice</h2>
+  <p>The pitch graph is the main element. The note name is large enough to read at arm's length. The waveform turns coral while recording, so the user sees at a glance that the take is live. The beat dots appear only when the beat is on.</p>
+  <div class="row">
+    <div class="shot">
+      <div class="phone dark" id="sing-idle">
+        <div class="sb"><span>3:54</span><span>5G ▮▮▮ 68</span></div>
+        <div class="hdr"><h3>노래</h3><div class="gear"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#C8CEDA" stroke-width="1.8"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg><i class="dot"></i></div></div>
+        <div class="io">
+          <div class="pill"><svg viewBox="0 0 24 24" fill="none" stroke="#5EEAD4" stroke-width="2"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg><span class="lbl">휴대폰 마이크</span><span class="lvl"><i style="height:5px"></i><i style="height:9px"></i><i style="height:13px"></i><i style="height:7px;background:#2A3140"></i></span><svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="m6 9 6 6 6-6"/></svg></div>
+          <div class="pill"><svg viewBox="0 0 24 24" fill="none" stroke="#5EEAD4" stroke-width="2"><path d="M4 15v-3a8 8 0 0 1 16 0v3"/><rect x="3" y="14" width="4" height="6" rx="1.5"/><rect x="17" y="14" width="4" height="6" rx="1.5"/></svg><span class="lbl">Galaxy Buds3</span><svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="m6 9 6 6 6-6"/></svg></div>
+        </div>
+        <div class="note"><div class="n">A<sub>3</sub></div><div class="c" style="color:#34D399">+6¢</div><div class="hz">221.0 Hz</div></div>
+        <div class="roll"><svg data-roll="idle" preserveAspectRatio="none"></svg></div>
+        <div class="wave"><span class="db">−18 dB</span><svg data-wave="idle" preserveAspectRatio="none"></svg></div>
+        <div class="dock">
+          <div class="side"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M8 21h8l-2.5-17h-3z"/><path d="m12 14 6-8"/></svg>박자 끔</div>
+          <div class="rec"><i></i></div>
+          <div class="side"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>0:42</div>
+        </div>
+        <div class="tabs"><div class="tab on"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M9 18V6l11-2v12"/><circle cx="6" cy="18" r="3"/><circle cx="17" cy="16" r="3"/></svg>노래</div><div class="tab"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg>말하기</div><div class="tab"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 6h16M4 12h16M4 18h10"/></svg>기록</div></div>
+        <div class="navbar"><i></i></div>
+      </div>
+      <div class="cap"><b>1 · Ready.</b> The graphs run as soon as the tab is open. The user sees their voice before pressing anything. The input pill shows a small live level, so a dead mic is obvious. The red dot on the gear means that an update is ready.</div>
+    </div>
+
+    <div class="shot">
+      <div class="phone dark" id="sing-rec">
+        <div class="sb"><span>3:55</span><span>5G ▮▮▮ 68</span></div>
+        <div class="hdr"><h3>노래</h3><div class="gear"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#3A4252" stroke-width="1.8"><circle cx="12" cy="12" r="3"/><circle cx="12" cy="12" r="8"/></svg></div></div>
+        <div class="io">
+          <div class="pill" style="opacity:.7"><svg viewBox="0 0 24 24" fill="none" stroke="#5EEAD4" stroke-width="2"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg><span class="lbl">휴대폰 마이크</span><svg class="lock" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg></div>
+          <div class="pill" style="opacity:.7"><svg viewBox="0 0 24 24" fill="none" stroke="#5EEAD4" stroke-width="2"><path d="M4 15v-3a8 8 0 0 1 16 0v3"/><rect x="3" y="14" width="4" height="6" rx="1.5"/><rect x="17" y="14" width="4" height="6" rx="1.5"/></svg><span class="lbl">Galaxy Buds3</span><svg class="lock" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg></div>
+        </div>
+        <div class="note"><div class="n">C<sub>4</sub></div><div class="c" style="color:#FBBF24">−24¢</div><div class="hz">258.1 Hz</div></div>
+        <div class="roll"><svg data-roll="rec" preserveAspectRatio="none"></svg></div>
+        <div class="beatdots"><i class="one"></i><i></i><i class="on"></i><i></i></div>
+        <div class="wave"><span class="db">−12 dB</span><svg data-wave="rec" preserveAspectRatio="none"></svg></div>
+        <div class="rectime">1:07</div>
+        <div class="dock">
+          <div class="side" style="color:#5EEAD4;border-color:#2E8F83"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M8 21h8l-2.5-17h-3z"/><path d="m12 14 6-8"/></svg>92 · 8비트</div>
+          <div class="rec stop"><i></i></div>
+          <div class="side" style="opacity:.35"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>0:42</div>
+        </div>
+        <div class="tabs"><div class="tab on"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M9 18V6l11-2v12"/><circle cx="6" cy="18" r="3"/><circle cx="17" cy="16" r="3"/></svg>노래</div><div class="tab"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg>말하기</div><div class="tab"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 6h16M4 12h16M4 18h10"/></svg>기록</div></div>
+        <div class="navbar"><i></i></div>
+      </div>
+      <div class="cap"><b>2 · Recording with a beat.</b> The record button becomes a stop square. A red timer shows above it. The input and output lock; a tap on them says "녹음 중에는 바꿀 수 없어요". The beat dots light on each beat, with beat 1 in amber. The cents value is green within ±15¢, amber within ±35¢, and red beyond.</div>
+    </div>
+
+    <div class="shot">
+      <div class="phone dark" id="sing-result">
+        <div class="sb"><span>3:56</span><span>5G ▮▮▮ 68</span></div>
+        <div class="hdr"><h3>노래</h3><div class="gear"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#C8CEDA" stroke-width="1.8"><circle cx="12" cy="12" r="3"/><circle cx="12" cy="12" r="8"/></svg></div></div>
+        <div class="io">
+          <div class="pill"><svg viewBox="0 0 24 24" fill="none" stroke="#5EEAD4" stroke-width="2"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg><span class="lbl">휴대폰 마이크</span><span class="lvl"><i style="height:3px"></i><i style="height:3px;background:#2A3140"></i><i style="height:3px;background:#2A3140"></i></span><svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="m6 9 6 6 6-6"/></svg></div>
+          <div class="pill"><svg viewBox="0 0 24 24" fill="none" stroke="#5EEAD4" stroke-width="2"><path d="M4 15v-3a8 8 0 0 1 16 0v3"/><rect x="3" y="14" width="4" height="6" rx="1.5"/><rect x="17" y="14" width="4" height="6" rx="1.5"/></svg><span class="lbl">Galaxy Buds3</span><svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="m6 9 6 6 6-6"/></svg></div>
+        </div>
+        <div class="note"><div class="n" style="color:#3A4252">—</div><div class="c" style="color:#6B7486;font-weight:500;font-size:14px">소리를 내 보세요</div></div>
+        <div class="roll"><svg data-roll="quiet" preserveAspectRatio="none"></svg></div>
+        <div class="result">
+          <div class="t">방금 녹음 · 1:24 <span>✕</span></div>
+          <div class="chips"><span class="chip">음역 G3–D4</span><span class="chip good">음정 안정 좋음</span><span class="chip warn">박자 +40ms 늦음</span></div>
+          <div class="tip"><b>다음엔:</b> 높은 C4에서 음이 조금 낮아져요. 박자를 80으로 낮추고 다시 해 보세요.</div>
+          <div class="ract"><div class="btn"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>듣기</div><div class="btn p">자세히 보기</div></div>
+        </div>
+        <div class="dock" style="height:104px">
+          <div class="side"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M8 21h8l-2.5-17h-3z"/><path d="m12 14 6-8"/></svg>92 · 8비트</div>
+          <div class="rec"><i></i></div>
+          <div class="side"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>1:24</div>
+        </div>
+        <div class="tabs"><div class="tab on"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M9 18V6l11-2v12"/><circle cx="6" cy="18" r="3"/><circle cx="17" cy="16" r="3"/></svg>노래</div><div class="tab"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg>말하기</div><div class="tab"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 6h16M4 12h16M4 18h10"/></svg>기록</div></div>
+        <div class="navbar"><i></i></div>
+      </div>
+      <div class="cap"><b>3 · Just recorded.</b> A result card slides up over the waveform. It holds three facts as chips and one next step in words. There is no score, target or session. "자세히 보기" opens the take review. The card closes with ✕ or when a new take starts.</div>
+    </div>
+  </div>
+</section>
+
+<section id="speak">
+  <h2>Speak: a light desk for the talk</h2>
+  <p>A speaker cares about time, the plan, and pace. So the timer and the cue card lead, and the voice graph is a thin strip at the bottom. The layout changes fully between "before", "during" and "after", because each stage asks a different question.</p>
+  <div class="row">
+    <div class="shot">
+      <div class="phone light" id="speak-idle">
+        <div class="sb"><span>4:02</span><span>5G ▮▮▮ 67</span></div>
+        <div class="hdr"><h3>말하기</h3><div class="gear"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#55585F" stroke-width="1.8"><circle cx="12" cy="12" r="3"/><circle cx="12" cy="12" r="8"/></svg></div></div>
+        <div class="io">
+          <div class="pill"><svg viewBox="0 0 24 24" fill="none" stroke="#4F46E5" stroke-width="2"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg><span class="lbl">휴대폰 마이크</span><span class="lvl"><i style="height:6px;background:#22C55E"></i><i style="height:10px;background:#22C55E"></i><i style="height:5px;background:#E6E3DC"></i></span><svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="m6 9 6 6 6-6"/></svg></div>
+          <div class="pill"><svg viewBox="0 0 24 24" fill="none" stroke="#4F46E5" stroke-width="2"><path d="M4 15v-3a8 8 0 0 1 16 0v3"/><rect x="3" y="14" width="4" height="6" rx="1.5"/><rect x="17" y="14" width="4" height="6" rx="1.5"/></svg><span class="lbl">시스템 기본</span><svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="m6 9 6 6 6-6"/></svg></div>
+        </div>
+        <div class="card plan">
+          <div class="k">발표 연습 <span>바꾸기 ›</span></div>
+          <h4>신제품 발표</h4>
+          <div class="m">목표 3:00 · 섹션 3 · 한국어</div>
+          <div class="prow"><span class="num">1</span><div><b>도입</b><span>인사와 한 줄 요약</span></div><em>0:30</em></div>
+          <div class="prow"><span class="num">2</span><div><b>문제</b><span>고객의 불편 · 기존 제품의 한계</span></div><em>1:00</em></div>
+          <div class="prow"><span class="num">3</span><div><b>해결</b><span>핵심 기능 3가지 · 가격 · 시연</span></div><em>1:30</em></div>
+        </div>
+        <div class="card last"><div><b>지난 연습 · 3번째</b><div class="s">2:54 · 속도 적당 · 군말 7회</div></div><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#9A9DA6" stroke-width="2.4"><path d="m9 6 6 6-6 6"/></svg></div>
+        <div class="strip" style="height:52px"><svg data-strip="idle" preserveAspectRatio="none"></svg></div>
+        <div class="dock">
+          <div class="side"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l2.5 2M9 2h6"/></svg>3:00</div>
+          <div><div class="rec" style="border-color:#1B1D22"><i></i></div><div class="startlbl">연습 시작</div></div>
+          <div class="side"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 3v3M12 18v3M3 12h3M18 12h3"/><circle cx="12" cy="12" r="4"/></svg>페이서 끔</div>
+        </div>
+        <div class="tabs"><div class="tab"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M9 18V6l11-2v12"/><circle cx="6" cy="18" r="3"/><circle cx="17" cy="16" r="3"/></svg>노래</div><div class="tab on"><svg viewBox="0 0 24 24" fill="currentColor"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3" fill="none" stroke="currentColor" stroke-width="1.8"/></svg>말하기</div><div class="tab"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 6h16M4 12h16M4 18h10"/></svg>기록</div></div>
+        <div class="navbar"><i></i></div>
+      </div>
+      <div class="cap"><b>4 · Before: what am I practising?</b> The plan card is the centre of the screen. Its rows list each section with its time with its key points, so the user can rehearse the outline in their head before starting. "지난 연습" opens the last report, so the next try builds on it. A thin voice strip proves that the mic works. Left chip: the target time. Right chip: the optional pacer tick.</div>
+    </div>
+
+    <div class="shot">
+      <div class="phone light" id="speak-live">
+        <div class="sb"><span>4:05</span><span>5G ▮▮▮ 67</span></div>
+        <div class="hdr" style="height:40px"><h3 style="font-size:15px;color:#8A8D96;font-weight:700">신제품 발표 · 3번째</h3><div style="font-size:12px;font-weight:800;color:#E5484D">● 녹음 중</div></div>
+        <div class="timer"><div class="big">1:12<span class="of">/ 3:00</span></div></div>
+        <div class="tbar"><div class="segs"><i class="done" style="flex:30"></i><i class="cur" style="flex:60"></i><i style="flex:90"></i></div><div class="head" style="left:40%"></div></div>
+        <div class="card cue">
+          <div class="k">2 / 3 섹션 <span>0:18 남음</span></div>
+          <h4>문제</h4>
+          <ul><li>고객이 매일 겪는 불편</li><li>기존 제품의 한계</li><li>시장 규모 한 문장</li></ul>
+          <div class="hint">카드를 탭하면 다음 섹션으로</div>
+        </div>
+        <div class="card pace">
+          <div class="top">말하기 속도 <span>적당 · 5.1 음절/초</span></div>
+          <div class="zones"><i style="flex:30;background:#BFDBFE"></i><i style="flex:40;background:#BBF7D0"></i><i style="flex:30;background:#FDE68A"></i><span class="needle" style="left:52%"></span></div>
+          <div class="zl"><span>느림</span><span>적당</span><span>빠름</span></div>
+        </div>
+        <div class="strip" style="height:48px;margin-top:10px"><svg data-strip="live" preserveAspectRatio="none"></svg></div>
+        <div class="stopwrap"><div class="rec stop" style="border-color:#1B1D22"><i></i></div><div class="startlbl">끝내기</div></div>
+        <div class="navbar" style="background:#F6F5F1"><i></i></div>
+      </div>
+      <div class="cap"><b>5 · During: am I on time, on point, at a good speed?</b> The tab bar hides and the screen stays on. The big clock turns amber at 90% of the target and red when over. The cue card shows only the current section. A tap anywhere on the card moves to the next section and marks the boundary. The pace band is calm: three colours and a needle, averaged over 10 s.</div>
+    </div>
+
+    <div class="shot">
+      <div class="phone light" id="speak-report">
+        <div class="sb"><span>4:08</span><span>5G ▮▮▮ 67</span></div>
+        <div class="hdr" style="height:46px"><h3 style="font-size:17px">‹ &nbsp;연습 결과</h3><div style="font-size:13px;color:#6C6F78">공유</div></div>
+        <div class="scroll">
+          <div class="hero"><div class="big">2:54 <span style="font-size:16px;color:#8A8D96;font-weight:600;letter-spacing:0">/ 3:00</span></div><div class="ok">✓ 시간 안에 끝냈어요</div></div>
+          <div class="grid">
+            <div class="card tile"><div class="l">속도 <span class="st g">좋음</span></div><div class="v">5.1 <small>음절/초</small></div><div class="d">지난번 5.8 → 차분해졌어요</div></div>
+            <div class="card tile"><div class="l">군말 <span class="st w">주의</span></div><div class="v">7 <small>회</small></div><div class="d">"음" 4 · "그" 3</div></div>
+            <div class="card tile"><div class="l">멈춤 <span class="st g">좋음</span></div><div class="v">2 <small>번 긴 멈춤</small></div><div class="d">가장 긴 멈춤 2.1초</div></div>
+            <div class="card tile"><div class="l">억양 <span class="st w">주의</span></div><div class="v">단조로움</div><div class="d">높낮이 폭 3.1 반음</div></div>
+          </div>
+          <div class="next"><b>다음엔 이렇게</b>2번 '문제' 섹션이 40초 길었어요. 핵심을 2개로 줄여 보세요.</div>
+          <div class="card sect"><h5>섹션별 시간</h5>
+            <div class="srow"><span>도입</span><div class="sbar"><i class="plan" style="width:17%"></i><i class="act" style="width:15%"></i></div><span class="stime">0:26/0:30</span></div>
+            <div class="srow"><span>문제</span><div class="sbar"><i class="plan" style="width:33%"></i><i class="act over" style="width:55%"></i></div><span class="stime">1:40/1:00</span></div>
+            <div class="srow"><span>해결</span><div class="sbar"><i class="plan" style="width:50%"></i><i class="act" style="width:27%"></i></div><span class="stime">0:48/1:30</span></div>
+            <div class="srow"><span></span><span class="smiss">해결: 핵심 "가격" 을 말하지 않았어요</span></div>
+          </div>
+          <div class="card tr"><h5>전사 <span style="font-weight:500;color:#9A9DA6">· 단어를 탭하면 그 부분부터 들려요</span></h5>
+            오늘은 <span class="fill">음</span> 신제품을 소개하려고 합니다. 매일 아침 <span class="pz">⏸ 1.8초</span> 많은 분들이 <span class="fill">그</span> 같은 불편을 겪고 계세요…
+          </div>
+        </div>
+        <div class="sticky"><div class="btn"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>듣기</div><div class="btn p">↻ 다시 연습</div></div>
+      </div>
+      <div class="cap"><b>6 · After: what do I fix next?</b> The first line answers "on time?". Four tiles answer "how did I sound?". Each tile has a status and a change since the last take. Then one next step in words, and the time per section with the planned time as a dashed outline. The transcript comes from the home server. While it runs, its card says "전사 중…". "다시 연습" starts a new take with the same plan.</div>
+    </div>
+  </div>
+</section>
+
+<section id="plan">
+  <h2>Speak: choosing and writing a plan</h2>
+  <p>A tap on the plan card opens a sheet. Every kind of practice is a kind of plan, so the main screen never needs mode buttons.</p>
+  <div class="row">
+    <div class="shot">
+      <div class="phone light" id="plan-sheet">
+        <div class="sb"><span>4:10</span><span>5G ▮▮▮ 67</span></div>
+        <div class="hdr"><h3>말하기</h3></div>
+        <div class="scrim"></div>
+        <div class="sheet lsheet">
+          <div class="grab"></div>
+          <h4>무엇을 연습할까요?</h4>
+          <div class="sub">계획이 있으면 섹션별 시간과 핵심을 확인해 드려요.</div>
+          <div class="opt sel"><div class="ic">📝</div><div class="tx"><b>신제품 발표</b><span>3:00 · 섹션 3 · 연습 3번</span></div><div class="radio on"></div></div>
+          <div class="opt"><div class="ic">🎙</div><div class="tx"><b>자유 말하기</b><span>계획 없이 녹음하고 분석</span></div><div class="radio"></div></div>
+          <div class="opt" style="background:transparent;border:1.5px dashed #D9D5CB"><div class="ic" style="background:#EEF0FF;color:#4F46E5;font-weight:800">＋</div><div class="tx"><b style="color:#4F46E5">새 계획 만들기</b><span>제목, 목표 시간, 섹션과 핵심</span></div></div>
+          <div class="divl">빠른 연습</div>
+          <div class="opt"><div class="ic">🎲</div><div class="tx"><b>즉흥 주제</b><span>20초 준비 후 1분 말하기</span></div></div>
+          <div class="opt"><div class="ic">💼</div><div class="tx"><b>면접 질문</b><span>질문 하나에 1–2분 답하기</span></div></div>
+          <div class="opt"><div class="ic">📄</div><div class="tx"><b>대본 읽기</b><span>대본을 붙여 넣고 낭독 연습</span></div></div>
+        </div>
+      </div>
+      <div class="cap"><b>7 · Plan sheet.</b> Saved plans come first, with how often each was practised. The quick practices are plans that the app makes: a random topic, an interview question, or a pasted script.</div>
+    </div>
+
+    <div class="shot">
+      <div class="phone light" id="plan-edit">
+        <div class="sb"><span>4:11</span><span>5G ▮▮▮ 67</span></div>
+        <div class="hdr" style="height:46px"><h3 style="font-size:17px">‹ &nbsp;계획</h3><div style="font-size:14px;font-weight:800;color:#4F46E5">저장</div></div>
+        <div class="scroll">
+          <div class="field">신제품 발표</div>
+          <div class="lab">목표 시간</div>
+          <div class="lseg"><span>1분</span><span>2분</span><span class="on">3분</span><span>5분</span><span>10분</span></div>
+          <div class="lab">섹션 <span>시간 자동 배분 ✓</span></div>
+          <div class="card sec"><div class="h"><span class="num">1</span><span class="nm">도입</span><span class="tm">0:30</span></div><div class="pts">• 인사와 한 줄 요약</div></div>
+          <div class="card sec"><div class="h"><span class="num">2</span><span class="nm">문제</span><span class="tm">1:00</span></div><div class="pts">• 고객이 매일 겪는 불편<br>• 기존 제품의 한계</div></div>
+          <div class="card sec"><div class="h"><span class="num">3</span><span class="nm">해결</span><span class="tm">1:30</span></div><div class="pts">• 핵심 기능 세 가지<br>• 가격<br>• 시연 한 장면</div></div>
+          <div class="add">＋ 섹션 추가</div>
+          <div class="lab">대본 (선택)</div>
+          <div class="field" style="font-weight:500;font-size:13.5px;color:#9A9DA6">대본을 붙여 넣으면 빠뜨린 부분을 알려 드려요</div>
+        </div>
+        <div class="sticky"><div class="btn p">저장하고 연습하기</div></div>
+      </div>
+      <div class="cap"><b>8 · Plan editor.</b> One screen, no steps. "자동 배분" splits the target time by the number of key points. The user can override any section time with a tap. The key points become the cue cards and the checklist in the report.</div>
+    </div>
+  </div>
+</section>
+
+<section id="sheets">
+  <h2>Shared sheets: input, output and beat</h2>
+  <p>The sheets take the colours of the screen that opens them. They are short, so the graphs stay visible above them.</p>
+  <div class="row">
+    <div class="shot">
+      <div class="phone dark" id="input-sheet">
+        <div class="sb"><span>3:57</span><span>5G ▮▮▮ 68</span></div>
+        <div class="hdr"><h3>노래</h3></div>
+        <div class="roll" style="opacity:.4"><svg data-roll="idle" preserveAspectRatio="none"></svg></div>
+        <div class="scrim"></div>
+        <div class="sheet dsheet">
+          <div class="grab"></div>
+          <h4>녹음 마이크</h4>
+          <div class="sub">말해 보세요. 소리가 들어오는 마이크의 막대가 움직여요.</div>
+          <div class="opt sel"><div class="ic">📱</div><div class="tx"><b>휴대폰 마이크</b><span>내장 · 노래에 권장</span></div><span class="lvl" style="height:18px"><i style="height:6px"></i><i style="height:12px"></i><i style="height:18px"></i><i style="height:9px"></i><i style="height:4px;background:#2A3140"></i></span><div class="radio on"></div></div>
+          <div class="opt"><div class="ic">🎧</div><div class="tx"><b>Galaxy Buds3 마이크</b><span class="warnline">통화 품질 · 노래 음색이 뭉개져요</span></div><div class="radio"></div></div>
+          <div class="opt"><div class="ic">🔌</div><div class="tx"><b>USB 마이크</b><span>연결되면 여기에 나타나요</span></div><div class="radio" style="opacity:.3"></div></div>
+          <div class="swrow" style="font-size:13px;color:#8A93A5;font-weight:500">녹음 중에는 마이크가 고정돼요. 연결이 끊기면 휴대폰 마이크로 이어서 녹음해요.</div>
+        </div>
+      </div>
+      <div class="cap"><b>9 · Input sheet.</b> Only the selected mic is captured, so only it shows a live level. When the user taps another mic, the preview moves to it at once, and the user can hear the difference. The Bluetooth mic shows its trade-off in words.</div>
+    </div>
+
+    <div class="shot">
+      <div class="phone dark" id="output-sheet">
+        <div class="sb"><span>3:58</span><span>5G ▮▮▮ 68</span></div>
+        <div class="hdr"><h3>노래</h3></div>
+        <div class="roll" style="opacity:.4"><svg data-roll="idle" preserveAspectRatio="none"></svg></div>
+        <div class="scrim"></div>
+        <div class="sheet dsheet">
+          <div class="grab"></div>
+          <h4>소리 나오는 곳</h4>
+          <div class="sub">박자, 기준음, 녹음 듣기가 여기로 나와요.</div>
+          <div class="opt"><div class="ic">⚙️</div><div class="tx"><b>시스템 기본</b><span>안드로이드 설정을 따라요 (지금: Galaxy Buds3)</span></div><div class="radio"></div></div>
+          <div class="opt sel"><div class="ic">🎧</div><div class="tx"><b>Galaxy Buds3</b><span>블루투스 · 지연 보정됨 182 ms</span></div><div class="radio on"></div></div>
+          <div class="opt"><div class="ic">🔊</div><div class="tx"><b>휴대폰 스피커</b><span>박자 소리가 녹음에 섞일 수 있어요</span></div><div class="radio"></div></div>
+          <div class="swrow"><span>음량</span><span style="color:#8A93A5;font-size:12px">미디어 음량</span></div>
+          <div class="slider"><b style="width:62%"></b><i style="left:58%"></i></div>
+          <div class="ract" style="margin-top:16px"><div class="btn">🔈 테스트 소리</div><div class="btn">⏱ 지연 다시 보정</div></div>
+        </div>
+      </div>
+      <div class="cap"><b>10 · Output sheet.</b> It follows the Field Voice Log policy. The default is the system route, at media volume, and the speaker plays only when the user chooses it. Latency calibration appears for Bluetooth only: the user taps along with 8 clicks.</div>
+    </div>
+
+    <div class="shot">
+      <div class="phone dark" id="beat-sheet">
+        <div class="sb"><span>3:59</span><span>5G ▮▮▮ 68</span></div>
+        <div class="hdr"><h3>노래</h3></div>
+        <div class="roll" style="opacity:.4"><svg data-roll="idle" preserveAspectRatio="none"></svg></div>
+        <div class="scrim"></div>
+        <div class="sheet dsheet">
+          <div class="grab"></div>
+          <div class="swrow" style="margin-top:0"><h4 style="margin:0">박자</h4><span class="sw"></span></div>
+          <div class="bpm"><span class="round">−</span><div class="v">92<small>BPM</small></div><span class="round">＋</span></div>
+          <div class="slider" style="margin-top:10px"><b style="width:29%"></b><i style="left:27%"></i></div>
+          <div class="ract" style="margin-top:12px"><div class="btn">👆 탭해서 템포 맞추기</div></div>
+          <div class="seg"><span class="on">4/4</span><span>3/4</span><span>6/8</span><span>2/4</span></div>
+          <div class="pat">
+            <span><svg data-pat="1000100010001000"></svg>클릭</span><span class="on"><svg data-pat="1010101010101010"></svg>8비트</span><span><svg data-pat="1111111111111111"></svg>16비트</span><span><svg data-pat="1000001000100000"></svg>발라드</span>
+            <span><svg data-pat="1001001001001001"></svg>셔플</span><span><svg data-pat="1001001000101000"></svg>보사</span><span><svg data-pat="1000101001001010"></svg>힙합</span><span style="opacity:.0"></span>
+          </div>
+          <div class="swrow"><span>한 마디 카운트인</span><span class="sw"></span></div>
+        </div>
+      </div>
+      <div class="cap"><b>11 · Beat sheet.</b> The beat plays while this sheet is open, so changes are heard at once. Each pattern tile shows its rhythm as a small dot row. The switch at the top turns the beat on or off. The pattern and tempo stay saved.</div>
+    </div>
+  </div>
+</section>
+
+<section id="takes">
+  <h2>Takes</h2>
+  <div class="row">
+    <div class="shot">
+      <div class="phone light" id="takes-list">
+        <div class="sb"><span>4:15</span><span>5G ▮▮▮ 67</span></div>
+        <div class="hdr"><h3>기록</h3><div class="gear"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#55585F" stroke-width="1.8"><circle cx="12" cy="12" r="3"/><circle cx="12" cy="12" r="8"/></svg></div></div>
+        <div class="fseg"><span class="on">전체</span><span>노래</span><span>말하기</span></div>
+        <div class="daylbl">오늘</div>
+        <div class="card take"><div class="ti p">🎤</div><div class="tt"><b>신제품 발표 · 3번째</b><span>오후 4:08 · 속도 적당 · 군말 7회</span></div><div class="dur">2:54</div></div>
+        <div class="card take"><div class="ti s"><svg width="20" height="20" viewBox="0 0 24 24" fill="#5EEAD4"><path d="M9 18V6l11-2v12"/><circle cx="6" cy="18" r="3"/><circle cx="17" cy="16" r="3"/></svg></div><div class="tt"><b>노래 녹음</b><span>오후 3:56 · G3–D4 · 92 BPM</span></div><div class="dur">1:24</div></div>
+        <div class="card take"><div class="ti s"><svg width="20" height="20" viewBox="0 0 24 24" fill="#5EEAD4"><path d="M9 18V6l11-2v12"/><circle cx="6" cy="18" r="3"/><circle cx="17" cy="16" r="3"/></svg></div><div class="tt"><b>노래 녹음</b><span>오후 3:41 · A3–C5</span></div><div class="dur">0:42</div></div>
+        <div class="daylbl">어제</div>
+        <div class="card take"><div class="ti p">🎤</div><div class="tt"><b>신제품 발표 · 2번째</b><span>오후 9:12 · 속도 빠름 · 군말 11회</span></div><div class="dur">3:31</div></div>
+        <div class="card take"><div class="ti p">🎲</div><div class="tt"><b>즉흥: 가장 좋아하는 여행지</b><span>오후 8:51 · 속도 적당</span></div><div class="dur">1:02</div></div>
+        <div style="flex:1"></div>
+        <div class="tabs"><div class="tab"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M9 18V6l11-2v12"/><circle cx="6" cy="18" r="3"/><circle cx="17" cy="16" r="3"/></svg>노래</div><div class="tab"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg>말하기</div><div class="tab on"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M4 6h16M4 12h16M4 18h10"/></svg>기록</div></div>
+        <div class="navbar"><i></i></div>
+      </div>
+      <div class="cap"><b>12 · Takes.</b> Takes are grouped by day. The icon tells song from speech at a glance. The second line is the one-line result, so the user does not need to open a take to remember it. A swipe deletes, with an undo toast.</div>
+    </div>
+  </div>
+</section>
+
+<section id="tokens">
+  <h2>Design tokens and rules for the implementation</h2>
+  <table>
+    <thead><tr><th>Token</th><th>Sing (dark)</th><th>Speak, Takes, Settings (light)</th></tr></thead>
+    <tbody>
+      <tr id="t-bg"><td>Background</td><td><span class="sw2" style="background:#0E1117"></span>#0E1117</td><td><span class="sw2" style="background:#F6F5F1"></span>#F6F5F1</td></tr>
+      <tr id="t-surface"><td>Surface / border</td><td><span class="sw2" style="background:#171C25"></span>#171C25 / #262D3A</td><td><span class="sw2" style="background:#FFFFFF"></span>#FFFFFF / #ECE9E2</td></tr>
+      <tr id="t-text"><td>Text / muted</td><td>#E8EBF1 / #6B7486</td><td>#1B1D22 / #6C6F78</td></tr>
+      <tr id="t-accent"><td>Accent</td><td><span class="sw2" style="background:#5EEAD4"></span>teal #5EEAD4 (pitch line, active tab)</td><td><span class="sw2" style="background:#4F46E5"></span>indigo #4F46E5</td></tr>
+      <tr id="t-rec"><td>Record</td><td colspan="2"><span class="sw2" style="background:#FF3B30"></span>#FF3B30 everywhere. Waveform while recording: #FF6B6B</td></tr>
+      <tr id="t-state"><td>Good / caution / bad</td><td colspan="2">#34D399 or #16A34A · #FBBF24 or #B45309 · #F87171 or #E5484D (light uses the darker value)</td></tr>
+      <tr id="t-type"><td>Type</td><td colspan="2">System font (Roboto and Noto Sans KR). Note 58sp/800 · speech clock 66sp/800 · screen title 21sp/800 · card title 21sp/800 · body 14sp · caption 12sp. Numbers use tabular figures.</td></tr>
+      <tr id="t-space"><td>Spacing and shape</td><td colspan="2">Steps of 4dp. Screen padding 16dp. Card radius 20dp, pill radius 20dp, sheet top radius 24dp. Touch targets of 48dp or more. The record button is 80dp with a 4dp ring.</td></tr>
+      <tr id="t-motion"><td>Motion and feedback</td><td colspan="2">Every pressable: ripple plus scale 0.97. Record to stop: the circle morphs to a rounded square in 180 ms. Result card: slides up in 220 ms. Graphs: 30 fps or more, drawn natively or with Skia, never with React state for each frame.</td></tr>
+    </tbody>
+  </table>
+  <ul>
+    <li id="r-tabs">Tab bar colours follow the screen: dark on Sing, white on the others. The tab bar hides while a speech take records.</li>
+    <li id="r-keepawake">The screen stays on while recording. Leaving the screen or the app stops and saves the take.</li>
+    <li id="r-empty">Empty states use words: "소리를 내 보세요" (make a sound) and "아직 녹음이 없어요" (no recordings yet). Never a blank area.</li>
+  </ul>
+</section>
+
+<script>
+(function(){
+  let seed = 7; const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+  const NS = 'http://www.w3.org/2000/svg';
+  const el = (n, a) => { const e = document.createElementNS(NS, n); for (const k in a) e.setAttribute(k, a[k]); return e; };
+  const names = ['C','C♯','D','D♯','E','F','F♯','G','G♯','A','A♯','B'];
+  document.querySelectorAll('svg[data-roll]').forEach(svg => {
+    const kind = svg.dataset.roll; const W = 360, H = 300; svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
+    const lo = 53, hi = 64; const lane = H / (hi - lo + 1);
+    for (let m = lo; m <= hi; m++) {
+      const y = H - (m - lo + 1) * lane; const sharp = [1,3,6,8,10].includes(m % 12);
+      if (sharp) svg.appendChild(el('rect', { x: 0, y, width: W, height: lane, fill: '#121620' }));
+      svg.appendChild(el('line', { x1: 34, x2: W, y1: y + lane, y2: y + lane, stroke: m % 12 === 0 ? '#2B3242' : '#181D27', 'stroke-width': 1 }));
+      if (!sharp) { const t = el('text', { x: 10, y: y + lane * 0.68, fill: m % 12 === 0 ? '#8A93A5' : '#4A5366', 'font-size': 10.5, 'font-family': 'Noto Sans KR, sans-serif', 'font-weight': 600 }); t.textContent = names[m % 12] + Math.floor(m / 12 - 1); svg.appendChild(t); }
+    }
+    const nowX = W * 0.86;
+    svg.appendChild(el('line', { x1: nowX, x2: nowX, y1: 0, y2: H, stroke: '#2B3242', 'stroke-dasharray': '3 4' }));
+    if (kind === 'quiet') return;
+    const ym = m => H - (m - lo + 0.5) * lane;
+    const notes = kind === 'rec' ? [[0,57],[40,59],[85,60],[130,59.7],[175,62],[230,60]] : [[0,55],[50,57],[100,57],[150,59],[195,57]];
+    let d = ''; let x = 36; const pts = [];
+    notes.forEach(([start, m], i) => {
+      const end = i + 1 < notes.length ? notes[i + 1][0] : (nowX - 36);
+      for (let t = start; t < end; t += 3) {
+        const gap = (t - start) < 6 && i > 0 && i % 2 === 1;
+        const vib = Math.sin(t / 5) * 0.12 + (rnd() - 0.5) * 0.08 + (t - start < 8 ? (m - (notes[i - 1] || notes[0])[1]) * -(1 - (t - start) / 8) : 0);
+        pts.push(gap ? null : [36 + t, ym(m + vib)]);
+      }
+    });
+    pts.forEach((p, i) => { if (!p) { d += ' '; return; } d += (i === 0 || !pts[i - 1] ? 'M' : 'L') + p[0].toFixed(1) + ' ' + p[1].toFixed(1); });
+    svg.appendChild(el('path', { d, fill: 'none', stroke: '#5EEAD4', 'stroke-width': 7, 'stroke-opacity': 0.13, 'stroke-linecap': 'round', 'stroke-linejoin': 'round' }));
+    svg.appendChild(el('path', { d, fill: 'none', stroke: '#5EEAD4', 'stroke-width': 2.6, 'stroke-linecap': 'round', 'stroke-linejoin': 'round' }));
+    const last = pts.filter(Boolean).pop(); svg.appendChild(el('circle', { cx: last[0], cy: last[1], r: 5.5, fill: '#5EEAD4' }));
+    svg.appendChild(el('circle', { cx: last[0], cy: last[1], r: 11, fill: '#5EEAD4', 'fill-opacity': 0.18 }));
+  });
+  document.querySelectorAll('svg[data-wave]').forEach(svg => {
+    const rec = svg.dataset.wave === 'rec'; const W = 360, H = 78; svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
+    for (let i = 0, x = 14; x < W * 0.86; i++, x += 4) {
+      const env = 0.25 + 0.75 * Math.abs(Math.sin(i / 9)) * (0.6 + 0.4 * rnd()); const h = Math.max(2, env * (H - 10));
+      const recent = x > W * 0.6;
+      svg.appendChild(el('rect', { x, y: (H - h) / 2, width: 2.4, height: h, rx: 1.2, fill: rec ? (recent ? '#FF6B6B' : '#B4474A') : (recent ? '#9AA5B8' : '#3A4457') }));
+    }
+    svg.appendChild(el('line', { x1: W * 0.86, x2: W * 0.86, y1: 0, y2: H, stroke: rec ? '#FF3B30' : '#2B3242', 'stroke-width': rec ? 2 : 1 }));
+  });
+  document.querySelectorAll('svg[data-strip]').forEach(svg => {
+    const live = svg.dataset.strip === 'live'; const W = 330, H = 64; svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
+    for (let i = 0, x = 0; x < W; i++, x += 3.5) {
+      const env = (Math.sin(i / 4) > -0.2 ? 0.3 + 0.7 * rnd() : 0.06); const h = Math.max(2, env * (H - 24));
+      svg.appendChild(el('rect', { x, y: (H - h) / 2, width: 2, height: h, rx: 1, fill: live ? '#C7C4F8' : '#D9D6CE' }));
+    }
+    let d = ''; for (let x = 0; x < W; x += 4) { const y = H / 2 - 8 + Math.sin(x / 23) * 9 + Math.sin(x / 7) * 2; d += (x ? 'L' : 'M') + x + ' ' + y.toFixed(1); }
+    svg.appendChild(el('path', { d, fill: 'none', stroke: live ? '#4F46E5' : '#9A9DA6', 'stroke-width': 2, 'stroke-linecap': 'round' }));
+  });
+  document.querySelectorAll('svg[data-pat]').forEach(svg => {
+    const p = svg.dataset.pat; svg.setAttribute('viewBox', '0 0 34 10');
+    [...p].forEach((c, i) => svg.appendChild(el('circle', { cx: 1.5 + i * 2.07, cy: 5, r: c === '1' ? (i % 4 === 0 ? 1.4 : 1) : 0.45, fill: 'currentColor', opacity: c === '1' ? 1 : 0.35 })));
+  });
+})();
+</script>
+</body>
+</html>
