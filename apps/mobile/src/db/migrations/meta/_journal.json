@@ -29,6 +29,13 @@
       "when": 1794054791926,
       "tag": "0003_breezy_garia",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "6",
+      "when": 1794058047214,
+      "tag": "0004_fat_silver_samurai",
+      "breakpoints": true
     }
   ]
 }
