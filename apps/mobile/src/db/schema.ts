@@ -124,11 +124,32 @@ export const takes = sqliteTable(
     outputJson: text('output_json'),
     beatJson: text('beat_json'),
     analysisJson: text('analysis_json'),
+    planId: text('plan_id'),
+    boundariesJson: text('boundaries_json'),
+    transcriptJobId: text('transcript_job_id'),
+    transcriptState: text('transcript_state'),
+    transcriptJson: text('transcript_json'),
+    reportJson: text('report_json'),
     recovered: integer('recovered').notNull().default(0),
     createdAt: integer('created_at').notNull(),
   },
   (t) => [index('takes_session_idx').on(t.sessionId)],
 );
+
+/** Speech practice plans; take snapshots remain usable if a plan is later edited. */
+export const speechPlans = sqliteTable('speech_plans', {
+  id: text('id').primaryKey(),
+  title: text('title').notNull(),
+  kind: text('kind').notNull(),
+  language: text('language').notNull(),
+  targetMs: integer('target_ms').notNull(),
+  sectionsJson: text('sections_json').notNull(),
+  script: text('script'),
+  promptId: text('prompt_id'),
+  createdAt: integer('created_at').notNull(),
+  updatedAt: integer('updated_at').notNull(),
+  practiceCount: integer('practice_count').notNull().default(0),
+});
 
 /** Saved places (Travel Guide, M3). */
 export const places = sqliteTable('places', {

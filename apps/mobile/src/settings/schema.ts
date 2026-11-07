@@ -31,6 +31,8 @@ export const settingsSchema = z.object({
   /** Routine voice pacing: `full` (name + count), `short`, or `count` only. */
   pacingLevel: z.enum(PACING_LEVELS).default('full'),
   showHiddenModes: z.boolean().default(false),
+  learnSpeechBaseline: z.boolean().default(false),
+  hideSpeechPace: z.boolean().default(false),
 });
 
 export type AppSettings = z.infer<typeof settingsSchema>;
@@ -51,7 +53,10 @@ export function parseSettings(json: unknown): AppSettings {
 }
 
 /** Resolves the `language` setting to a concrete language; `deviceLocale` is a BCP-47 tag such as "ko-KR". */
-export function resolveLanguage(setting: AppSettings['language'], deviceLocale: string | undefined): 'ko' | 'en' {
+export function resolveLanguage(
+  setting: AppSettings['language'],
+  deviceLocale: string | undefined,
+): 'ko' | 'en' {
   if (setting === 'ko' || setting === 'en') return setting;
   return deviceLocale?.toLowerCase().startsWith('ko') ? 'ko' : 'en';
 }

@@ -201,6 +201,19 @@ export default function SingTab() {
       })
       .catch(showError);
   }, [changeBeat, showError]);
+  useFocusEffect(
+    useCallback(() => {
+      if (beat.enabled)
+        void VcAudio.setBeat({
+          bpm: beat.bpm,
+          beatsPerBar: beat.beatsPerBar,
+          pattern: beat.pattern,
+          volume: 0.7,
+        })
+          .then(() => VcAudio.startBeat())
+          .catch(showError);
+    }, [beat.enabled, beat.bpm, beat.beatsPerBar, beat.pattern, showError]),
+  );
   return (
     <View style={{ flex: 1, backgroundColor: '#0E1117' }}>
       <AudioBar

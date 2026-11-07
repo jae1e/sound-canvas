@@ -31,3 +31,32 @@ describe('take duration persistence', () => {
     expect(db.select().from(takes).where(eq(takes.id, 'a')).get()?.durationMs).toBe(4000);
   });
 });
+
+describe('speech transcription persistence', () => {
+  it('queues recovered speech once and preserves the ASR path and completed state on duplicate stops', async () => {
+    const db = await createTestDb();
+    db.insert(takes).values({ id: 's', fileUri: '/s.wav', kind: 'speech', createdAt: 1 }).run();
+    const stopped: TakeStopped = {
+      id: 's',
+      path: '/s.wav',
+      asrPath: '/s-asr.wav',
+      durationMs: 1000,
+      sizeBytes: 100,
+      reason: 'user',
+      beatTimesMs: [],
+      inputChanges: [],
+      outputLatencyMs: 0,
+    };
+    persistStoppedTake(db, stopped);
+    expect(db.select().from(takes).where(eq(takes.id, 's')).get()).toMatchObject({
+      transcriptState: 'pending',
+      asrPath: '/s-asr.wav',
+    });
+    db.update(takes).set({ transcriptState: 'done' }).where(eq(takes.id, 's')).run();
+    persistStoppedTake(db, { ...stopped, asrPath: null });
+    expect(db.select().from(takes).where(eq(takes.id, 's')).get()).toMatchObject({
+      transcriptState: 'done',
+      asrPath: '/s-asr.wav',
+    });
+  });
+});

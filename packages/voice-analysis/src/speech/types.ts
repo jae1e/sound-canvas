@@ -47,12 +47,13 @@ export interface SpeechSettings {
   paceBands?: Partial<Record<'ko' | 'en', PaceBand>>;
   keyPointThreshold?: number;
   syllablesPerEnglishWord?: number;
+  noSpeech?: boolean;
 }
 export type PaceStatus = 'slow' | 'good' | 'fast';
 export interface SpeechMetricTile {
   value: number | null;
   unit: string;
-  status: 'good' | 'caution';
+  status: 'good' | 'caution' | 'neutral';
   deltaVsPrevious: number | null;
 }
 export interface SectionReport {

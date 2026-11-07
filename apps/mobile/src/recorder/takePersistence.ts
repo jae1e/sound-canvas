@@ -17,7 +17,11 @@ export function persistStoppedTake(db: AppDb, take: TakeStopped): void {
     const values = {
       fileUri: take.path,
       durationMs,
-      asrPath: take.asrPath,
+      asrPath: take.asrPath ?? existing?.asrPath ?? null,
+      transcriptState:
+        existing?.kind === 'speech' && (take.asrPath ?? existing?.asrPath)
+          ? (existing.transcriptState ?? 'pending')
+          : (existing?.transcriptState ?? null),
       beatJson: JSON.stringify({
         ...beat,
         timesMs: take.beatTimesMs,

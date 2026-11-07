@@ -15,6 +15,23 @@ import { formatDuration } from '../../src/recorder/SingControls';
 type Row = typeof takes.$inferSelect;
 function TakeRow({ row, onPress, onDelete }: { row: Row; onPress: () => void; onDelete: () => void }) {
   const { t } = useTranslation();
+  const speechResult: string[] = [];
+  if (row.kind === 'speech') {
+    try {
+      const report = JSON.parse(row.reportJson ?? 'null');
+      if (report) {
+        const pace = report.tiles.pace;
+        if (pace.value !== null)
+          speechResult.push(
+            t('speak.paceValue', { value: t(pace.status === 'good' ? 'speak.good' : 'speak.caution') }),
+          );
+        if (report.tiles.fillers.value !== null)
+          speechResult.push(t('speak.fillersValue', { count: report.tiles.fillers.value }));
+      }
+    } catch {
+      /* An unfinished report has no summary yet. */
+    }
+  }
   return (
     <Swipeable
       onSwipeableOpen={onDelete}
@@ -82,7 +99,12 @@ function TakeRow({ row, onPress, onDelete }: { row: Row; onPress: () => void; on
             )}
           </View>
           <Text numberOfLines={1} style={{ color: '#9A9DA6', fontSize: 12 }}>
-            {takeSummary(row.createdAt, row.analysisJson, row.beatJson)}
+            {row.kind === 'speech'
+              ? [
+                  new Date(row.createdAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }),
+                  ...speechResult,
+                ].join(' · ')
+              : takeSummary(row.createdAt, row.analysisJson, row.beatJson)}
           </Text>
         </View>
         <Text style={{ color: '#9A9DA6' }}>{formatDuration(row.durationMs ?? 0)}</Text>
@@ -172,7 +194,11 @@ export default function TakesTab() {
               <TakeRow
                 key={row.id}
                 row={row}
-                onPress={() => router.push({ pathname: '/take/[id]', params: { id: row.id } })}
+                onPress={() =>
+                  row.kind === 'speech'
+                    ? router.push({ pathname: '/speech-report/[id]', params: { id: row.id } })
+                    : router.push({ pathname: '/take/[id]', params: { id: row.id } })
+                }
                 onDelete={() => remove(row)}
               />
             ))}

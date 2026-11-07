@@ -12,6 +12,7 @@ import { colors, shared } from '../src/theme';
 import { restoreWorkSession } from '../src/work/bootstrap';
 import { startUpdater } from '../src/update/updater';
 import { reconcileTakes } from '../src/recorder/reconcile';
+import { processSpeechQueue } from '../src/speech-coach/processing';
 import VcAudio from '../modules/vc-audio/src/VcAudioModule';
 
 export const unstable_settings = { initialRouteName: '(tabs)' };
@@ -35,7 +36,10 @@ export default function RootLayout() {
     if (!success) return;
     const reconcile = () => {
       void reconcileTakes().then(
-        () => setRecoveryError(false),
+        () => {
+          setRecoveryError(false);
+          void processSpeechQueue().catch(() => setRecoveryError(true));
+        },
         () => setRecoveryError(true),
       );
     };
@@ -81,6 +85,7 @@ export default function RootLayout() {
           contentStyle: { backgroundColor: colors.bg },
         }}
       >
+        <Stack.Screen name="speech-report/[id]" options={{ headerShown: false }} />
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
         {showHiddenModes ? (
           <Stack.Screen name="work/index" options={{ title: t('common.mode.work') }} />

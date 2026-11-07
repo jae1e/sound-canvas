@@ -1,6 +1,8 @@
 import i18n from 'i18next';
 import { initReactI18next } from 'react-i18next';
 
+import enSpeak from './locales/en/speak';
+import koSpeak from './locales/ko/speak';
 import enCommon from './locales/en/common';
 import enHome from './locales/en/home';
 import enJournal from './locales/en/journal';
@@ -30,6 +32,7 @@ export const resources = {
   en: {
     translation: build([
       ['common', enCommon],
+      ['speak', enSpeak],
       ['home', enHome],
       ['settings', enSettings],
       ['journal', enJournal],
@@ -41,6 +44,7 @@ export const resources = {
   ko: {
     translation: build([
       ['common', koCommon],
+      ['speak', koSpeak],
       ['home', koHome],
       ['settings', koSettings],
       ['journal', koJournal],
