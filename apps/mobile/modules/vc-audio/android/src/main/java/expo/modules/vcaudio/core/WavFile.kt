@@ -11,6 +11,7 @@ class WavWriter(val file: File, private val sampleRate: Int) {
   private var dataBytes = 0L
   private var closed = false
   private var lastFlushedBytes = 0L
+  private var bytes = ByteArray(0)
 
   init {
     raf.setLength(0)
@@ -19,9 +20,13 @@ class WavWriter(val file: File, private val sampleRate: Int) {
 
   fun write(samples: ShortArray, count: Int) {
     if (closed) return
-    val bb = ByteBuffer.allocate(count * 2).order(ByteOrder.LITTLE_ENDIAN)
-    for (i in 0 until count) bb.putShort(samples[i])
-    raf.write(bb.array())
+    if (bytes.size < count * 2) bytes = ByteArray(count * 2)
+    for (i in 0 until count) {
+      val sample = samples[i].toInt()
+      bytes[i * 2] = sample.toByte()
+      bytes[i * 2 + 1] = (sample shr 8).toByte()
+    }
+    raf.write(bytes, 0, count * 2)
     dataBytes += count * 2L
     if (dataBytes - lastFlushedBytes >= sampleRate * 2L) flushHeader()
   }

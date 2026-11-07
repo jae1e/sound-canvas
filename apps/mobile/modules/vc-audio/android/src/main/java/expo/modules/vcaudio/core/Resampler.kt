@@ -21,6 +21,11 @@ class Resampler {
   fun process(input: ShortArray, count: Int = input.size): ShortArray {
     require(count in 0..input.size)
     val out = ShortArray((count + 2) / 3)
+    return out.copyOf(processInto(input, count, out))
+  }
+
+  fun processInto(input: ShortArray, count: Int, out: ShortArray): Int {
+    require(count in 0..input.size && out.size >= (count + 2) / 3)
     var n = 0
     for (i in 0 until count) {
       history[cursor] = input[i]
@@ -32,6 +37,6 @@ class Resampler {
       }
       phase = (phase + 1) % 3
     }
-    return out.copyOf(n)
+    return n
   }
 }
