@@ -34,7 +34,7 @@ export function reconcileTakes(): Promise<void> {
       const db = getDb();
       const existing = db.select().from(takes).where(eq(takes.id, file.id)).get();
       if (!existing) db.insert(takes).values({ id: file.id, fileUri: file.path, kind: 'unknown', recovered: 1, createdAt: file.modifiedMs }).run();
-      else db.update(takes).set({ recovered: 1 }).where(eq(takes.id, file.id)).run();
+      else db.update(takes).set({ kind: 'unknown', recovered: 1 }).where(eq(takes.id, file.id)).run();
     }
   };
   const result = pending.then(run, run);
