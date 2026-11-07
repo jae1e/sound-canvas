@@ -1,4 +1,6 @@
 export default {
+  'coach.phoneSpeaker': 'Phone speaker',
+  'coach.phoneMic': 'Phone microphone',
   'coach.volume': 'Media volume',
   'coach.deleted': 'Recording deleted',
   'coach.undo': 'Undo',

@@ -159,7 +159,7 @@ export default function SingTab() {
       <AudioBar
         theme="dark"
         devices={devices}
-        level={frame?.peak ?? 0}
+        level={frame?.rmsDb ?? -100}
         onInput={() => (devices?.locked ? setToast(t('common.coach.locked')) : setSheet('input'))}
         onOutput={() => (devices?.locked ? setToast(t('common.coach.locked')) : setSheet('output'))}
       />

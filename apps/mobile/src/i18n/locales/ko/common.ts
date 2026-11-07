@@ -1,4 +1,6 @@
 export default {
+  'coach.phoneSpeaker': '휴대폰 스피커',
+  'coach.phoneMic': '휴대폰 마이크',
   'coach.volume': '미디어 음량',
   'coach.deleted': '녹음을 삭제했어요',
   'coach.undo': '실행 취소',
@@ -53,7 +55,7 @@ export default {
   'tabs.home': '홈',
   'tabs.sing': '노래',
   'tabs.speak': '말하기',
-  'tabs.takes': '녹음',
+  'tabs.takes': '기록',
   'tabs.settings': '설정',
   'update.available': '업데이트가 있어요 · 자세히 보기',
   'update.section': '앱 업데이트',
