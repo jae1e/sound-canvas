@@ -149,3 +149,4 @@ Every issue found in testing or review goes here: symptom, root cause, fix with 
 | 446815 (0.2.0) | `fcecc84` | 2026-11-07 | VC-06 cleartext fix plus the 446812 UI fixes. Server and private GitHub draft (`voice-coach-446815-fcecc84.apk`); 446812 was removed from the draft |
 | 447216 | 36b2bc0 | 2026-11-07 | Sing redesign: live pitch and waveform, input/output sheets, beat, take review, 기록; 말하기 still a placeholder. First device run of the vc-audio engine. |
 | 447253 | ed6c963 | 2026-11-07 | 말하기 coach: plans and editor, quick practices, live clock, cue card and pace, report, server transcription queue. Sing as in 447216. |
+| 447293 | ffce699 | 2026-11-07 | VC-11 update hand-off fix (readyToInstall), VC-12 edge-to-edge insets and themed navigation bar. |
