@@ -147,7 +147,8 @@ def create_app(data_dir: Path, final_engine: FinalEngine, live_engine: Streaming
         if version_code is not None:
             db.execute("UPDATE devices SET app_version_code=?, app_seen_ms=? WHERE device_id=?",
                        (version_code, now_ms(), dev))
-        r = appbuilds.latest(db)
+        package = db.one("SELECT app_package FROM devices WHERE device_id=?", (dev,))["app_package"]
+        r = appbuilds.latest(db, package)
         if r is None:
             raise HTTPException(404, "no build published")
         return appbuilds.build_json(r, version_code)
@@ -155,7 +156,8 @@ def create_app(data_dir: Path, final_engine: FinalEngine, live_engine: Streaming
     @app.get("/v1/app/apk/{sha256}")
     def app_apk(sha256: str, request: Request, dev: str = Depends(device_id)):
         # Only published APK hashes, never arbitrary objects.
-        if not HEX64.fullmatch(sha256) or not db.one("SELECT 1 FROM app_builds WHERE sha256=?", (sha256,)):
+        package = db.one("SELECT app_package FROM devices WHERE device_id=?", (dev,))["app_package"]
+        if not HEX64.fullmatch(sha256) or not db.one("SELECT 1 FROM app_builds WHERE sha256=? AND package=?", (sha256, package)):
             raise HTTPException(404, "unknown build")
         path = appbuilds.apk_dir(state.paths.root) / f"{sha256}.apk"
         if not path.exists():

@@ -69,12 +69,13 @@ def enroll(db: Database, code: str, info: dict[str, Any]) -> tuple[str, str] | N
         token = "fls_" + secrets.token_urlsafe(32)
         c.execute(
             "INSERT INTO devices(device_id, token_hash, model, manufacturer, os_version, "
-            "app_version, install_id, created_server_ms) VALUES (?,?,?,?,?,?,?,?)",
+            "app_version, install_id, app_package, created_server_ms) VALUES (?,?,?,?,?,?,?,?,?)",
             (
                 device_id,
                 _h(token),
                 *(str(info.get(k, ""))[:200] for k in
                   ("model", "manufacturer", "os_version", "app_version", "install_id")),
+                str(info.get("app_package") or "com.jae1e.fieldvoicelog")[:200],
                 t,
             ),
         )
