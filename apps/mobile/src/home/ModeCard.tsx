@@ -1,4 +1,5 @@
 import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 
 import { colors, shared, space } from '../theme';
 
@@ -9,6 +10,7 @@ export function ModeCard({
   onPress,
   testID,
   activeLabel,
+  icon,
 }: {
   title: string;
   description: string;
@@ -16,6 +18,7 @@ export function ModeCard({
   testID?: string;
   /** Set while this mode owns the voice session (or has an unfinished session): shows a badge and a filled border. */
   activeLabel?: string | null;
+  icon?: keyof typeof Ionicons.glyphMap;
 }) {
   return (
     <Pressable
@@ -26,6 +29,7 @@ export function ModeCard({
       style={({ pressed }) => [styles.card, activeLabel ? styles.cardActive : null, pressed && { opacity: 0.8 }]}
     >
       <View style={shared.row}>
+        {icon ? <Ionicons name={icon} size={28} color={colors.primary} /> : null}
         <Text style={[styles.title, { flex: 1 }]}>{title}</Text>
         {activeLabel ? (
           <View style={styles.badge} testID={testID ? `${testID}-active` : undefined}>

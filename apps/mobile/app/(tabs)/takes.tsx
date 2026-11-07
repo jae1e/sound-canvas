@@ -20,7 +20,6 @@ export default function TakesTab() {
 
   return (
     <ScrollView style={shared.screen} contentContainerStyle={shared.content}>
-      <Text style={shared.h1}>{t('tabs.takes')}</Text>
       {takes.length ? (
         takes.map((take) => (
           <Text key={take.id} style={shared.body}>

@@ -241,7 +241,6 @@ export function VoiceCoachScreen(props: VoiceCoachScreenProps) {
 
   return (
     <ScrollView contentContainerStyle={{ padding: 12 }} keyboardShouldPersistTaps="handled">
-      <Text style={{ fontSize: 22, fontWeight: '800', marginBottom: 8, color: '#14202a' }}>{t('title')}</Text>
       {err ? <Text style={{ color: '#c0392b', marginBottom: 8 }}>{err === 'PERMISSION_RECORD_AUDIO' ? t('micDenied') : `${t('error')}: ${err}`}</Text> : null}
 
       <SetupPanel blocks={blocks} onChange={setBlocks} selectedId={block.id} onSelect={setSelectedId} t={t} locked={locked} noteStyle={noteStyle} onNoteStyle={setNoteStyle} />
