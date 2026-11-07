@@ -1,0 +1,30 @@
+import { describe, expect, it } from 'vitest';
+import { autoSplitBudgets, countKoreanSpeechSyllables, classifyPace, learnBaseline, rollingPace, rollingEnglishWpm, transcriptRates, countTranscriptFillers, longPauses, repeatedWordIndices, estimateAudioFillers, classifyIntonation, analyzeSections, keyPointCovered, normalizeKeyPointToken, alignScript, IMPROMPTU_TOPICS, INTERVIEW_QUESTIONS, pickRandom, buildSpeechReport } from '../../src';
+import type { SpeechPlan, SpeechTakeAnalysis, SpeechTranscript } from '../../src/speech/types';
+
+const plan: SpeechPlan={id:'p',title:'Talk',targetMs:60000,lang:'ko',kind:'plan',script:null,sections:[{id:'a',name:'Intro',keyPoints:['오늘 목표'],budgetMs:null},{id:'b',name:'Body',keyPoints:['고객 문제','해결 방법'],budgetMs:null}]};
+const analysis:SpeechTakeAnalysis={durationMs:60000,syllableTimesMs:[100,300,500,700],pauses:[{startMs:10000,endMs:12000}],pitchSpreadSemitones:3,rmsDb:[],tMs:[]};
+const transcript:SpeechTranscript={language:'ko',text:'오늘은 목표 음 그것 그래서 좋아 좋아',words:[{w:'오늘은',start_ms:0,end_ms:500},{w:'목표',start_ms:600,end_ms:900},{w:'음',start_ms:1000,end_ms:1200},{w:'그것',start_ms:2000,end_ms:2300},{w:'그래서',start_ms:2400,end_ms:2700},{w:'좋아',start_ms:5000,end_ms:5300},{w:'좋아',start_ms:5300,end_ms:5600}]};
+
+describe('speech planning and rates',()=>{
+ it('splits null budgets proportionally and sums exactly',()=>{const p=autoSplitBudgets(plan);expect(p.sections.reduce((n,s)=>n+(s.budgetMs??0),0)).toBe(60000);expect(p.sections[1]!.budgetMs).toBeGreaterThan(p.sections[0]!.budgetMs!);});
+ it('counts Hangul blocks, digits and Latin approximations',()=>expect(countKoreanSpeechSyllables('안녕 2026 AI')).toBe(7));
+ it('classifies bands and learns only after three takes',()=>{expect(classifyPace(3,{slowBelow:4,fastAbove:5.5})).toBe('slow');expect(classifyPace(5,{slowBelow:4,fastAbove:5.5})).toBe('good');expect(classifyPace(6,{slowBelow:4,fastAbove:5.5})).toBe('fast');expect(learnBaseline([5,5.5], 'ko')).toBeNull();const band=learnBaseline([5,5.5,6],'ko')!;expect(band.slowBelow).toBeCloseTo(4.7587);expect(band.fastAbove).toBeCloseTo(6.2413);});
+ it('computes rolling estimated pace and English conversion',()=>{expect(rollingPace([0,1000,9000,12000],10000,10000)).toBeCloseTo(.3);expect(rollingEnglishWpm(3)).toBe(120);expect(rollingPace([],1000)).toBe(0);});
+ it('computes transcript rates and handles empty transcript',()=>{expect(transcriptRates(transcript.words,'ko',6000).speakingRate).toBeGreaterThan(0);expect(transcriptRates([],'en').speakingRate).toBeNull();});
+});
+describe('speech transcript and audio metrics',()=>{
+ it('matches Korean filler token without matching 그것/그래서 and supports attached particles',()=>{const r=countTranscriptFillers([{w:'그는',start_ms:0,end_ms:1},{w:'그것',start_ms:2,end_ms:3},{w:'그래서',start_ms:4,end_ms:5},{w:'음',start_ms:6,end_ms:7},{w:'약간은',start_ms:8,end_ms:9}],'ko');expect(r.total).toBe(3);expect(r.indices).toEqual([0,3,4]);});
+ it('matches English phrase fillers as words',()=>expect(countTranscriptFillers([{w:'I',start_ms:0,end_ms:1},{w:'mean,',start_ms:2,end_ms:3},{w:'meaning',start_ms:4,end_ms:5}],'en',['I mean']).total).toBe(1));
+ it('detects long pauses and adjacent repeats',()=>{expect(longPauses(transcript.words,analysis.pauses)).toHaveLength(2);expect(repeatedWordIndices(transcript.words)).toEqual([5,6]);});
+ it('estimates short flat voiced segments inside transcript gaps',()=>{const a:SpeechTakeAnalysis={...analysis,tMs:[0,100,200,300,400,500,600],rmsDb:[-60,-20,-20,-20,-60,-60,-60],midi:[null,60,60.2,60.1,null,null,null]};const t:SpeechTranscript={text:'a b',language:'en',words:[{w:'a',start_ms:0,end_ms:50},{w:'b',start_ms:700,end_ms:800}]};expect(estimateAudioFillers(a,t)).toBe(1);expect(estimateAudioFillers(analysis,null)).toBe(0);});
+ it('classifies intonation boundaries',()=>{expect(classifyIntonation(null)).toBe('unknown');expect(classifyIntonation(3.9)).toBe('monotone');expect(classifyIntonation(4)).toBe('good');});
+});
+describe('sections, alignment, prompts and report',()=>{
+ it('normalizes Korean suffixes and matches Korean/English key points',()=>{expect(normalizeKeyPointToken('목표는','ko')).toBe('목표');expect(keyPointCovered('오늘 목표','오늘은 목표를 말합니다','ko')).toBe(true);expect(keyPointCovered('solve problem','we solved the problem','en')).toBe(true);});
+ it('analyzes section timing and transcript coverage',()=>{const sections=analyzeSections(plan,60000,transcript,[20000],'ko');expect(sections[0]!.actualMs).toBe(20000);expect(sections[0]!.covered).toContain('오늘 목표');expect(sections[1]!.missed).toContain('해결 방법');});
+ it('aligns skipped, added, and substituted script tokens with indices',()=>{const r=alignScript('we make a plan','we made new plan');expect(r.substituted).toHaveLength(2);expect(r.skipped).toEqual([]);expect(r.added).toEqual([]);expect(r.substituted[0]).toMatchObject({scriptIndex:1,transcriptIndex:1,expected:'make',actual:'made'});});
+ it('provides Korean and English prompt lists and excludes IDs when possible',()=>{expect(IMPROMPTU_TOPICS.filter(x=>x.lang==='ko')).toHaveLength(15);expect(IMPROMPTU_TOPICS.filter(x=>x.lang==='en')).toHaveLength(15);expect(INTERVIEW_QUESTIONS).toHaveLength(60);const item=pickRandom(IMPROMPTU_TOPICS,['topic-1']);expect(item?.id).not.toBe('topic-1');expect(pickRandom([],[])).toBeNull();});
+ it('builds report with missing transcript and refreshes text metrics when transcript arrives',()=>{const pending=buildSpeechReport(plan,analysis,null,[],null);expect(pending.transcriptAvailable).toBe(false);expect(pending.tiles.fillers.value).toBeNull();const ready=buildSpeechReport(plan,analysis,transcript,[20000],pending);expect(ready.transcriptAvailable).toBe(true);expect(ready.tiles.fillers.value).toBeGreaterThan(0);expect(ready.tiles.pace.deltaVsPrevious).not.toBeNull();expect(ready.transcriptMarks.some(m=>m.type==='filler')).toBe(true);});
+ it('supports no plan and empty audio take',()=>{const empty={...analysis,durationMs:0,syllableTimesMs:[],pauses:[],pitchSpreadSemitones:null};const r=buildSpeechReport(null,empty,null,[],null);expect(r.sections).toEqual([]);expect(r.timeVerdict).toBe('ok');expect(r.nextAction.code).toBe('keep-going');});
+});
