@@ -4,8 +4,12 @@ export function deviceLabel(
   device: AudioDevice | null | undefined,
   direction: 'input' | 'output',
   t: (key: string) => string,
+  secondaryBuiltin = false,
 ): string {
   if (!device) return '—';
+  if (direction === 'input' && device.type === 'other') return t('common.coach.otherInput');
+  if (direction === 'input' && device.type === 'builtin' && secondaryBuiltin)
+    return t('common.coach.secondaryMic');
   if (device.type === 'builtin' || device.type === 'speaker') {
     return t(direction === 'input' ? 'common.coach.phoneMic' : 'common.coach.phoneSpeaker');
   }

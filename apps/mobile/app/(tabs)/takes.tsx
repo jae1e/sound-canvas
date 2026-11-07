@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
-import { useFocusEffect, useRouter } from 'expo-router';
-import { desc } from 'drizzle-orm';
+import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
+import { desc, eq } from 'drizzle-orm';
 import { useCallback, useRef, useState } from 'react';
 import { Pressable, ScrollView, Text, View } from 'react-native';
 import Swipeable from 'react-native-gesture-handler/ReanimatedSwipeable';
@@ -9,43 +9,28 @@ import { getDb } from '../../src/db/client';
 import { takes } from '../../src/db/schema';
 import { deleteTakeRow } from '../../src/db/repos/coach';
 import { useTranslation } from '../../src/i18n';
-import { groupByDay, rangeLabel } from '../../src/recorder/derive';
+import { groupByDay } from '../../src/recorder/derive';
+import { takeSummary } from '../../src/recorder/takeSummary';
 import { formatDuration } from '../../src/recorder/SingControls';
 type Row = typeof takes.$inferSelect;
 function TakeRow({ row, onPress, onDelete }: { row: Row; onPress: () => void; onDelete: () => void }) {
   const { t } = useTranslation();
-  let result: string[] = [];
+  const speechResult: string[] = [];
   if (row.kind === 'speech') {
     try {
       const report = JSON.parse(row.reportJson ?? 'null');
       if (report) {
         const pace = report.tiles.pace;
         if (pace.value !== null)
-          result.push(
+          speechResult.push(
             t('speak.paceValue', { value: t(pace.status === 'good' ? 'speak.good' : 'speak.caution') }),
           );
         if (report.tiles.fillers.value !== null)
-          result.push(t('speak.fillersValue', { count: report.tiles.fillers.value }));
+          speechResult.push(t('speak.fillersValue', { count: report.tiles.fillers.value }));
       }
     } catch {
       /* An unfinished report has no summary yet. */
     }
-  }
-  try {
-    const analysis = JSON.parse(row.analysisJson ?? '{}');
-    const range =
-      row.kind === 'speech'
-        ? null
-        : rangeLabel(analysis.rangeLowMidi ?? null, analysis.rangeHighMidi ?? null);
-    if (range) result.push(range);
-  } catch {
-    /* Legacy row. */
-  }
-  try {
-    const beat = JSON.parse(row.beatJson ?? '{}');
-    if (row.kind !== 'speech' && typeof beat.bpm === 'number') result.push(`${beat.bpm} BPM`);
-  } catch {
-    /* Legacy row. */
   }
   return (
     <Swipeable
@@ -114,8 +99,12 @@ function TakeRow({ row, onPress, onDelete }: { row: Row; onPress: () => void; on
             )}
           </View>
           <Text numberOfLines={1} style={{ color: '#9A9DA6', fontSize: 12 }}>
-            {new Date(row.createdAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}
-            {result.length ? ` · ${result.join(' · ')}` : ''}
+            {row.kind === 'speech'
+              ? [
+                  new Date(row.createdAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }),
+                  ...speechResult,
+                ].join(' · ')
+              : takeSummary(row.createdAt, row.analysisJson, row.beatJson)}
           </Text>
         </View>
         <Text style={{ color: '#9A9DA6' }}>{formatDuration(row.durationMs ?? 0)}</Text>
@@ -126,6 +115,7 @@ function TakeRow({ row, onPress, onDelete }: { row: Row; onPress: () => void; on
 export default function TakesTab() {
   const { t } = useTranslation();
   const router = useRouter();
+  const { deleteId } = useLocalSearchParams<{ deleteId?: string }>();
   const [rows, setRows] = useState<Row[]>([]);
   const [filter, setFilter] = useState<'all' | 'song' | 'speech'>('all');
   const [error, setError] = useState('');
@@ -138,28 +128,38 @@ export default function TakesTab() {
       setError(t('common.coach.error'));
     }
   }, [t]);
+  const remove = useCallback(
+    (row: Row) => {
+      if (timer.current) return;
+      setPending(row.id);
+      timer.current = setTimeout(() => {
+        void VcAudio.deleteTake(row.fileUri).then(
+          () => {
+            deleteTakeRow(getDb(), row.id);
+            timer.current = null;
+            setPending(null);
+            refresh();
+          },
+          () => {
+            timer.current = null;
+            setPending(null);
+            setError(t('common.coach.error'));
+          },
+        );
+      }, 5000);
+    },
+    [refresh, t],
+  );
   useFocusEffect(
     useCallback(() => {
       refresh();
-    }, [refresh]),
+      if (deleteId) {
+        const row = getDb().select().from(takes).where(eq(takes.id, deleteId)).get();
+        router.setParams({ deleteId: undefined });
+        if (row) remove(row);
+      }
+    }, [refresh, deleteId, remove, router]),
   );
-  const remove = (row: Row) => {
-    if (pending) return;
-    setPending(row.id);
-    timer.current = setTimeout(() => {
-      void VcAudio.deleteTake(row.fileUri).then(
-        () => {
-          deleteTakeRow(getDb(), row.id);
-          setPending(null);
-          refresh();
-        },
-        () => {
-          setPending(null);
-          setError(t('common.coach.error'));
-        },
-      );
-    }, 5000);
-  };
   const groups = groupByDay(
     rows.filter((r) => r.id !== pending && (filter === 'all' || r.kind === filter)),
     (r) => r.createdAt,
@@ -211,6 +211,7 @@ export default function TakesTab() {
         <Pressable
           onPress={() => {
             if (timer.current) clearTimeout(timer.current);
+            timer.current = null;
             setPending(null);
           }}
           style={{

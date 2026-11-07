@@ -81,6 +81,29 @@ Every issue found in testing or review goes here: symptom, root cause, fix with 
 - **Note.** The Qwen interface has no separate verbatim instruction, so the context sentence is unchanged (api-v0 rule). Fillers may be dropped by the ASR; the app must also count them from the audio (UX v2, section 5.4).
 - **Lesson.** For server features, test against the real engine on the live server with a throwaway device, not only with fakes, and check that deletes leave shared data alone.
 
+## VC-08 — Release APK crashed at start on the x86_64 emulator
+
+- **Symptom (2026-11-07, emulator vc-test, branch vc-p1-ui):** "Voice Coach keeps stopping" at launch. Logcat: `couldn't find DSO to load: libreactnative.so`.
+- **Root cause:** release builds ship arm64-v8a only. The x86_64 emulator's ARM translation is not used by React Native's SoLoader. This does not affect the phone.
+- **Fix:** `VC_EMULATOR=1` adds x86_64 to `buildArchs` in `apps/mobile/app.config.ts`, for emulator builds only (commit 432f886 on vc-p1-ui). Phone releases stay arm64-only.
+- **Status:** fixed; the emulator build runs.
+- **Lesson:** build emulator screenshots with `VC_EMULATOR=1`. Never ship that APK.
+
+## VC-09 — First P1 UI build, compared with the design on the emulator
+
+- **Symptom (2026-11-07):** the screens work, but they differ from design v2 in many places:
+  - the third tab reads "녹음" instead of "기록";
+  - device names are raw ("sdk_gphone64…"), not "휴대폰 마이크";
+  - the input pill has no level bar;
+  - recording shows no stop square and no timer;
+  - the beat sheet has no on/off switch and no rhythm dot rows;
+  - Settings repeats the "서버 연결" button;
+  - a 4 s take showed 0:00.
+- **Root cause:** the worker built from the written brief without checking the screens, and wrote minified one-line components.
+- **Fix:** a 15-item fix list was sent back with emulator and design screenshots (request vc-p1-ui-fix1).
+- **Status:** fixed on vc-p1-ui (commits 38da6a1..123dc73) and checked again on the emulator: tab names, device labels, level bar, stop square and timer, result card, take length 0:05, sheets, Settings, swipe delete with undo, and take review with playback. Merged as 36b2bc0. Pitch is not checked: the emulator mic is silent.
+- **Lesson:** compare every UI round on the emulator before it ships. Require prettier-formatted, small components.
+
 ## Releases
 
 | Build | Commit | Date | Notes |
@@ -88,3 +111,4 @@ Every issue found in testing or review goes here: symptom, root cause, fix with 
 | 446772 (0.2.0) | `dd3ae5a` | 2026-11-07 | P0: Voice Coach name and tabs, hidden Travel/Work, server pairing, in-app update, mic-sharing fixes. 71.5 MB. On the server and the private GitHub draft (`voice-coach-446772-dd3ae5a.apk`). Signed with the same key as earlier builds (M: apksigner certificate SHA-256 `fac61745…`) |
 | 446812 (0.2.0) | `b627ba0` | 2026-11-07 | UI fixes VC-04 and VC-05. 74.0 MB. Server and private GitHub draft (`voice-coach-446812-b627ba0.apk`); 446772 was removed from the draft |
 | 446815 (0.2.0) | `fcecc84` | 2026-11-07 | VC-06 cleartext fix plus the 446812 UI fixes. Server and private GitHub draft (`voice-coach-446815-fcecc84.apk`); 446812 was removed from the draft |
+| 447216 | 36b2bc0 | 2026-11-07 | Sing redesign: live pitch and waveform, input/output sheets, beat, take review, 기록; 말하기 still a placeholder. First device run of the vc-audio engine. |
