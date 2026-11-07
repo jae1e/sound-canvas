@@ -15,11 +15,21 @@ export function VoiceStrip({ frames }: { frames: RefObject<RingBuffer<FrameEvent
   let drawing = false;
   let path = '';
   for (const f of samples) {
-    if (f.midi === null || latest - f.tMs > 8000) { drawing = false; continue; }
+    if (f.midi === null || latest - f.tMs > 8000) {
+      drawing = false;
+      continue;
+    }
     const x = 360 - ((latest - f.tMs) / 8000) * 360;
     const y = Math.max(2, Math.min(28, 26 - (f.midi - 45) * 0.5));
     path += `${drawing ? 'L' : 'M'}${x.toFixed(1)} ${y.toFixed(1)} `;
     drawing = true;
   }
-  return <View><Waveform frames={frames} theme="light" /><Svg width="100%" height={30} viewBox="0 0 360 30" preserveAspectRatio="none"><Path d={path} fill="none" stroke="#4F46E5" strokeWidth={1.5} /></Svg></View>;
+  return (
+    <View>
+      <Waveform frames={frames} theme="light" />
+      <Svg width="100%" height={30} viewBox="0 0 360 30" preserveAspectRatio="none">
+        <Path d={path} fill="none" stroke="#4F46E5" strokeWidth={1.5} />
+      </Svg>
+    </View>
+  );
 }

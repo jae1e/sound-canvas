@@ -24,7 +24,10 @@ export interface TranscriptTransport {
 export type QueueUpdate = { state: TranscriptState; jobId: string | null; result?: TranscriptResult };
 
 /** One step only: failures leave the persisted state untouched and can be retried on resume. */
-export async function advanceTranscript(job: TranscriptJob, transport: TranscriptTransport): Promise<QueueUpdate> {
+export async function advanceTranscript(
+  job: TranscriptJob,
+  transport: TranscriptTransport,
+): Promise<QueueUpdate> {
   if (job.state === 'done' || job.state === 'no_speech' || job.state === 'failed')
     return { state: job.state, jobId: job.jobId };
   if (!job.jobId) {
@@ -33,8 +36,21 @@ export async function advanceTranscript(job: TranscriptJob, transport: Transcrip
     return { state: 'queued', jobId: response.job_id };
   }
   const result = await transport.poll(job.jobId);
-  if (result.job_id !== job.jobId || result.take_id !== job.takeId ||
-      !['queued', 'running', 'done', 'no_speech', 'failed'].includes(result.state))
+  if (
+    result.job_id !== job.jobId ||
+    result.take_id !== job.takeId ||
+    !['queued', 'running', 'done', 'no_speech', 'failed'].includes(result.state) ||
+    (result.state === 'done' &&
+      (typeof result.text !== 'string' ||
+        !Array.isArray(result.words) ||
+        result.words.some(
+          (word) =>
+            typeof word.w !== 'string' ||
+            !Number.isFinite(word.start_ms) ||
+            !Number.isFinite(word.end_ms) ||
+            word.end_ms < word.start_ms,
+        )))
+  )
     throw new Error('Invalid transcription result');
   return { state: result.state, jobId: job.jobId, result };
 }

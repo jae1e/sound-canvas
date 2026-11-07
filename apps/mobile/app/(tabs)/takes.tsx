@@ -16,11 +16,27 @@ function TakeRow({ row, onPress, onDelete }: { row: Row; onPress: () => void; on
   const { t } = useTranslation();
   let result: string[] = [];
   if (row.kind === 'speech') {
-    try { const report = JSON.parse(row.reportJson ?? 'null'); if (report) { const pace = report.tiles.pace; if (pace.value !== null) result.push(t('speak.paceValue', { value: t(pace.status === 'good' ? 'speak.good' : 'speak.caution') })); if (report.tiles.fillers.value !== null) result.push(t('speak.fillersValue', { count: report.tiles.fillers.value })); } } catch { /* An unfinished report has no summary yet. */ }
+    try {
+      const report = JSON.parse(row.reportJson ?? 'null');
+      if (report) {
+        const pace = report.tiles.pace;
+        if (pace.value !== null)
+          result.push(
+            t('speak.paceValue', { value: t(pace.status === 'good' ? 'speak.good' : 'speak.caution') }),
+          );
+        if (report.tiles.fillers.value !== null)
+          result.push(t('speak.fillersValue', { count: report.tiles.fillers.value }));
+      }
+    } catch {
+      /* An unfinished report has no summary yet. */
+    }
   }
   try {
     const analysis = JSON.parse(row.analysisJson ?? '{}');
-    const range = row.kind === 'speech' ? null : rangeLabel(analysis.rangeLowMidi ?? null, analysis.rangeHighMidi ?? null);
+    const range =
+      row.kind === 'speech'
+        ? null
+        : rangeLabel(analysis.rangeLowMidi ?? null, analysis.rangeHighMidi ?? null);
     if (range) result.push(range);
   } catch {
     /* Legacy row. */
@@ -178,7 +194,11 @@ export default function TakesTab() {
               <TakeRow
                 key={row.id}
                 row={row}
-                onPress={() => row.kind === 'speech' ? router.push({ pathname: '/speech-report/[id]', params: { id: row.id } }) : router.push({ pathname: '/take/[id]', params: { id: row.id } })}
+                onPress={() =>
+                  row.kind === 'speech'
+                    ? router.push({ pathname: '/speech-report/[id]', params: { id: row.id } })
+                    : router.push({ pathname: '/take/[id]', params: { id: row.id } })
+                }
                 onDelete={() => remove(row)}
               />
             ))}

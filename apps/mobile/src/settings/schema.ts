@@ -53,7 +53,10 @@ export function parseSettings(json: unknown): AppSettings {
 }
 
 /** Resolves the `language` setting to a concrete language; `deviceLocale` is a BCP-47 tag such as "ko-KR". */
-export function resolveLanguage(setting: AppSettings['language'], deviceLocale: string | undefined): 'ko' | 'en' {
+export function resolveLanguage(
+  setting: AppSettings['language'],
+  deviceLocale: string | undefined,
+): 'ko' | 'en' {
   if (setting === 'ko' || setting === 'en') return setting;
   return deviceLocale?.toLowerCase().startsWith('ko') ? 'ko' : 'en';
 }

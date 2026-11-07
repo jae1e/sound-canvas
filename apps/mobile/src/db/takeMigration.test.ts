@@ -16,6 +16,10 @@ describe('take migration', () => {
     expect(db.exec('SELECT id, file_uri, kind, recovered FROM takes')[0].values).toEqual([
       ['old', '/old.wav', 'song', 0],
     ]);
+    db.run(migration('0004_fat_silver_samurai.sql'));
+    expect(db.exec('SELECT id, file_uri, kind, plan_id, transcript_state FROM takes')[0].values).toEqual([
+      ['old', '/old.wav', 'song', null, null],
+    ]);
     db.close();
   });
 });

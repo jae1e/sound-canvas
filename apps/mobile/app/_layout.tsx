@@ -36,7 +36,10 @@ export default function RootLayout() {
     if (!success) return;
     const reconcile = () => {
       void reconcileTakes().then(
-        () => { setRecoveryError(false); void processSpeechQueue(); },
+        () => {
+          setRecoveryError(false);
+          void processSpeechQueue().catch(() => setRecoveryError(true));
+        },
         () => setRecoveryError(true),
       );
     };
