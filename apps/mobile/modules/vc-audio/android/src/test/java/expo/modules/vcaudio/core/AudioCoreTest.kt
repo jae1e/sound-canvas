@@ -8,6 +8,7 @@ import kotlin.math.sin
 class AudioCoreTest {
   @Test fun beatFramesDoNotAccumulateRoundingError() {
     assertTrue(kotlin.math.abs(48000L * 60 * 1000 / 137 - BeatMath.beatFrame(1000, 137.0, 48000)) <= 1L)
+    assertEquals(BeatMath.beatFrame(1000, 137.0, 48000), BeatMath.subdivisionFrame(4000, 137.0, 48000))
     assertEquals(1250.0, BeatMath.heardTimeMs(1000.0, 4800, 48000, 150.0), 0.0001)
     listOf("click", "eight", "sixteen", "ballad", "shuffle", "bossa", "hiphop").forEach {
       assertTrue(BeatMath.pattern(it).containsKey(0))
@@ -30,6 +31,16 @@ class AudioCoreTest {
     val actual = input.toList().chunked(137).flatMap { streaming.process(it.toShortArray()).toList() }.toShortArray()
     assertArrayEquals(expected, actual)
     assertEquals(1600, actual.size)
+  }
+
+  @Test fun reviewReturnsAlignedColumnsAndEmptyMetricsForSilence() {
+    val result = ReviewAnalysis.analyze(WavData(48000, ShortArray(48000)), 20, 8, listOf(0.0))
+    assertEquals(20, (result["tMs"] as List<*>).size)
+    assertEquals((result["tMs"] as List<*>).size, (result["midi"] as List<*>).size)
+    assertEquals(8, (result["peaks"] as List<*>).size)
+    assertNull(result["stabilityCents"])
+    assertNull(result["beatOffsetMs"])
+    assertNull(result["pitchSpreadSemitones"])
   }
 
   @Test fun pausesAndVoicedPeaks() {

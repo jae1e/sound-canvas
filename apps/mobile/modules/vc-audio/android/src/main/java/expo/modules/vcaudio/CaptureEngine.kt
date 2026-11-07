@@ -8,6 +8,7 @@ import android.content.pm.PackageManager
 import android.media.AudioDeviceInfo
 import android.media.AudioFormat
 import android.media.AudioManager
+import android.media.AudioTimestamp
 import android.media.AudioRecord
 import android.media.AudioRecordingConfiguration
 import android.media.MediaRecorder
@@ -28,7 +29,7 @@ import kotlin.math.abs
 import kotlin.math.ln
 import kotlin.math.max
 
-class CaptureEngine(private val context: Context, private val routes: DeviceRoutes, private val emit: (String, Map<String, Any?>) -> Unit) {
+class CaptureEngine(private val context: Context, private val routes: DeviceRoutes, private val beatMask: (Double) -> Boolean, private val beatTimes: (Double, Double) -> Pair<List<Double>, Double>, private val emit: (String, Map<String, Any?>) -> Unit) {
   private val audio = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
   private val main = Handler(Looper.getMainLooper())
   private val lock = Any()
@@ -53,8 +54,9 @@ class CaptureEngine(private val context: Context, private val routes: DeviceRout
   private val deliverFrame = Runnable {
     val event = synchronized(frameLock) {
       framePending = false
-      mapOf<String, Any?>("tMs" to frameTime, "f0" to frameF0, "midi" to frameMidi, "voicing" to frameVoice,
-        "rmsDb" to frameRms, "peak" to framePeak, "syllable" to frameSyllable, "beatMasked" to false)
+      val masked = beatMask(frameTime)
+      mapOf<String, Any?>("tMs" to frameTime, "f0" to if (masked) null else frameF0, "midi" to if (masked) null else frameMidi, "voicing" to if (masked) 0.0 else frameVoice,
+        "rmsDb" to frameRms, "peak" to framePeak, "syllable" to (frameSyllable && !masked), "beatMasked" to masked)
     }
     if (running) emit("onFrame", event)
   }
@@ -66,7 +68,9 @@ class CaptureEngine(private val context: Context, private val routes: DeviceRout
     }
   }
   val taking: Boolean get() = synchronized(lock) { take != null }
-  private class Take(val id: String, val path: File, val asrPath: File?, val writer: WavWriter, val asr: WavWriter?, val resampler: Resampler?, val start: Double, val input: AudioDeviceInfo) {
+  private class Take(val id: String, val path: File, val asrPath: File?, val writer: WavWriter, val asr: WavWriter?, val resampler: Resampler?, var start: Double, val input: AudioDeviceInfo, val scheduled: Double?) {
+    val started = CountDownLatch(1)
+    var hasStarted = false
     val changes = mutableListOf<Map<String, Any?>>()
     val beats = mutableListOf<Double>()
     var latency = 0.0
@@ -142,10 +146,10 @@ class CaptureEngine(private val context: Context, private val routes: DeviceRout
       take?.changes?.add(mapOf("atMs" to (now() - take!!.start).coerceAtLeast(0.0), "input" to routes.info(target), "reason" to "device_disconnected"))
     }
   }
-  fun begin(kind: String): Map<String, Any?> {
+  fun begin(kind: String, scheduled: Double? = null): Map<String, Any?> {
     if (kind != "speech" && kind != "song") throw CodedException("ERR_ARGUMENT", "Unknown take kind", null)
     start()
-    synchronized(lock) {
+    val t = synchronized(lock) {
       if (take != null) throw CodedException("ERR_LOCKED", "A take is already recording", null)
       val input = activeInput ?: throw CodedException("ERR_INPUT", "No active input", null)
       val latch = CountDownLatch(1); RecordingService.latch = latch; RecordingService.failure = null
@@ -154,16 +158,23 @@ class CaptureEngine(private val context: Context, private val routes: DeviceRout
       RecordingService.latch = null
       val dir = File(context.filesDir, "takes").also { it.mkdirs() }
       val id = UUID.randomUUID().toString(); val path = File(dir, "$id.wav"); val asr = if (kind == "speech") File(dir, "$id.asr.wav") else null
-      val t = Take(id, path, asr, WavWriter(path, 48000), asr?.let { WavWriter(it, 16000) }, asr?.let { Resampler() }, now(), input)
+      val t = Take(id, path, asr, WavWriter(path, 48000), asr?.let { WavWriter(it, 16000) }, asr?.let { Resampler() }, 0.0, input, scheduled)
       take = t
       emit("onDevices", routes.snapshot(activeInput))
-      return mapOf("id" to id, "path" to path.absolutePath, "sampleRate" to 48000, "source" to source, "input" to routes.info(input), "output" to routes.activeOutput()?.let(routes::info), "startMs" to t.start)
+      t
     }
+    val timeout = ((scheduled ?: now()) - now()).coerceAtLeast(0.0).toLong() + 5000
+    if (!t.started.await(timeout, TimeUnit.MILLISECONDS) || !t.hasStarted) {
+      synchronized(lock) { if (take === t) end("error") }
+      throw CodedException("ERR_AUDIO", "Take did not start", null)
+    }
+    return mapOf("id" to t.id, "path" to t.path.absolutePath, "sampleRate" to 48000, "source" to source, "input" to routes.info(t.input), "output" to routes.activeOutput()?.let(routes::info), "startMs" to t.start)
   }
   fun end(reason: String): Map<String, Any?> = synchronized(lock) {
     val t = take ?: throw CodedException("ERR_NO_TAKE", "No take is recording", null)
-    take = null; t.writer.close(); t.asr?.close(); context.stopService(Intent(context, RecordingService::class.java))
-    val result = mapOf<String, Any?>("id" to t.id, "path" to t.path.absolutePath, "asrPath" to t.asrPath?.absolutePath, "durationMs" to t.writer.durationS * 1000, "sizeBytes" to t.path.length().toDouble(), "reason" to reason, "beatTimesMs" to t.beats.toList(), "inputChanges" to t.changes.toList(), "outputLatencyMs" to t.latency)
+    take = null; t.started.countDown(); t.writer.close(); t.asr?.close(); context.stopService(Intent(context, RecordingService::class.java))
+    val timeline = beatTimes(t.start, t.start + t.writer.durationS * 1000)
+    val result = mapOf<String, Any?>("id" to t.id, "path" to t.path.absolutePath, "asrPath" to t.asrPath?.absolutePath, "durationMs" to t.writer.durationS * 1000, "sizeBytes" to t.path.length().toDouble(), "reason" to reason, "beatTimesMs" to timeline.first, "inputChanges" to t.changes.toList(), "outputLatencyMs" to timeline.second)
     emit("onTakeStopped", result); emit("onDevices", routes.snapshot(activeInput)); result
   }
   fun stop(reason: String = "stopped") {
@@ -180,6 +191,8 @@ class CaptureEngine(private val context: Context, private val routes: DeviceRout
     Process.setThreadPriority(Process.THREAD_PRIORITY_URGENT_AUDIO)
     val analyzer = FrameAnalyzer(48000); val hop = 960; val chunk = ShortArray(hop); val window = FloatArray(analyzer.windowSize)
     var accumulated = 0
+    var capturedFrames = 0L
+    val timestamp = AudioTimestamp()
     val asrBuffer = ShortArray(hop / 3)
     var smooth = -100.0
     var valley = -100.0
@@ -190,12 +203,27 @@ class CaptureEngine(private val context: Context, private val routes: DeviceRout
         var n = 0
         while (n < hop && running) { val read = rec.read(chunk, n, hop - n); if (read < 0) throw IllegalStateException("AudioRecord error $read"); n += read }
         if (n < hop) break
-        synchronized(lock) { take?.let { it.writer.write(chunk, hop); it.asr?.let { w -> val count = it.resampler!!.processInto(chunk, hop, asrBuffer); w.write(asrBuffer, count) } } }
+        val chunkTime = if (rec.getTimestamp(timestamp, AudioTimestamp.TIMEBASE_BOOTTIME) == AudioRecord.SUCCESS)
+          timestamp.nanoTime / 1_000_000.0 + (capturedFrames - timestamp.framePosition) * 1000.0 / 48000
+        else now() - hop * 1000.0 / 48000
+        capturedFrames += hop
+        synchronized(lock) {
+          take?.let { t ->
+            val skip = if (!t.hasStarted && t.scheduled != null) kotlin.math.ceil((t.scheduled - chunkTime) * 48).toInt().coerceIn(0, hop) else 0
+            if (skip < hop) {
+              if (!t.hasStarted) { t.start = chunkTime + skip / 48.0; t.hasStarted = true; t.started.countDown() }
+              val samples = if (skip == 0) chunk else chunk.copyOfRange(skip, hop)
+              val count = hop - skip
+              t.writer.write(samples, count)
+              t.asr?.let { w -> val n16 = t.resampler!!.processInto(samples, count, asrBuffer); w.write(asrBuffer, n16) }
+            }
+          }
+        }
         System.arraycopy(window, hop, window, 0, window.size - hop)
         var peak = 0
         for (i in 0 until hop) { window[window.size - hop + i] = chunk[i] / 32768f; peak = max(peak, abs(chunk[i].toInt())) }
         accumulated += hop; if (accumulated < window.size) continue
-        val f = analyzer.analyze(0.0, window); val time = now() - window.size * 500.0 / 48000
+        val f = analyzer.analyze(0.0, window); val time = chunkTime + hop * 1000.0 / 48000 - window.size * 500.0 / 48000
         val midi = f.f0?.let { 69 + 12 * ln(it / 440) / ln(2.0) }
         smooth = 0.65 * smooth + 0.35 * f.rmsDb
         valley = minOf(valley, smooth)

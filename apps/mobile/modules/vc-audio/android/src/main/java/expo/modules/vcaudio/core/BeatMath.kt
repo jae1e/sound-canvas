@@ -11,8 +11,15 @@ object BeatMath {
   fun heardTimeMs(startMs: Double, frame: Long, sampleRate: Int, latencyMs: Double): Double =
     startMs + frame * 1000.0 / sampleRate + latencyMs
 
+  fun subdivisionFrame(index: Long, bpm: Double, sampleRate: Int, divisions: Int = 4): Long {
+    require(index >= 0 && bpm in 30.0..240.0 && sampleRate > 0 && divisions > 0)
+    return (index * sampleRate * 60.0 / bpm / divisions).roundToLong()
+  }
+
+  private val patterns by lazy { listOf("click", "eight", "sixteen", "ballad", "shuffle", "bossa", "hiphop").associateWith(::createPattern) }
   /** Voice names on each of sixteen subdivisions of a 4/4 bar. */
-  fun pattern(name: String): Map<Int, List<String>> = when (name) {
+  fun pattern(name: String): Map<Int, List<String>> = patterns[name] ?: throw IllegalArgumentException("Unknown pattern: $name")
+  private fun createPattern(name: String): Map<Int, List<String>> = when (name) {
     "click" -> mapOf(0 to listOf("accent"), 4 to listOf("click"), 8 to listOf("click"), 12 to listOf("click"))
     "eight" -> mapOf(0 to listOf("kick", "hat"), 2 to listOf("hat"), 4 to listOf("snare", "hat"), 6 to listOf("hat"), 8 to listOf("kick", "hat"), 10 to listOf("hat"), 12 to listOf("snare", "hat"), 14 to listOf("hat"))
     "sixteen" -> (0..15).associateWith { i -> listOf("hat") + when (i) { 0, 8 -> listOf("kick"); 4, 12 -> listOf("snare"); else -> emptyList() } }

@@ -20,15 +20,17 @@ class VcAudioModule : Module() {
   private val context: Context get() = appContext.reactContext ?: throw CodedException("ERR_NO_CONTEXT", "React context unavailable", null)
   private val routes: DeviceRoutes by lazy { DeviceRoutes(context, { capture.taking }) {
     capture.devicesChanged()
+    output.routeChanged()
     sendEvent("onDevices", routes.snapshot(capture.activeInput ?: routes.selectedInput()))
   } }
-  private val capture: CaptureEngine by lazy { CaptureEngine(context, routes) { name, event -> sendEvent(name, event) } }
+  private val output: AudioOutput by lazy { AudioOutput(context, routes) { name, event -> sendEvent(name, event) } }
+  private val capture: CaptureEngine by lazy { CaptureEngine(context, routes, { output.isMasked(it) }, { start, end -> output.beatsBetween(start, end) }) { name, event -> sendEvent(name, event) } }
   private val lifecycleObserver = LifecycleEventObserver { _, event ->
     if (event == Lifecycle.Event.ON_STOP) {
       val power = context.getSystemService(Context.POWER_SERVICE) as PowerManager
       val keyguard = context.getSystemService(Context.KEYGUARD_SERVICE) as KeyguardManager
       if (AutoStopPolicy.shouldStop(true, capture.taking, power.isInteractive, keyguard.isKeyguardLocked, true)) {
-        Thread { capture.stop("left_app") }.start()
+        Thread { capture.stop("left_app"); output.stopAll() }.start()
       }
     }
   }
@@ -39,13 +41,20 @@ class VcAudioModule : Module() {
     Name("VcAudio")
     Events("onDevices", "onFrame", "onMonitorState", "onTakeStopped", "onBeat", "onPlayback")
     OnCreate { routes.register(); main.post { ProcessLifecycleOwner.get().lifecycle.addObserver(lifecycleObserver) } }
-    OnDestroy { routes.unregister(); capture.stop(); main.post { ProcessLifecycleOwner.get().lifecycle.removeObserver(lifecycleObserver) } }
+    OnDestroy { routes.unregister(); capture.stop(); output.stopAll(); main.post { ProcessLifecycleOwner.get().lifecycle.removeObserver(lifecycleObserver) } }
     AsyncFunction("getDevices") { routes.snapshot(capture.activeInput ?: routes.selectedInput()) }
     AsyncFunction("setInputPreference") { pref: Map<String, Any?> -> routes.setInput(pref); capture.devicesChanged(); routes.snapshot(capture.activeInput ?: routes.selectedInput()).also { sendEvent("onDevices", it) } }
-    AsyncFunction("setOutputPreference") { pref: Map<String, Any?> -> routes.setOutput(pref); routes.snapshot().also { sendEvent("onDevices", it) } }
-    AsyncFunction("startMonitor") { capture.start() }
+    AsyncFunction("setOutputPreference") { pref: Map<String, Any?> -> routes.setOutput(pref); output.routeChanged(); routes.snapshot().also { sendEvent("onDevices", it) } }
+    AsyncFunction("startMonitor") {
+      if (!ProcessLifecycleOwner.get().lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)) throw CodedException("ERR_STATE", "The app is not in the foreground", null)
+      capture.start()
+    }
     AsyncFunction("stopMonitor") { capture.stop() }
-    AsyncFunction("startTake") { options: Map<String, Any?> -> capture.begin(options["kind"] as? String ?: "") }
+    AsyncFunction("startTake") { options: Map<String, Any?> ->
+      if (!ProcessLifecycleOwner.get().lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)) throw CodedException("ERR_STATE", "The app is not in the foreground", null)
+      capture.start()
+      capture.begin(options["kind"] as? String ?: "", if (options["countIn"] == true) output.countInEndMs() else null)
+    }
     AsyncFunction("stopTake") { capture.end("user") }
     AsyncFunction("deleteTake") { path: String ->
       val dir = File(context.filesDir, "takes").canonicalFile
@@ -54,20 +63,20 @@ class VcAudioModule : Module() {
       if (capture.taking) throw CodedException("ERR_LOCKED", "Cannot delete while recording", null)
       file.delete(); File(dir, "${file.nameWithoutExtension}.asr.wav").delete(); Unit
     }
-    AsyncFunction("setBeat") { _: Map<String, Any?> -> unavailable() }
-    AsyncFunction("startBeat") { unavailable() }
-    AsyncFunction("stopBeat") { unavailable() }
+    AsyncFunction("setBeat") { config: Map<String, Any?> -> output.setBeat(config) }
+    AsyncFunction("startBeat") { output.startBeat() }
+    AsyncFunction("stopBeat") { output.stopBeat() }
     Function("nowMs") { SystemClock.elapsedRealtimeNanos() / 1_000_000.0 }
-    AsyncFunction("playCalibrationClicks") { _: Int -> unavailable() }
-    AsyncFunction("setOutputLatency") { _: String, _: Double -> unavailable() }
-    AsyncFunction("getMediaVolume") { unavailable() }
-    AsyncFunction("setMediaVolume") { _: Double -> unavailable() }
-    AsyncFunction("playTestTone") { unavailable() }
-    AsyncFunction("play") { _: String, _: Double? -> unavailable() }
-    AsyncFunction("pause") { unavailable() }
-    AsyncFunction("resume") { unavailable() }
-    AsyncFunction("stop") { unavailable() }
-    AsyncFunction("seek") { _: Double -> unavailable() }
+    AsyncFunction("playCalibrationClicks") { count: Int -> output.calibration(count) }
+    AsyncFunction("setOutputLatency") { key: String, latency: Double -> output.setLatency(key, latency) }
+    AsyncFunction("getMediaVolume") { output.getVolume() }
+    AsyncFunction("setMediaVolume") { volume: Double -> output.setVolume(volume) }
+    AsyncFunction("playTestTone") { output.testTone() }
+    AsyncFunction("play") { path: String, start: Double? -> output.play(path, start) }
+    AsyncFunction("pause") { output.pause() }
+    AsyncFunction("resume") { output.resume() }
+    AsyncFunction("stop") { output.stopPlayback() }
+    AsyncFunction("seek") { position: Double -> output.seek(position) }
     AsyncFunction("analyzeTake") { _: String, _: Map<String, Any?>? -> unavailable() }
   }
 }
