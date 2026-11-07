@@ -1,3 +1,5 @@
+import { Ionicons } from '@expo/vector-icons';
+import type { SpeechReport } from '@vlc/voice-analysis';
 import { IMPROMPTU_TOPICS, INTERVIEW_QUESTIONS, pickRandom } from '@vlc/voice-analysis';
 import { desc, eq } from 'drizzle-orm';
 import { useFocusEffect, useLocalSearchParams, useNavigation, useRouter } from 'expo-router';
@@ -339,6 +341,62 @@ export default function SpeakTab() {
       <Text style={{ color: ink, fontWeight: '700' }}>{label}</Text>
     </Pressable>
   );
+  const lastRow = lastId ? getDb().select().from(takes).where(eq(takes.id, lastId)).get() : undefined;
+  let lastReport: SpeechReport | null = null;
+  try {
+    lastReport = lastRow?.reportJson ? (JSON.parse(lastRow.reportJson) as SpeechReport) : null;
+  } catch {
+    /* An older report may be unavailable. */
+  }
+  const planRow = (
+    icon: keyof typeof Ionicons.glyphMap,
+    title: string,
+    subtitle: string,
+    action: () => void,
+    selected?: boolean,
+    dashed = false,
+  ) => (
+    <Pressable
+      onPress={action}
+      style={({ pressed }) => ({
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 12,
+        padding: 12,
+        marginBottom: 7,
+        borderRadius: 15,
+        borderWidth: 1,
+        borderStyle: dashed ? 'dashed' : 'solid',
+        borderColor: selected ? '#7770FF' : dashed ? '#D5D2CC' : 'transparent',
+        backgroundColor: selected ? '#EEF0FF' : dashed ? '#FFF' : '#F6F5F1',
+        opacity: pressed ? 0.6 : 1,
+      })}
+    >
+      <View
+        style={{
+          width: 38,
+          height: 38,
+          borderRadius: 19,
+          backgroundColor: '#FFF',
+          alignItems: 'center',
+          justifyContent: 'center',
+        }}
+      >
+        <Ionicons name={icon} size={20} color="#4F46E5" />
+      </View>
+      <View style={{ flex: 1 }}>
+        <Text style={{ color: dashed ? '#4F46E5' : ink, fontWeight: '800' }}>{title}</Text>
+        <Text style={{ color: '#6C6F78', fontSize: 12, marginTop: 4 }}>{subtitle}</Text>
+      </View>
+      {selected !== undefined && (
+        <Ionicons
+          name={selected ? 'radio-button-on' : 'radio-button-off'}
+          size={22}
+          color={selected ? '#4F46E5' : '#C8C6C0'}
+        />
+      )}
+    </Pressable>
+  );
   const promptText = [...IMPROMPTU_TOPICS, ...INTERVIEW_QUESTIONS].find((p) => p.id === plan?.promptId)?.text;
   if (recording)
     return (
@@ -389,31 +447,60 @@ export default function SpeakTab() {
       {state.reason === 'permission' && (
         <Text style={{ textAlign: 'center', color: '#B45309' }}>{t('common.coach.permission')}</Text>
       )}
-      <ScrollView contentContainerStyle={{ padding: 16, gap: 12, flexGrow: 1 }}>
+      <ScrollView contentContainerStyle={{ padding: 16, gap: 12 }}>
         <Pressable
           onPress={() => setSheet('plans')}
           style={({ pressed }) => [card, { opacity: pressed ? 0.7 : 1 }]}
         >
-          <Text style={{ color: '#4F46E5', fontSize: 12, fontWeight: '800' }}>{t('speak.plan')}</Text>
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+            <Text style={{ color: '#4F46E5', fontSize: 12, fontWeight: '800' }}>
+              {plan ? t('speak.presentation') : t('speak.plan')}
+            </Text>
+            <Text style={{ color: '#9A9DA6', fontSize: 12 }}>{t('speak.change')} ›</Text>
+          </View>
           <Text style={{ color: ink, fontSize: 21, fontWeight: '800', marginTop: 5 }}>
             {plan?.title ?? t('speak.free')}
           </Text>
           <Text style={{ color: '#6C6F78', marginTop: 4 }}>
             {plan
-              ? `${t('speak.target')} ${target ? formatDuration(target) : t('speak.none')}`
+              ? `${t('speak.target')} ${target ? formatDuration(target) : t('speak.none')} · ${t('speak.sections')} ${plan.sections.length} · ${t(plan.lang === 'ko' ? 'speak.korean' : plan.lang === 'en' ? 'speak.english' : 'speak.auto')}`
               : t('speak.addPlan')}
           </Text>
           {!!promptText && <Text style={{ color: ink, fontSize: 17, marginTop: 12 }}>{promptText}</Text>}
           {plan?.sections.map((section, i) => (
             <View
               key={section.id}
-              style={{ borderTopWidth: 1, borderTopColor: '#ECE9E2', marginTop: 10, paddingTop: 10 }}
+              style={{
+                borderTopWidth: 1,
+                borderTopColor: '#ECE9E2',
+                marginTop: 10,
+                paddingTop: 10,
+                flexDirection: 'row',
+                alignItems: 'center',
+                gap: 10,
+              }}
             >
-              <Text style={{ color: ink, fontWeight: '700' }}>
-                {i + 1}. {section.name} {section.budgetMs ? ` · ${formatDuration(section.budgetMs)}` : ''}
+              <Text
+                style={{
+                  color: '#4F46E5',
+                  backgroundColor: '#EEF0FF',
+                  borderRadius: 20,
+                  overflow: 'hidden',
+                  paddingHorizontal: 8,
+                  paddingVertical: 4,
+                  fontWeight: '800',
+                }}
+              >
+                {i + 1}
               </Text>
-              <Text numberOfLines={2} style={{ color: '#6C6F78', fontSize: 12, marginTop: 4 }}>
-                {section.keyPoints.join(' · ')}
+              <View style={{ flex: 1 }}>
+                <Text style={{ color: ink, fontWeight: '700' }}>{section.name}</Text>
+                <Text numberOfLines={2} style={{ color: '#6C6F78', fontSize: 12, marginTop: 4 }}>
+                  {section.keyPoints.join(' · ')}
+                </Text>
+              </View>
+              <Text style={{ color: '#4F46E5', fontWeight: '700' }}>
+                {section.budgetMs ? formatDuration(section.budgetMs) : ''}
               </Text>
             </View>
           ))}
@@ -426,24 +513,29 @@ export default function SpeakTab() {
             <Text style={{ color: '#4F46E5', fontWeight: '700' }}>{t('speak.redraw')}</Text>
           </Pressable>
         )}
-        <Pressable
-          onPress={() =>
-            lastId
-              ? router.push({ pathname: '/speech-report/[id]' as never, params: { id: lastId } } as never)
-              : setToast(t('speak.noPrevious'))
-          }
-          style={({ pressed }) => [card, { opacity: pressed ? 0.7 : 1 }]}
-        >
-          <Text style={{ fontWeight: '800', color: ink }}>
-            {t('speak.previous')} {lastId ? '›' : ''}
-          </Text>
-          <Text style={{ color: '#6C6F78', marginTop: 4 }}>
-            {lastId ? t('speak.report') : t('speak.noPrevious')}
-          </Text>
-        </Pressable>
-        <View style={{ flex: 1, justifyContent: 'flex-end' }}>
-          <VoiceStrip frames={frames} />
-        </View>
+        {lastRow && lastReport && (
+          <Pressable
+            onPress={() => router.push({ pathname: '/speech-report/[id]', params: { id: lastRow.id } })}
+            style={({ pressed }) => [card, { opacity: pressed ? 0.7 : 1 }]}
+          >
+            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+              <View style={{ flex: 1 }}>
+                <Text style={{ fontWeight: '800', color: ink }}>
+                  {t('speak.previous')} · {lastRow.title?.split(' · ').at(-1)}
+                </Text>
+                <Text style={{ color: '#6C6F78', marginTop: 4 }}>
+                  {formatDuration(lastReport.durationMs)} · {t('speak.pace')}{' '}
+                  {lastReport.tiles.pace.value === null
+                    ? '—'
+                    : t(lastReport.tiles.pace.status === 'good' ? 'speak.good' : 'speak.caution')}{' '}
+                  · {t('speak.fillersValue', { count: lastReport.tiles.fillers.value ?? '—' })}
+                </Text>
+              </View>
+              <Text style={{ color: '#9A9DA6', fontSize: 22 }}>›</Text>
+            </View>
+          </Pressable>
+        )}
+        <VoiceStrip frames={frames} />
       </ScrollView>
       {(busy || finishing) && (
         <ActivityIndicator accessibilityLabel={t('speak.reportUnavailable')} color="#4F46E5" />
@@ -461,15 +553,56 @@ export default function SpeakTab() {
       <View
         style={{ padding: 16, flexDirection: 'row', justifyContent: 'space-around', alignItems: 'center' }}
       >
-        {choice(`◷ ${target ? formatDuration(target) : t('speak.none')}`, () => setSheet('timer'))}
-        <RecordButton
-          theme="light"
-          recording={recording}
-          disabled={busy || finishing || preparing !== null}
-          label={t(recording ? 'speak.stop' : 'speak.record')}
-          onPress={() => void toggle()}
-        />
-        {choice(`♩ ${pacer || t('speak.off')}`, () => setSheet('pacer'))}
+        <Pressable
+          onPress={() => setSheet('timer')}
+          style={({ pressed }) => ({
+            width: 76,
+            height: 64,
+            borderRadius: 16,
+            backgroundColor: '#FFF',
+            borderWidth: 1,
+            borderColor: '#ECE9E2',
+            alignItems: 'center',
+            justifyContent: 'center',
+            opacity: pressed ? 0.6 : 1,
+          })}
+        >
+          <Ionicons name="stopwatch-outline" size={22} color={ink} />
+          <Text style={{ color: ink, fontWeight: '700', fontSize: 12 }}>
+            {target ? formatDuration(target) : t('speak.none')}
+          </Text>
+        </Pressable>
+        <View style={{ alignItems: 'center' }}>
+          <RecordButton
+            theme="light"
+            recording={recording}
+            disabled={busy || finishing || preparing !== null}
+            label={t('speak.record')}
+            onPress={() => void toggle()}
+          />
+          <Text style={{ color: '#6C6F78', marginTop: 5, fontSize: 12, fontWeight: '700' }}>
+            {t('speak.record')}
+          </Text>
+        </View>
+        <Pressable
+          onPress={() => setSheet('pacer')}
+          style={({ pressed }) => ({
+            width: 76,
+            height: 64,
+            borderRadius: 16,
+            backgroundColor: '#FFF',
+            borderWidth: 1,
+            borderColor: '#ECE9E2',
+            alignItems: 'center',
+            justifyContent: 'center',
+            opacity: pressed ? 0.6 : 1,
+          })}
+        >
+          <Ionicons name="pulse-outline" size={22} color={ink} />
+          <Text style={{ color: ink, fontWeight: '700', fontSize: 12 }}>
+            {t('speak.pacer')} {pacer || t('speak.off')}
+          </Text>
+        </Pressable>
       </View>
       <InputSheet
         visible={sheet === 'input'}
@@ -520,20 +653,14 @@ export default function SpeakTab() {
         theme="light"
         title={t('speak.choosePlan')}
       >
-        {choice(
-          t('speak.free'),
-          () => {
-            setPlan(null);
-            setTarget(0);
-            setSheet(null);
-          },
-          !plan,
-        )}
+        <Text style={{ color: '#6C6F78', fontSize: 12, marginBottom: 12 }}>{t('speak.sheetSubtitle')}</Text>
         {plans.map((p) => (
           <View key={p.id} style={{ flexDirection: 'row', gap: 6 }}>
             <View style={{ flex: 1 }}>
-              {choice(
-                `${p.title} · ${t('speak.practiceCount', { count: p.practiceCount })}`,
+              {planRow(
+                'document-text-outline',
+                p.title,
+                `${p.targetMs ? formatDuration(p.targetMs) : t('speak.none')} · ${t('speak.sections')} ${p.sections.length} · ${t('speak.practiceCount', { count: p.practiceCount })}`,
                 () => {
                   setPlan(p);
                   setTarget(p.targetMs);
@@ -542,19 +669,50 @@ export default function SpeakTab() {
                 plan?.id === p.id,
               )}
             </View>
-            {choice('✎', () => {
-              setSheet(null);
-              setEditor(p);
-            })}
+            <Pressable
+              accessibilityLabel={t('speak.editor')}
+              onPress={() => {
+                setSheet(null);
+                setEditor(p);
+              }}
+              style={({ pressed }) => ({ justifyContent: 'center', padding: 8, opacity: pressed ? 0.6 : 1 })}
+            >
+              <Ionicons name="create-outline" size={20} color="#4F46E5" />
+            </Pressable>
           </View>
         ))}
-        {choice(t('speak.newPlan'), () => {
-          setSheet(null);
-          setEditor(newPlan());
-        })}
-        {choice(t('speak.impromptu'), () => selectPrompt('impromptu'))}
-        {choice(t('speak.interview'), () => selectPrompt('interview'))}
-        {choice(t('speak.scriptMode'), () => {
+        {planRow(
+          'mic-outline',
+          t('speak.free'),
+          t('speak.freeSubtitle'),
+          () => {
+            setPlan(null);
+            setTarget(0);
+            setSheet(null);
+          },
+          !plan,
+        )}
+        {planRow(
+          'add',
+          t('speak.newPlan').replace(/^\+ /, ''),
+          t('speak.planSubtitle'),
+          () => {
+            setSheet(null);
+            setEditor(newPlan());
+          },
+          undefined,
+          true,
+        )}
+        <Text style={{ color: '#9A9DA6', fontSize: 12, fontWeight: '700', marginVertical: 8 }}>
+          {t('speak.quickPractice')}
+        </Text>
+        {planRow('dice-outline', t('speak.impromptu'), t('speak.promptHint'), () =>
+          selectPrompt('impromptu'),
+        )}
+        {planRow('briefcase-outline', t('speak.interview'), t('speak.interviewHint'), () =>
+          selectPrompt('interview'),
+        )}
+        {planRow('document-outline', t('speak.scriptMode'), t('speak.readHint'), () => {
           setSheet(null);
           setEditor(newPlan('script'));
         })}

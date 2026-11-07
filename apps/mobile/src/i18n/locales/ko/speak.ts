@@ -1,4 +1,11 @@
 export default {
+  readHint: '대본을 붙여 넣고 낭독 연습',
+  interviewHint: '질문 하나에 1–2분 답하기',
+  quickPractice: '빠른 연습',
+  freeSubtitle: '계획 없이 녹음하고 분석',
+  sheetSubtitle: '계획이 있으면 섹션별 시간과 핵심을 확인해 드려요.',
+  change: '바꾸기',
+  presentation: '발표 연습',
   savePractice: '저장하고 연습하기',
   discard: '나가기',
   keepEditing: '계속 편집',

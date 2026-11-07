@@ -1,4 +1,11 @@
 export default {
+  readHint: 'Paste a script and practise reading aloud',
+  interviewHint: 'Answer one question in 1–2 minutes',
+  quickPractice: 'Quick practice',
+  freeSubtitle: 'Record and analyse without a plan',
+  sheetSubtitle: 'A plan helps you review section times and key points.',
+  change: 'Change',
+  presentation: 'Presentation practice',
   savePractice: 'Save and practise',
   discard: 'Leave',
   keepEditing: 'Keep editing',
