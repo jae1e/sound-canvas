@@ -1,6 +1,6 @@
 import Constants from 'expo-constants';
-import { useRouter } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { useFocusEffect, useRouter } from 'expo-router';
+import { useCallback, useEffect, useState } from 'react';
 import { Alert, ScrollView, Switch, Text, TextInput, View } from 'react-native';
 
 import VlcSessionService from '../../modules/vlc-session-service';
@@ -15,8 +15,8 @@ import { VoicePreview } from '../../src/settings/components/VoicePreview';
 import { useSettings } from '../../src/settings/store';
 import { shared } from '../../src/theme';
 import { UpdateSettingsSection } from '../../src/update/UpdateSection';
-import { DEFAULT_SERVER_URL, enroll } from '../../src/update/pairing';
 import * as SecureStore from 'expo-secure-store';
+import { DEFAULT_SERVER_URL, enroll, getPairing } from '../../src/update/pairing';
 
 const VOICE_NAMES = ['F1', 'F2', 'F3', 'F4', 'F5', 'M1', 'M2', 'M3', 'M4', 'M5'];
 
@@ -35,10 +35,54 @@ export default function SettingsScreen() {
   const [hiddenModes, setHiddenModes] = useState(settings.showHiddenModes);
   const [enrolling, setEnrolling] = useState(false);
 
-  useEffect(() => { void SecureStore.getItemAsync('vc.serverUrl').then((v) => v && setServerUrl(v)); }, []);
-  const checkServer = async () => {
-    try { const r = await fetch(`${serverUrl.replace(/\/+$/, '')}/v1/health`); setServerState(r.ok ? t('common.server.connected') : t('common.server.unreachable')); }
-    catch { setServerState(t('common.server.unreachable')); }
+  useEffect(() => {
+    void SecureStore.getItemAsync('vc.serverUrl').then((value) => {
+      if (value) setServerUrl(value);
+    });
+  }, []);
+
+  const checkServer = useCallback(async () => {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 5000);
+    try {
+      const pairing = await getPairing();
+      const headers: Record<string, string> = {};
+      if (pairing.token) headers.Authorization = `Bearer ${pairing.token}`;
+      const response = await fetch(`${serverUrl.replace(/\/+$/, '')}/v1/health`, {
+        headers,
+        signal: controller.signal,
+      });
+      if (response.status === 401 || response.status === 403) {
+        setServerState(t('common.server.notPaired'));
+      } else if (response.ok) {
+        setServerState(t('common.server.connected'));
+      } else {
+        setServerState(t('common.server.unreachable'));
+      }
+    } catch {
+      setServerState(t('common.server.unreachable'));
+    } finally {
+      clearTimeout(timeout);
+    }
+  }, [serverUrl, t]);
+
+  useFocusEffect(
+    useCallback(() => {
+      void checkServer();
+    }, [checkServer]),
+  );
+
+  const submitEnrollment = async () => {
+    setEnrolling(true);
+    try {
+      await enroll(serverUrl, pairCode.trim());
+      setPairCode('');
+      await checkServer();
+    } catch (error) {
+      setServerState((error as Error).message);
+    } finally {
+      setEnrolling(false);
+    }
   };
 
   const applyRoute = (mode: AppSettings['outputRoute']) => {
@@ -70,9 +114,27 @@ export default function SettingsScreen() {
       <UpdateSettingsSection />
       <Card>
         <Text style={shared.h2}>{t('common.server.pairing')}</Text>
-        <TextInput style={{ borderWidth: 1, borderColor: '#bbb', padding: 10, marginVertical: 8 }} value={serverUrl} onChangeText={setServerUrl} autoCapitalize="none" keyboardType="url" onEndEditing={() => void SecureStore.setItemAsync('vc.serverUrl', serverUrl.trim())} />
-        <TextInput style={{ borderWidth: 1, borderColor: '#bbb', padding: 10, marginVertical: 8, letterSpacing: 4 }} value={pairCode} onChangeText={setPairCode} maxLength={8} autoCapitalize="characters" placeholder={t('common.server.pairCode')} />
-        <Button label={enrolling ? t('common.server.enrolling') : t('common.server.enroll')} disabled={enrolling || pairCode.length !== 8} onPress={() => { setEnrolling(true); void enroll(serverUrl, pairCode).then(() => { setPairCode(''); setServerState(t('common.server.connected')); }).catch((e: Error) => setServerState(e.message)).finally(() => setEnrolling(false)); }} />
+        <TextInput
+          style={{ borderWidth: 1, borderColor: '#bbb', padding: 10, marginVertical: 8 }}
+          value={serverUrl}
+          onChangeText={setServerUrl}
+          autoCapitalize="none"
+          keyboardType="url"
+          onEndEditing={() => void SecureStore.setItemAsync('vc.serverUrl', serverUrl.trim())}
+        />
+        <TextInput
+          style={{ borderWidth: 1, borderColor: '#bbb', padding: 10, marginVertical: 8, letterSpacing: 4 }}
+          value={pairCode}
+          onChangeText={(value) => setPairCode(value.toUpperCase())}
+          maxLength={8}
+          autoCapitalize="characters"
+          placeholder={t('common.server.pairCode')}
+        />
+        <Button
+          label={enrolling ? t('common.server.enrolling') : t('common.server.enroll')}
+          disabled={enrolling || pairCode.trim().length !== 8}
+          onPress={() => void submitEnrollment()}
+        />
         <Button label={t('common.server.check')} onPress={() => void checkServer()} />
         <Text style={shared.body}>{serverState}</Text>
       </Card>

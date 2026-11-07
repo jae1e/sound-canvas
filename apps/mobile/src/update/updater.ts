@@ -1,17 +1,155 @@
 import Constants from 'expo-constants';
 import { AppState } from 'react-native';
 import { create } from 'zustand';
+
 import VcUpdate from '../../modules/vc-update/src/VcUpdateModule';
-import { initialState, reduceUpdate, checkDue, type Event } from './core';
+import { checkDue, initialState, reduceUpdate, type Event, type Build, type State } from './core';
 import { getPairing } from './pairing';
 
-type Updater = typeof initialState & { versionName:string;versionCode:number;gitSha:string;lastCheckMs:number|null };
-export const useUpdater = create<Updater>(()=>({...initialState,versionName:'',versionCode:0,gitSha:String(Constants.expoConfig?.extra?.gitSha??'dev'),lastCheckMs:null}));
-let takeRecording=false;
-export function setUpdateRecording(recording:boolean){takeRecording=recording;}
-const send=(e:Event)=>useUpdater.setState(s=>({...reduceUpdate(s,e)}));
-export async function checkForUpdate(silent=false){const c=await getPairing();if(!c?.token)return;send({t:'check'});if(useUpdater.getState().phase!=='checking')return;const ctl=new AbortController();const timer=setTimeout(()=>ctl.abort(),8000);try{const r=await fetch(`${c.url.replace(/\/+$/,'')}/v1/app/latest?version_code=${useUpdater.getState().versionCode}`,{headers:{Authorization:`Bearer ${c.token}`},signal:ctl.signal});const build=r.status===404?null:r.ok?await r.json():(()=>{throw Error(`HTTP ${r.status}`)})();useUpdater.setState({lastCheckMs:Date.now()});send({t:'checked',build});}catch(e){send({t:'checkFailed',silent,message:(e as Error).message});}finally{clearTimeout(timer);}}
-export function maybeAutoCheck(){const s=useUpdater.getState();if(checkDue(s.lastCheckMs,Date.now()))void checkForUpdate(true);}
-export async function startUpdate(){const s=useUpdater.getState();const canInstall=await VcUpdate.canInstallPackages().catch(()=>false);send({t:'start',recording:takeRecording,canInstall});if(useUpdater.getState().phase==='needsPermission'){await VcUpdate.openInstallPermissionSettings();return;}if(useUpdater.getState().phase!=='downloading'||!s.build)return;const c=await getPairing();if(!c?.token)return;const sub=VcUpdate.addListener('onDownload',e=>{if(e.id==='app-update'&&e.state==='running')send({t:'progress',bytes:e.bytes,totalBytes:e.totalBytes,atMs:Date.now()});});try{const path=await VcUpdate.downloadFile('app-update',`${c.url.replace(/\/+$/,'')}/v1/app/apk/${s.build.sha256}`,{Authorization:`Bearer ${c.token}`},`voice-coach-${s.build.version_code}.apk`,s.build.sha256);send({t:'downloaded'});await VcUpdate.installApk(path);}catch(e){if(useUpdater.getState().phase!=='available')send({t:'fail',message:(e as Error).message});}finally{sub.remove();}}
-export async function cancelUpdate(){send({t:'cancel'});await VcUpdate.cancelDownload('app-update').catch(()=>undefined);await VcUpdate.cleanupUpdates(true).catch(()=>undefined);}
-export function startUpdater(){void VcUpdate.cleanupUpdates(false).catch(()=>undefined);void VcUpdate.getAppInfo().then(i=>useUpdater.setState({versionName:i.versionName,versionCode:i.versionCode})).then(maybeAutoCheck).catch(()=>undefined);const sub=AppState.addEventListener('change',s=>{if(s==='active'){const u=useUpdater.getState();if(u.phase==='needsPermission')void VcUpdate.canInstallPackages().then(ok=>{if(ok){send({t:'permissionGranted'});void startUpdate();}});maybeAutoCheck();}});return()=>sub.remove();}
+const DOWNLOAD_ID = 'app-update';
+
+type UpdaterState = State & {
+  versionName: string;
+  versionCode: number;
+  gitSha: string;
+  lastCheckMs: number | null;
+};
+
+export const useUpdater = create<UpdaterState>(() => ({
+  ...initialState,
+  versionName: '',
+  versionCode: 0,
+  gitSha: String(Constants.expoConfig?.extra?.gitSha ?? 'dev'),
+  lastCheckMs: null,
+}));
+
+let takeRecording = false;
+
+export function setUpdateRecording(recording: boolean): void {
+  takeRecording = recording;
+}
+
+function dispatch(event: Event): void {
+  useUpdater.setState((state) => reduceUpdate(state, event));
+}
+
+async function loadAppInfo(): Promise<void> {
+  const info = await VcUpdate.getAppInfo();
+  useUpdater.setState({ versionName: info.versionName, versionCode: info.versionCode });
+}
+
+async function fetchLatest(url: string, token: string, versionCode: number): Promise<Build | null> {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 8000);
+  try {
+    const response = await fetch(
+      `${url.replace(/\/+$/, '')}/v1/app/latest?version_code=${versionCode}`,
+      {
+        headers: { Authorization: `Bearer ${token}` },
+        signal: controller.signal,
+      },
+    );
+    if (response.status === 404) return null;
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    return (await response.json()) as Build;
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+export async function checkForUpdate(silent = false): Promise<void> {
+  const pairing = await getPairing();
+  if (!pairing.token) return;
+  if (useUpdater.getState().versionCode === 0) await loadAppInfo().catch(() => undefined);
+
+  dispatch({ t: 'check' });
+  if (useUpdater.getState().phase !== 'checking') return;
+  try {
+    const build = await fetchLatest(
+      pairing.url,
+      pairing.token,
+      useUpdater.getState().versionCode,
+    );
+    useUpdater.setState({ lastCheckMs: Date.now() });
+    dispatch({ t: 'checked', build });
+  } catch (error) {
+    dispatch({ t: 'checkFailed', silent, message: (error as Error).message });
+  }
+}
+
+export function maybeAutoCheck(): void {
+  if (checkDue(useUpdater.getState().lastCheckMs, Date.now())) void checkForUpdate(true);
+}
+
+async function downloadUpdate(build: Build): Promise<void> {
+  const pairing = await getPairing();
+  if (!pairing.token) return;
+
+  const subscription = VcUpdate.addListener('onDownload', (event) => {
+    if (event.id === DOWNLOAD_ID && event.state === 'running') {
+      dispatch({
+        t: 'progress',
+        bytes: event.bytes,
+        totalBytes: event.totalBytes,
+        atMs: Date.now(),
+      });
+    }
+  });
+
+  try {
+    const path = await VcUpdate.downloadFile(
+      DOWNLOAD_ID,
+      `${pairing.url.replace(/\/+$/, '')}/v1/app/apk/${build.sha256}`,
+      { Authorization: `Bearer ${pairing.token}` },
+      `voice-coach-${build.version_code}.apk`,
+      build.sha256,
+    );
+    dispatch({ t: 'downloaded' });
+    await VcUpdate.installApk(path);
+  } catch (error) {
+    if (useUpdater.getState().phase !== 'available') {
+      dispatch({ t: 'fail', message: (error as Error).message });
+    }
+  } finally {
+    subscription.remove();
+  }
+}
+
+export async function startUpdate(): Promise<void> {
+  const build = useUpdater.getState().build;
+  const canInstall = await VcUpdate.canInstallPackages().catch(() => false);
+  dispatch({ t: 'start', recording: takeRecording, canInstall });
+
+  const phase = useUpdater.getState().phase;
+  if (phase === 'needsPermission') {
+    await VcUpdate.openInstallPermissionSettings().catch(() => undefined);
+    return;
+  }
+  if (phase === 'downloading' && build) await downloadUpdate(build);
+}
+
+export async function cancelUpdate(): Promise<void> {
+  dispatch({ t: 'cancel' });
+  await VcUpdate.cancelDownload(DOWNLOAD_ID).catch(() => undefined);
+  await VcUpdate.cleanupUpdates(true).catch(() => undefined);
+}
+
+async function onResume(): Promise<void> {
+  if (
+    useUpdater.getState().phase === 'needsPermission' &&
+    (await VcUpdate.canInstallPackages().catch(() => false))
+  ) {
+    dispatch({ t: 'permissionGranted' });
+    await startUpdate();
+  }
+  maybeAutoCheck();
+}
+
+export function startUpdater(): () => void {
+  void VcUpdate.cleanupUpdates(false).catch(() => undefined);
+  void loadAppInfo().then(maybeAutoCheck).catch(() => undefined);
+  const subscription = AppState.addEventListener('change', (state) => {
+    if (state === 'active') void onResume();
+  });
+  return () => subscription.remove();
+}
