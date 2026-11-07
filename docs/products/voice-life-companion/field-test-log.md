@@ -29,6 +29,26 @@ Every issue found in testing or review goes here: symptom, root cause, fix with 
 - **Status.** Fixed in code; not yet tested against the live server from the phone.
 - **Lesson.** The contract already requires the bearer token on every endpoint except enrolment (api-v0 section 1). Worker prompts must point to the auth rules explicitly, and review must check delegated code against them.
 
+## VC-04 — Home tab showed raw text keys, broken tab icons, and a title under the status bar
+
+- **Symptom (U), 2026-11-07, build 446772.** The user's screenshot showed:
+  - raw keys `tabs.home`, `tabs.sing`, … on the buttons and tab labels;
+  - missing-glyph boxes as tab icons;
+  - the "보이스 코치" title overlapping the status bar;
+  - a bare Home: a raw "이어하기: 2026. 11. 6. 오후 8:51:36" line, and the Continue button repeated.
+- **Root cause (M).**
+  - `src/i18n/index.ts` prefixes every key with its file name, so `tabs.home` in `common.ts` is really `common.tabs.home`.
+  - No `tabBarIcon` was set.
+  - The tab screens hide the header and do not apply the top safe-area inset.
+  - None of these show up in `pnpm check` or `expo export`.
+- **Fix.** Sent to a Codex worker (branch `vc-p0-ui`):
+  - correct the keys, and add a test that fails on any key missing in en or ko;
+  - Ionicons tab icons;
+  - tab headers handle the safe area;
+  - a Home redesign with a Continue card and Song/Speech coach cards.
+- **Status.** Fix in progress.
+- **Lesson.** Reviewing the code is not enough for UI work. Before handing a build to the user, look at each screen on a device or emulator, or at least render the screens, and test that translation keys resolve.
+
 ## Releases
 
 | Build | Commit | Date | Notes |
