@@ -2,7 +2,7 @@ import * as SecureStore from 'expo-secure-store';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { activateKeepAwakeAsync, deactivateKeepAwake } from 'expo-keep-awake';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Linking, PermissionsAndroid, Platform, Pressable, Text, View } from 'react-native';
+import { Linking, PermissionsAndroid, Platform, Pressable, StatusBar, Text, View } from 'react-native';
 import VcAudio from '../../modules/vc-audio/src/VcAudioModule';
 import type {
   DevicesEvent,
