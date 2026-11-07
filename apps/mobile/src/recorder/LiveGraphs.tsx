@@ -1,6 +1,6 @@
 import { memo, useEffect, useMemo, useRef, useState, type RefObject } from 'react';
 import { Text, View } from 'react-native';
-import Svg, { Circle, Line, Path, Rect, Text as SvgText } from 'react-native-svg';
+import Svg, { Circle, Line, Path, Rect } from 'react-native-svg';
 import type { FrameEvent } from '../../modules/vc-audio/src/VcAudio.types';
 import { centerPitchRange, noteName } from './derive';
 import type { RingBuffer } from './ringBuffer';
@@ -27,25 +27,27 @@ const Lanes = memo(function Lanes({ bottom, theme }: { bottom: number; theme: 'd
   const dark = theme === 'dark';
   return (
     <>
-      {Array.from({ length: 12 }, (_, i) => {
+      {Array.from({ length: 13 }, (_, i) => {
         const note = bottom + i;
-        const y = 300 - (i + 1) * 25;
+        const y = 300 - (i + 1) * (300 / 13);
         const sharp = [1, 3, 6, 8, 10].includes(((note % 12) + 12) % 12);
-        return <ReactLane key={note} y={y} note={note} sharp={sharp} dark={dark} />;
+        return <ReactLane key={note} y={y} sharp={sharp} dark={dark} />;
       })}
     </>
   );
 });
-function ReactLane({ y, note, sharp, dark }: { y: number; note: number; sharp: boolean; dark: boolean }) {
+function ReactLane({ y, sharp, dark }: { y: number; sharp: boolean; dark: boolean }) {
   return (
     <>
-      {sharp ? <Rect x="0" y={y} width="360" height="25" fill={dark ? '#121620' : '#F0EEE8'} /> : null}
-      <Line x1="34" x2="360" y1={y + 25} y2={y + 25} stroke={dark ? '#1D222C' : '#E6E3DC'} strokeWidth="1" />
-      {!sharp ? (
-        <SvgText x="10" y={y + 17} fontSize="10.5" fill={dark ? '#6B7486' : '#9A9DA6'}>
-          {noteName(note)}
-        </SvgText>
-      ) : null}
+      {sharp ? <Rect x="0" y={y} width="360" height={300 / 13} fill={dark ? '#121620' : '#F0EEE8'} /> : null}
+      <Line
+        x1="34"
+        x2="360"
+        y1={y + 300 / 13}
+        y2={y + 300 / 13}
+        stroke={dark ? '#1D222C' : '#E6E3DC'}
+        strokeWidth="1"
+      />
     </>
   );
 }
@@ -65,7 +67,7 @@ export function PitchRoll({ frames, theme }: Props) {
       lastVoiced = false;
       continue;
     }
-    const y = 300 - (f.midi - bottom + 0.5) * 25;
+    const y = 300 - (f.midi - bottom + 0.5) * (300 / 13);
     path += `${lastVoiced ? 'L' : 'M'}${x.toFixed(1)} ${y.toFixed(1)} `;
     lastVoiced = true;
     dot = { x, y };
@@ -73,6 +75,23 @@ export function PitchRoll({ frames, theme }: Props) {
   const color = theme === 'dark' ? '#5EEAD4' : '#4F46E5';
   return (
     <View style={{ flex: 1, minHeight: 100, marginTop: 6 }}>
+      <View
+        pointerEvents="none"
+        style={{
+          position: 'absolute',
+          left: 10,
+          top: 0,
+          bottom: 0,
+          width: 28,
+          justifyContent: 'space-around',
+        }}
+      >
+        {Array.from({ length: 13 }, (_, i) => bottom + 12 - i).map((note) => (
+          <Text key={note} style={{ color: theme === 'dark' ? '#6B7486' : '#9A9DA6', fontSize: 10 }}>
+            {[1, 3, 6, 8, 10].includes(((note % 12) + 12) % 12) ? '' : noteName(note)}
+          </Text>
+        ))}
+      </View>
       <Svg width="100%" height="100%" viewBox="0 0 360 300" preserveAspectRatio="none">
         <Lanes bottom={bottom} theme={theme} />
         <Line
