@@ -81,7 +81,8 @@ export async function addPhoto(
   const dir = new Directory(Paths.document, 'photos');
   dir.create({ intermediates: true, idempotent: true });
   const dest = new File(dir, `${photoId}.${ext}`);
-  new File(asset.uri).copy(dest);
+  // expo-file-system 58: copy is async; hashing before it finishes fails with ENOENT (FT-32).
+  await new File(asset.uri).copy(dest);
   const sha256 = await FlNative.sha256File(dest.uri);
   const bytes = dest.size;
   const takenWallMs = exifToWallMs(asset.exif?.DateTimeOriginal, asset.exif?.OffsetTimeOriginal);

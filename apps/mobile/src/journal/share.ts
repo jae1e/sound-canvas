@@ -10,7 +10,7 @@ export async function shareJournal(entries: JournalEntry[], format: ExportFormat
   if (!(await Sharing.isAvailableAsync())) return false;
   const file = new File(Paths.cache, fileName);
   file.create({ overwrite: true });
-  file.write(content);
+  await file.write(content); // async since expo-file-system 58 (FT-32)
   await Sharing.shareAsync(file.uri, { mimeType, dialogTitle });
   return true;
 }
