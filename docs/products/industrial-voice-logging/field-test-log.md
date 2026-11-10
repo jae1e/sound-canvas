@@ -99,6 +99,35 @@ Final text arrived about 1.5–2 s after Stop: upload about 1.2 s, ASR 0.4–1.3
 | Earbuds connecting mid-recording do not switch | Passed |
 | Earbuds into the case fall back to the phone mic | Passed (`device_disconnected`) |
 
+### 2026-11-10: bandwidth experiment (simulated, server only)
+
+Question from the user: is an 8 kHz (narrowband) Bluetooth mic link much worse for ASR than 16 kHz? User observation (**U**, 2026-11-09): in a noisy subway the S25 phone mic transcribes well (voice clearly audible above the noise), the QCY earbuds do not.
+
+Method (**M**). Script: `services/field-log-server/scripts/experiments/bandwidth_2026_11_10.py`, scoring `bandwidth_2026_11_10_terms.py`.
+- Speech: the S25 phone-mic reads of the first ASR test set (sentences 1–4, 5 segments; the app records 16 kHz).
+- Noise: the non-speech parts of the S25 subway recordings of 2026-11-06 19:49–19:52 (assumed to be the same station as FT-25). Speech-to-noise ratio measured in those recordings: about 2.5–4 dB (two usable segments).
+- Noise mixed at SNR none / 10 / 5 / 0 dB, then the link simulated: unchanged 16 kHz; mSBC-like 50–7000 Hz; CVSD-like 300–3400 Hz, resampled to 8 kHz and back. Codec noise, packet loss and earbud noise suppression are not modelled, so the real narrowband link is worse than this.
+- Each copy was run through the server's final pipeline (Qwen3-ASR-1.7B, languages ko+en).
+- Score: misses of 56 key terms. Plain CER was dominated by spelling variants (아홉 시/9시, bar/바, 2공장/이 공장).
+
+Key terms missed (of 56). Four misses are common to every condition: 3번→삼반, A 구역, 둘째, 셋째.
+
+| Added noise | 16 kHz as recorded | mSBC-like 7 kHz | CVSD-like 3.4 kHz |
+|---|---|---|---|
+| None | 4 | 5 | 5 |
+| 10 dB | 5 | 5 | 5 |
+| 5 dB | 5 | 4 | 8 |
+| 0 dB | 10 | 11 | **20** |
+
+The real QCY recordings of the same sentences (quiet room, 18:46–18:48) missed 6. Their 99.5% energy edge was 4.9–6.5 kHz, so that session ran wideband (mSBC); the phone reads reached 6.1–7.7 kHz.
+
+Findings (one speaker, 4 sentences, one noise draw per cell: indicative only):
+- In quiet or at 10 dB SNR, bandwidth hardly matters.
+- At subway-like SNR (0–5 dB), narrowband roughly doubles the errors, and they become content errors: "컨베이어 점검" → "컴퓨터 전공", "4.2" → "8.2", "기준치" → "유닛", "안전 펜스" → "1.5m".
+- 7 kHz (mSBC) is about as good as the 16 kHz phone recording. The jump that matters is 8 kHz → 16 kHz, not 16 kHz → 48 kHz; the model runs at 16 kHz anyway.
+- The QCY subway failure (FT-25) is therefore not only bandwidth. The earbud mic is farther from the mouth than a hand-held phone, its call noise suppression is applied inside the earbuds, and the link sometimes falls back to narrowband (FT-24).
+- Next: show the measured bandwidth per recording in the app, prefer a wired, USB or lavalier mic near the mouth, and record the postponed noisy test set with references.
+
 ## 3. Open items carried forward
 
 - FT-04: mic-ownership policy for Voice Life Companion.
